@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "@tanstack/react-router";
-import { CheckCircle, Home, MapPin } from "lucide-react";
+import { CheckCircle, Coins, Home, MapPin, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import type { DeliveryType } from "../../data/mockData";
+import { calculateDeliveryFee } from "../../utils/deliveryFee";
 
 export function CheckoutPage() {
   const {
@@ -53,7 +54,15 @@ export function CheckoutPage() {
     (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
     0,
   );
-  const deliveryFee = 35;
+
+  // Recalculates immediately when deliveryType changes
+  const feeBreakdown = calculateDeliveryFee(
+    cart,
+    retailers,
+    businessAreas,
+    deliveryType,
+  );
+  const deliveryFee = feeBreakdown.total;
   const total = subtotal + deliveryFee;
 
   const townPickupPoints = pickupPoints.filter(
@@ -61,7 +70,8 @@ export function CheckoutPage() {
   );
   const selectedPickup = pickupPoints.find((pp) => pp.id === selectedPickupId);
 
-  const businessAreaId = businessAreas[0]?.id || "";
+  const businessAreaId =
+    feeBreakdown.deliveryAreaIds[0] || businessAreas[0]?.id || "";
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +105,7 @@ export function CheckoutPage() {
       homeAddress: deliveryType === "home_delivery" ? homeAddress : undefined,
       townId: selectedTownId,
       businessAreaId,
+      deliveryAreas: feeBreakdown.deliveryAreaIds,
     });
 
     clearCart();
@@ -116,7 +127,7 @@ export function CheckoutPage() {
       <h1 className="font-display text-2xl font-bold mb-6">Checkout</h1>
 
       <form onSubmit={handlePlaceOrder} className="space-y-5">
-        {/* Order Summary */}
+        {/* Order Items */}
         <Card className="card-glow">
           <CardHeader className="pb-3">
             <CardTitle className="font-display text-base">
@@ -152,9 +163,9 @@ export function CheckoutPage() {
               </div>
             ))}
             <Separator />
-            <div className="flex justify-between font-bold font-display">
-              <span>Total (incl. delivery)</span>
-              <span className="text-primary">R{total.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>R{subtotal.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -202,6 +213,9 @@ export function CheckoutPage() {
                   <div className="flex items-center gap-2">
                     <Home className="h-4 w-4 text-blue-600" />
                     <span className="font-semibold">Home Delivery</span>
+                    <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                      +R5.00 surcharge
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Delivered to your door (linked to nearest pick-up point as
@@ -283,6 +297,111 @@ export function CheckoutPage() {
                 />
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Delivery Fee Breakdown Card */}
+        <Card
+          className="border-amber-200/70 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/10"
+          data-ocid="checkout.delivery_fee.section"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              Delivery Fee Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {feeBreakdown.areaBreakdown.map((area, idx) => (
+              <div
+                key={area.areaName}
+                className="flex justify-between items-start gap-2"
+              >
+                <span className="text-sm text-muted-foreground leading-snug">
+                  <span className="font-medium text-foreground/80">
+                    {idx === 0 ? "1st area" : "+Area"}
+                  </span>{" "}
+                  — {area.areaName}
+                  {area.retailerNames.length > 0 && (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      (
+                      {area.retailerNames.length > 2
+                        ? `${area.retailerNames.slice(0, 2).join(", ")} +${area.retailerNames.length - 2} more`
+                        : area.retailerNames.join(", ")}
+                      )
+                    </span>
+                  )}
+                </span>
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-400 shrink-0">
+                  {idx === 0 ? "R40.00" : "+R15.00"}
+                </span>
+              </div>
+            ))}
+
+            {deliveryType === "home_delivery" && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Home className="h-3.5 w-3.5" />
+                  Home delivery surcharge
+                </span>
+                <span className="font-medium text-blue-600 dark:text-blue-400">
+                  +R5.00
+                </span>
+              </div>
+            )}
+
+            <Separator className="border-amber-200/60 dark:border-amber-800/40" />
+
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-sm">Total delivery fee</span>
+              <span className="font-bold text-base text-amber-700 dark:text-amber-400">
+                R{deliveryFee.toFixed(2)}
+              </span>
+            </div>
+
+            <div className="pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold">Order subtotal</span>
+                <span>R{subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="font-bold font-display text-base">
+                  Total to pay
+                </span>
+                <span className="font-bold font-display text-lg text-primary">
+                  R{total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Nomayini Token Reward Estimate */}
+            <div
+              className="mt-1 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 px-3 py-2.5 flex items-center gap-3"
+              data-ocid="checkout.token_reward.section"
+            >
+              <Coins className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                  You'll earn{" "}
+                  <span className="font-bold">
+                    {(Math.round(total * 0.1 * 100) / 100).toFixed(2)} Nomayini
+                    tokens
+                  </span>
+                </p>
+                <p className="text-xs text-yellow-700/70 dark:text-yellow-400/70 mt-0.5">
+                  10% reward · 50% unlocked after 3 months, 50% after 4 years
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">
+                  ~{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} now
+                </p>
+                <p className="text-xs text-yellow-600/60 dark:text-yellow-500/60">
+                  +{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} later
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

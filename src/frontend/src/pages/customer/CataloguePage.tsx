@@ -37,6 +37,7 @@ export function CataloguePage() {
     removeFromCart,
     listings,
     retailers,
+    businessAreas,
   } = useApp();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ProductCategory | "All">("All");
@@ -64,8 +65,12 @@ export function CataloguePage() {
   const getProductListings = (productId: string) =>
     listings.filter((l) => l.productId === productId);
 
-  const getRetailerName = (retailerId: string) =>
-    retailers.find((r) => r.id === retailerId)?.name || "Unknown";
+  const getListingLabel = (listing: { retailerId: string; price: number }) => {
+    const retailer = retailers.find((r) => r.id === listing.retailerId);
+    const area = businessAreas.find((a) => a.id === retailer?.businessAreaId);
+    const areaLabel = area ? ` (${area.name})` : "";
+    return `${retailer?.name ?? "Unknown"}${areaLabel} — R${listing.price.toFixed(2)}`;
+  };
 
   const handleSelectListing = (productId: string, listingId: string) => {
     setSelectedListings((prev) => ({ ...prev, [productId]: listingId }));
@@ -258,8 +263,7 @@ export function CataloguePage() {
                               value={listing.id}
                               className="text-xs"
                             >
-                              {getRetailerName(listing.retailerId)} — R
-                              {listing.price.toFixed(2)}
+                              {getListingLabel(listing)}
                             </SelectItem>
                           ))}
                         </SelectContent>

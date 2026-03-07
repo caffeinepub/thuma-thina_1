@@ -112,47 +112,65 @@ export function OrderDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="flex flex-col">
             {ORDER_STATUS_STEPS.map((step, i) => {
               const isDone = i <= currentStepIndex;
               const isCurrent = i === currentStepIndex;
+              const isLast = i === ORDER_STATUS_STEPS.length - 1;
               return (
-                <div key={step} className="flex items-center gap-3">
+                <div key={step} className="flex gap-3">
+                  {/* Left column: circle + connector line */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 text-[10px] font-bold z-10 relative",
+                          isDone
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-border/60 bg-background text-muted-foreground",
+                        )}
+                      >
+                        {isDone ? "✓" : i + 1}
+                      </div>
+                      {isCurrent && (
+                        <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-50" />
+                      )}
+                    </div>
+                    {!isLast && (
+                      <div
+                        className={cn(
+                          "w-px flex-1 min-h-[24px] my-0.5",
+                          isDone ? "bg-primary/40" : "bg-border/40",
+                        )}
+                      />
+                    )}
+                  </div>
+
+                  {/* Right column: label */}
                   <div
                     className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 text-[10px] font-bold",
-                      isDone
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "border-border/60 text-muted-foreground",
+                      "flex items-start justify-between flex-1 pb-4",
+                      isLast && "pb-0",
                     )}
                   >
-                    {isDone ? "✓" : i + 1}
-                  </div>
-                  {i < ORDER_STATUS_STEPS.length - 1 && (
-                    <div
+                    <span
                       className={cn(
-                        "absolute ml-2 mt-5 w-px h-3 -z-10",
-                        isDone ? "bg-primary/40" : "bg-border/40",
+                        "text-sm pt-0.5",
+                        isCurrent
+                          ? "font-semibold text-foreground"
+                          : isDone
+                            ? "text-muted-foreground"
+                            : "text-muted-foreground/50",
                       )}
-                    />
-                  )}
-                  <span
-                    className={cn(
-                      "text-sm",
-                      isCurrent
-                        ? "font-semibold text-foreground"
-                        : isDone
-                          ? "text-muted-foreground"
-                          : "text-muted-foreground/60",
-                    )}
-                  >
-                    {ORDER_STATUS_LABELS[step]}
-                  </span>
-                  {isCurrent && (
-                    <span className="ml-auto text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                      Current
+                    >
+                      {ORDER_STATUS_LABELS[step]}
                     </span>
-                  )}
+                    {isCurrent && (
+                      <span className="shrink-0 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full mt-0.5">
+                        Current
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -237,7 +255,7 @@ export function OrderDetailPage() {
               </div>
             </div>
           )}
-          {order.shopperName && (
+          {order.shopperName && demoRole !== "customer" && (
             <div className="flex items-center gap-2 text-sm">
               <User className="h-4 w-4 text-orange-600 shrink-0" />
               <div>
@@ -248,7 +266,7 @@ export function OrderDetailPage() {
               </div>
             </div>
           )}
-          {order.driverName && (
+          {order.driverName && demoRole !== "customer" && (
             <div className="flex items-center gap-2 text-sm">
               <Truck className="h-4 w-4 text-purple-600 shrink-0" />
               <div>

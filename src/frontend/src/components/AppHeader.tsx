@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { Menu, ShoppingCart, X } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
+import { NotificationsBell } from "./NotificationsBell";
 import { RoleSwitcher } from "./RoleSwitcher";
 
 interface NavLink {
@@ -32,6 +33,11 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       label: "Suggest Product",
       ocid: "nav.suggest.link",
     },
+    {
+      to: "/shopper/analytics",
+      label: "Analytics",
+      ocid: "nav.analytics.link",
+    },
   ],
   driver: [
     {
@@ -49,6 +55,11 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       label: "My Profile",
       ocid: "nav.profile.link",
     },
+    {
+      to: "/driver/analytics",
+      label: "Analytics",
+      ocid: "nav.analytics.link",
+    },
   ],
   operator: [
     {
@@ -58,12 +69,22 @@ const NAV_LINKS: Record<string, NavLink[]> = {
     },
     { to: "/operator/walkin", label: "Walk-in Order", ocid: "nav.walkin.link" },
     { to: "/operator/profile", label: "My Profile", ocid: "nav.profile.link" },
+    {
+      to: "/operator/analytics",
+      label: "Analytics",
+      ocid: "nav.analytics.link",
+    },
   ],
   admin: [
     { to: "/admin/approvals", label: "Approvals", ocid: "nav.approvals.link" },
     { to: "/admin/orders", label: "Orders", ocid: "nav.orders.link" },
     { to: "/admin/products", label: "Catalogue", ocid: "nav.catalogue.link" },
     { to: "/admin/locations", label: "Locations", ocid: "nav.locations.link" },
+    {
+      to: "/admin/analytics",
+      label: "Analytics",
+      ocid: "nav.analytics.link",
+    },
   ],
   guest: [],
 };
@@ -118,6 +139,8 @@ export function AppHeader() {
           {/* Right side */}
           <div className="flex items-center gap-2">
             <RoleSwitcher />
+
+            {demoRole !== "guest" && <NotificationsBell />}
 
             {demoRole === "customer" && (
               <Link to="/cart" data-ocid="nav.cart.button">

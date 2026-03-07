@@ -2,14 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowRight, Info, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useApp } from "../../context/AppContext";
+import { calculateDeliveryFee } from "../../utils/deliveryFee";
 
 export function CartPage() {
   const {
     cart,
     products,
     retailers,
+    businessAreas,
     updateCartQty,
     removeFromCart,
     clearCart,
@@ -29,7 +31,15 @@ export function CartPage() {
     (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
     0,
   );
-  const deliveryFee = subtotal > 0 ? 35 : 0;
+
+  // Cart page shows pick-up rate (type will be selected at checkout)
+  const feeBreakdown = calculateDeliveryFee(
+    cart,
+    retailers,
+    businessAreas,
+    "pickup_point",
+  );
+  const deliveryFee = feeBreakdown.total;
   const total = subtotal + deliveryFee;
 
   if (cartItems.length === 0) {
@@ -154,14 +164,69 @@ export function CartPage() {
         <CardContent className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">
-              Subtotal ({cartItems.length} items)
+              Subtotal ({cartItems.length} item
+              {cartItems.length !== 1 ? "s" : ""})
             </span>
             <span>R{subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Delivery fee</span>
-            <span>R{deliveryFee.toFixed(2)}</span>
+
+          {/* Delivery Fee Breakdown */}
+          <div
+            className="rounded-lg border border-amber-200/60 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800/40 px-3 py-2.5 space-y-1.5"
+            data-ocid="cart.delivery.section"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Truck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                Delivery Fee
+              </span>
+            </div>
+
+            {feeBreakdown.areaBreakdown.map((area, idx) => (
+              <div
+                key={area.areaName}
+                className="flex justify-between items-start gap-2"
+              >
+                <span className="text-xs text-muted-foreground leading-snug">
+                  <span className="font-medium text-foreground/80">
+                    {idx === 0 ? "1st area" : "+Area"}
+                  </span>{" "}
+                  — {area.areaName}
+                  {area.retailerNames.length > 0 && (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      (
+                      {area.retailerNames.length > 2
+                        ? `${area.retailerNames.slice(0, 2).join(", ")} +${area.retailerNames.length - 2} more`
+                        : area.retailerNames.join(", ")}
+                      )
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
+                  {idx === 0 ? "R40.00" : "+R15.00"}
+                </span>
+              </div>
+            ))}
+
+            <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+              <span className="text-xs font-semibold text-foreground">
+                Delivery total
+              </span>
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                R{deliveryFee.toFixed(2)}
+              </span>
+            </div>
+
+            <div className="flex items-start gap-1 pt-0.5">
+              <Info className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Pick-up rate shown. Home delivery adds R5.00 — select at
+                checkout.
+              </p>
+            </div>
           </div>
+
           <Separator />
           <div className="flex justify-between font-bold font-display">
             <span>Total</span>

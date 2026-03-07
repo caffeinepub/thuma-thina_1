@@ -30,12 +30,33 @@ import {
   sampleWallet,
 } from "../data/mockData";
 
+// ─── Notification Types ───────────────────────────────────────────────────────
+
+export type NotificationTargetRole =
+  | "customer"
+  | "shopper"
+  | "driver"
+  | "operator"
+  | "admin"
+  | "all";
+
+export interface AppNotification {
+  id: string;
+  type: "order" | "approval" | "delivery" | "system";
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  targetRole: NotificationTargetRole;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AppContextValue {
   // Role/Auth
   demoRole: DemoRole;
   setDemoRole: (role: DemoRole) => void;
+  isSuperAdmin: boolean;
   currentUser: { id: string; name: string; phone: string } | null;
 
   // Cart
@@ -87,6 +108,15 @@ interface AppContextValue {
   // Nomayini Wallet
   nomayiniWallet: NomayiniWallet;
   setNomayiniWallet: React.Dispatch<React.SetStateAction<NomayiniWallet>>;
+
+  // Notifications
+  notifications: AppNotification[];
+  addNotification: (
+    n: Omit<AppNotification, "id" | "createdAt" | "read">,
+  ) => void;
+  markNotificationRead: (id: string) => void;
+  markAllRead: () => void;
+  unreadCount: number;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -124,6 +154,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [nomayiniWallet, setNomayiniWallet] =
     useState<NomayiniWallet>(sampleWallet);
 
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
   // Persist role
   const setDemoRole = useCallback((role: DemoRole) => {
     setDemoRoleState(role);
@@ -142,6 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [cart]);
+
+  const isSuperAdmin = demoRole === "admin";
 
   const currentUser = React.useMemo(() => {
     const users: Record<DemoRole, { id: string; name: string; phone: string }> =
@@ -225,6 +259,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
+  // ─── Notifications ──────────────────────────────────────────────────────────
+
+  const addNotification = useCallback(
+    (n: Omit<AppNotification, "id" | "createdAt" | "read">) => {
+      const newNotification: AppNotification = {
+        ...n,
+        id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+      setNotifications((prev) => [newNotification, ...prev]);
+    },
+    [],
+  );
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
   const placeOrder = useCallback(
     (orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): string => {
       const id = `ord${Date.now()}`;
@@ -257,6 +316,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         transactions: [newTx, ...prev.transactions],
       }));
 
+      // Notify shoppers of new order
+      setNotifications((prev) => [
+        {
+          id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          type: "order",
+          title: "New Order Available",
+          message:
+            "A new order has been placed. Ready for a shopper to accept.",
+          read: false,
+          createdAt: now,
+          targetRole: "shopper",
+        },
+        ...prev,
+      ]);
+
       return id;
     },
     [],
@@ -264,27 +338,98 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateOrderStatus = useCallback(
     (orderId: string, status: OrderStatus, extra?: Partial<Order>) => {
+      const now = new Date().toISOString();
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
             ? {
                 ...o,
                 status,
-                updatedAt: new Date().toISOString(),
+                updatedAt: now,
                 ...(extra || {}),
               }
             : o,
         ),
       );
+
+      // Fire role-targeted notifications based on new status
+      const makeNotif = (
+        type: AppNotification["type"],
+        title: string,
+        message: string,
+        targetRole: NotificationTargetRole,
+      ): AppNotification => ({
+        id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        type,
+        title,
+        message,
+        read: false,
+        createdAt: now,
+        targetRole,
+      });
+
+      switch (status) {
+        case "accepted_by_shopper":
+          setNotifications((prev) => [
+            makeNotif(
+              "order",
+              "Shopper Assigned",
+              "A personal shopper has accepted your order and is heading to the store.",
+              "customer",
+            ),
+            ...prev,
+          ]);
+          break;
+        case "ready_for_collection":
+          setNotifications((prev) => [
+            makeNotif(
+              "order",
+              "Order Ready for Pickup",
+              "An order has been purchased and is ready for a driver to collect.",
+              "driver",
+            ),
+            ...prev,
+          ]);
+          break;
+        case "accepted_by_driver":
+          setNotifications((prev) => [
+            makeNotif(
+              "delivery",
+              "Driver On The Way",
+              "A driver has collected your order and is on the way.",
+              "customer",
+            ),
+            ...prev,
+          ]);
+          break;
+        case "delivered":
+          setNotifications((prev) => [
+            makeNotif(
+              "delivery",
+              "Order Delivered!",
+              "Your order has been delivered. Enjoy!",
+              "customer",
+            ),
+            ...prev,
+          ]);
+          break;
+        default:
+          break;
+      }
     },
     [],
   );
+
+  const unreadCount = notifications.filter(
+    (n) => !n.read && (n.targetRole === demoRole || n.targetRole === "all"),
+  ).length;
 
   return (
     <AppContext.Provider
       value={{
         demoRole,
         setDemoRole,
+        isSuperAdmin,
         currentUser,
         cart,
         addToCart,
@@ -313,6 +458,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStaffUsers,
         nomayiniWallet,
         setNomayiniWallet,
+        notifications,
+        addNotification,
+        markNotificationRead,
+        markAllRead,
+        unreadCount,
       }}
     >
       {children}

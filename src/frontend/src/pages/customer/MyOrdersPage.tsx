@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
-import { ShoppingBag } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { MapPin, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { OrderCard } from "../../components/OrderCard";
 import { useApp } from "../../context/AppContext";
@@ -17,6 +17,7 @@ const FILTERS: { value: "all" | OrderStatus; label: string }[] = [
 
 export function MyOrdersPage() {
   const { orders, currentUser } = useApp();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
 
   const myOrders = orders.filter((o) => o.customerId === currentUser?.id);
@@ -65,7 +66,28 @@ export function MyOrdersPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((order, i) => (
-            <OrderCard key={order.id} order={order} index={i + 1} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              index={i + 1}
+              actions={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  data-ocid={`order.track.button.${i + 1}`}
+                  onClick={() =>
+                    navigate({
+                      to: "/orders/$orderId",
+                      params: { orderId: order.id },
+                    })
+                  }
+                >
+                  <MapPin className="h-3 w-3" />
+                  Track
+                </Button>
+              }
+            />
           ))}
         </div>
       )}

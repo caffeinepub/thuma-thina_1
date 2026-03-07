@@ -13,6 +13,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 // Pages
 import { LandingPage } from "./pages/LandingPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
+import { AdminAnalyticsPage } from "./pages/admin/AnalyticsPage";
 import { AdminApprovalsPage } from "./pages/admin/ApprovalsPage";
 import { AdminLocationsPage } from "./pages/admin/LocationsPage";
 import { AdminOrdersPage } from "./pages/admin/OrdersOverviewPage";
@@ -27,13 +28,16 @@ import { CheckoutPage } from "./pages/customer/CheckoutPage";
 import { MyOrdersPage } from "./pages/customer/MyOrdersPage";
 import { NomayiniWalletPage } from "./pages/customer/NomayiniWalletPage";
 import { DriverAvailableDeliveriesPage } from "./pages/driver/AvailableDeliveriesPage";
+import { DriverAnalyticsPage } from "./pages/driver/DriverAnalyticsPage";
 import { DriverProfilePage } from "./pages/driver/DriverProfilePage";
 import { DriverMyDeliveriesPage } from "./pages/driver/MyDeliveriesPage";
 import { OperatorIncomingOrdersPage } from "./pages/operator/IncomingOrdersPage";
+import { OperatorAnalyticsPage } from "./pages/operator/OperatorAnalyticsPage";
 import { OperatorProfilePage } from "./pages/operator/OperatorProfilePage";
 import { OperatorWalkInOrderPage } from "./pages/operator/WalkInOrderPage";
 import { ShopperAvailableOrdersPage } from "./pages/shopper/AvailableOrdersPage";
 import { ShopperMyOrdersPage } from "./pages/shopper/MyShopperOrdersPage";
+import { ShopperAnalyticsPage } from "./pages/shopper/ShopperAnalyticsPage";
 import { SuggestProductPage } from "./pages/shopper/SuggestProductPage";
 
 // ─── Layout component ─────────────────────────────────────────────────────────
@@ -121,6 +125,12 @@ const orderDetailRoute = createRoute({
 });
 
 // Shopper
+const shopperAnalyticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shopper/analytics",
+  component: ShopperAnalyticsPage,
+});
+
 const shopperAvailableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopper/available",
@@ -140,6 +150,12 @@ const shopperSuggestRoute = createRoute({
 });
 
 // Driver
+const driverAnalyticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/driver/analytics",
+  component: DriverAnalyticsPage,
+});
+
 const driverAvailableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/driver/available",
@@ -159,6 +175,12 @@ const driverProfileRoute = createRoute({
 });
 
 // Operator
+const operatorAnalyticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/operator/analytics",
+  component: OperatorAnalyticsPage,
+});
+
 const operatorIncomingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/operator/incoming",
@@ -202,6 +224,12 @@ const adminOrdersRoute = createRoute({
   component: AdminOrdersPage,
 });
 
+const adminAnalyticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/analytics",
+  component: AdminAnalyticsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -214,12 +242,15 @@ const routeTree = rootRoute.addChildren([
   myOrdersRoute,
   walletRoute,
   orderDetailRoute,
+  shopperAnalyticsRoute,
   shopperAvailableRoute,
   shopperMyOrdersRoute,
   shopperSuggestRoute,
+  driverAnalyticsRoute,
   driverAvailableRoute,
   driverMyDeliveriesRoute,
   driverProfileRoute,
+  operatorAnalyticsRoute,
   operatorIncomingRoute,
   operatorWalkinRoute,
   operatorProfileRoute,
@@ -227,6 +258,7 @@ const routeTree = rootRoute.addChildren([
   adminLocationsRoute,
   adminProductsRoute,
   adminOrdersRoute,
+  adminAnalyticsRoute,
 ]);
 
 const router = createRouter({ routeTree });

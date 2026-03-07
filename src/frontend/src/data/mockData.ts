@@ -55,6 +55,7 @@ export interface Retailer {
   name: string;
   townId: string;
   address: string;
+  businessAreaId?: string;
 }
 
 export interface Product {
@@ -106,6 +107,7 @@ export interface Order {
   homeAddress?: string;
   townId: string;
   businessAreaId: string;
+  deliveryAreas?: string[];
   shopperId?: string;
   shopperName?: string;
   driverId?: string;
@@ -126,6 +128,7 @@ export interface StaffUser {
   pickupPointId?: string;
   profileImageUrl?: string;
   createdAt: string;
+  isPromotedAdmin?: boolean;
 }
 
 export interface NomayiniWallet {
@@ -205,36 +208,47 @@ export const pickupPoints: PickupPoint[] = [
 ];
 
 export const retailers: Retailer[] = [
-  { id: "r1", name: "Bluff Spar", townId: "t1", address: "Bluff Road, Durban" },
+  {
+    id: "r1",
+    name: "Bluff Spar",
+    townId: "t1",
+    address: "Bluff Road, Durban",
+    businessAreaId: "ba5",
+  },
   {
     id: "r2",
     name: "Checkers Berea",
     townId: "t1",
     address: "Berea Centre, Durban",
+    businessAreaId: "ba2",
   },
   {
     id: "r3",
     name: "Pick n Pay Gateway",
     townId: "t1",
     address: "Gateway Mall, Umhlanga",
+    businessAreaId: "ba1",
   },
   {
     id: "r4",
     name: "Victoria Street Market",
     townId: "t1",
     address: "Victoria Street, Durban",
+    businessAreaId: "ba4",
   },
   {
     id: "r5",
     name: "Liberty Midlands Spar",
     townId: "t2",
     address: "Liberty Midlands Mall, PMB",
+    businessAreaId: "ba6",
   },
   {
     id: "r6",
     name: "Boardwalk Checkers",
     townId: "t3",
     address: "Boardwalk Mall, Richards Bay",
+    businessAreaId: "ba8",
   },
 ];
 

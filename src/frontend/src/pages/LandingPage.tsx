@@ -1,17 +1,35 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link } from "@tanstack/react-router";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   MapPin,
+  Package,
+  Search,
   ShoppingBag,
+  ShoppingCart,
   Star,
   Truck,
   Users,
+  X,
 } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_STEPS,
+  type OrderStatus,
+} from "../data/mockData";
+
+// ─── Constant data ─────────────────────────────────────────────────────────
 
 const FEATURES = [
   {
@@ -67,6 +85,613 @@ const HOW_IT_WORKS = [
   },
 ];
 
+// ─── Category badge colors ──────────────────────────────────────────────────
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Groceries: "bg-green-100 text-green-800 border-green-200",
+  Household: "bg-blue-100 text-blue-800 border-blue-200",
+  "Fast Food": "bg-orange-100 text-orange-800 border-orange-200",
+  Beverages: "bg-cyan-100 text-cyan-800 border-cyan-200",
+  "Personal Care": "bg-pink-100 text-pink-800 border-pink-200",
+  "Baby & Kids": "bg-purple-100 text-purple-800 border-purple-200",
+};
+
+// ─── Product Card Component ──────────────────────────────────────────────────
+
+interface TownListing {
+  id: string;
+  retailerName: string;
+  businessAreaName: string;
+  price: number;
+  retailerId: string;
+  listingId: string;
+}
+
+interface ProductCardProps {
+  product: {
+    id: string;
+    name: string;
+    category: string;
+    imageEmoji: string;
+    images?: string[];
+    inStock: boolean;
+  };
+  townListings: TownListing[];
+  index: number;
+  onAddToCart: (
+    productId: string,
+    listingId: string,
+    retailerId: string,
+    price: number,
+    productName: string,
+  ) => void;
+}
+
+function ProductCard({
+  product,
+  townListings,
+  index,
+  onAddToCart,
+}: ProductCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedListingId, setSelectedListingId] = useState(
+    townListings[0]?.listingId ?? "",
+  );
+
+  const lowestPrice = useMemo(
+    () =>
+      townListings.reduce(
+        (min, l) => (l.price < min ? l.price : min),
+        Number.POSITIVE_INFINITY,
+      ),
+    [townListings],
+  );
+
+  const selectedListing = townListings.find(
+    (l) => l.listingId === selectedListingId,
+  );
+
+  const handleConfirm = useCallback(() => {
+    if (!selectedListing) return;
+    onAddToCart(
+      product.id,
+      selectedListing.listingId,
+      selectedListing.retailerId,
+      selectedListing.price,
+      product.name,
+    );
+    setExpanded(false);
+    setSelectedListingId(townListings[0]?.listingId ?? "");
+  }, [selectedListing, product, onAddToCart, townListings]);
+
+  const categoryColor =
+    CATEGORY_COLORS[product.category] ??
+    "bg-gray-100 text-gray-700 border-gray-200";
+
+  return (
+    <div
+      className="flex-shrink-0 w-[260px] sm:w-[280px]"
+      data-ocid={`home.product_card.item.${index}`}
+    >
+      <Card className="h-full overflow-hidden border border-border/70 card-glow hover:shadow-md transition-shadow duration-200">
+        {/* Product image */}
+        <div className="relative h-40 bg-secondary/40 flex items-center justify-center overflow-hidden">
+          {product.images && product.images.length > 0 ? (
+            <img
+              src={product.images[0]}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-6xl select-none">{product.imageEmoji}</span>
+          )}
+          {/* Category badge */}
+          <span
+            className={`absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${categoryColor}`}
+          >
+            {product.category}
+          </span>
+        </div>
+
+        <CardContent className="p-4">
+          {!expanded ? (
+            <>
+              <h3 className="font-display font-bold text-sm leading-snug mb-1 line-clamp-2 text-foreground">
+                {product.name}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                From{" "}
+                <span className="font-semibold text-primary">
+                  R{lowestPrice.toFixed(2)}
+                </span>{" "}
+                · {townListings.length}{" "}
+                {townListings.length === 1 ? "store" : "stores"}
+              </p>
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                data-ocid={`home.add_to_cart.button.${index}`}
+                onClick={() => setExpanded(true)}
+              >
+                <ShoppingCart className="h-3.5 w-3.5" />
+                Add to Cart
+              </Button>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-foreground">
+                  Choose store
+                </span>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setExpanded(false)}
+                  aria-label="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <select
+                className="w-full text-xs rounded-md border border-input bg-background px-2.5 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                value={selectedListingId}
+                onChange={(e) => setSelectedListingId(e.target.value)}
+                data-ocid={`home.retailer.select.${index}`}
+              >
+                {townListings.map((l) => (
+                  <option key={l.listingId} value={l.listingId}>
+                    {l.retailerName}
+                    {l.businessAreaName ? ` (${l.businessAreaName})` : ""} — R
+                    {l.price.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs bg-success hover:bg-success/90 text-success-foreground"
+                data-ocid={`home.confirm_add.button.${index}`}
+                onClick={handleConfirm}
+              >
+                <ShoppingCart className="h-3.5 w-3.5" />
+                Confirm — R{selectedListing?.price.toFixed(2) ?? "0.00"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Popular In Town Section ─────────────────────────────────────────────────
+
+function PopularInTownSection() {
+  const {
+    products,
+    retailers,
+    listings,
+    towns,
+    businessAreas,
+    addToCartWithListing,
+    cartCount,
+  } = useApp();
+
+  const [selectedTownId, setSelectedTownId] = useState(towns[0]?.id ?? "t1");
+
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const selectedTown = towns.find((t) => t.id === selectedTownId);
+
+  // Get retailers in selected town
+  const townRetailerIds = useMemo(
+    () =>
+      new Set(
+        retailers.filter((r) => r.townId === selectedTownId).map((r) => r.id),
+      ),
+    [retailers, selectedTownId],
+  );
+
+  // Build filtered product list with their town-specific listings
+  const productsWithListings = useMemo(() => {
+    return products
+      .filter((p) => p.inStock && !p.isSuggestion)
+      .map((p) => {
+        const townListings = listings
+          .filter(
+            (l) => l.productId === p.id && townRetailerIds.has(l.retailerId),
+          )
+          .map((l) => {
+            const retailer = retailers.find((r) => r.id === l.retailerId);
+            const area = businessAreas.find(
+              (a) => a.id === retailer?.businessAreaId,
+            );
+            return {
+              id: l.id,
+              listingId: l.id,
+              retailerId: l.retailerId,
+              retailerName: retailer?.name ?? "Unknown Store",
+              businessAreaName: area?.name ?? "",
+              price: l.price,
+            };
+          });
+        return { product: p, townListings };
+      })
+      .filter((item) => item.townListings.length > 0)
+      .slice(0, 20);
+  }, [products, listings, retailers, townRetailerIds, businessAreas]);
+
+  const handleAddToCart = useCallback(
+    (
+      productId: string,
+      listingId: string,
+      retailerId: string,
+      price: number,
+      productName: string,
+    ) => {
+      addToCartWithListing(productId, listingId, retailerId, price);
+      toast.success(`${productName} added to cart`, {
+        description: `R${price.toFixed(2)} · Cart has ${cartCount + 1} item${cartCount + 1 !== 1 ? "s" : ""}`,
+      });
+    },
+    [addToCartWithListing, cartCount],
+  );
+
+  const scrollCarousel = useCallback((direction: "prev" | "next") => {
+    const el = carouselRef.current;
+    if (!el) return;
+    // Scroll by 3 card widths (280px + 16px gap = 296px each)
+    const scrollAmount = 296 * 3;
+    el.scrollBy({
+      left: direction === "next" ? scrollAmount : -scrollAmount,
+      behavior: "smooth",
+    });
+  }, []);
+
+  if (productsWithListings.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="py-10 sm:py-14 bg-background border-b border-border/40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        {/* Header row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
+              Popular in{" "}
+              <span className="text-primary">
+                {selectedTown?.name ?? "Your Town"}
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Browse and add to cart — available at local stores right now
+            </p>
+          </div>
+          <Link to="/catalogue" data-ocid="home.catalogue.link">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+              View full catalogue
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        </div>
+
+        {/* Town selector pills */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {towns.map((town) => (
+            <button
+              type="button"
+              key={town.id}
+              onClick={() => setSelectedTownId(town.id)}
+              data-ocid="home.town_selector.tab"
+              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                selectedTownId === town.id
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+              {town.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Carousel container */}
+        <div className="relative" data-ocid="home.products_carousel.panel">
+          {/* Scroll left */}
+          <button
+            type="button"
+            onClick={() => scrollCarousel("prev")}
+            data-ocid="home.carousel.prev_button"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          {/* Scroll right */}
+          <button
+            type="button"
+            onClick={() => scrollCarousel("next")}
+            data-ocid="home.carousel.next_button"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          {/* Scrollable track */}
+          <div
+            ref={carouselRef}
+            className="flex gap-4 overflow-x-auto pb-3 scroll-smooth"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {productsWithListings.map(({ product, townListings }, idx) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                townListings={townListings}
+                index={idx + 1}
+                onAddToCart={handleAddToCart}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Scroll hint fade edges */}
+        <style>{`
+          [data-ocid="home.products_carousel.panel"] > div::-webkit-scrollbar { display: none; }
+        `}</style>
+      </div>
+    </section>
+  );
+}
+
+// ─── Track My Order Section ──────────────────────────────────────────────────
+
+function TrackMyOrderSection() {
+  const { orders } = useApp();
+  const navigate = useNavigate();
+  const [orderId, setOrderId] = useState("");
+  const [searched, setSearched] = useState(false);
+  const [foundOrderId, setFoundOrderId] = useState<string | null>(null);
+
+  const foundOrder = useMemo(
+    () => (foundOrderId ? orders.find((o) => o.id === foundOrderId) : null),
+    [orders, foundOrderId],
+  );
+
+  const handleTrack = useCallback(() => {
+    const query = orderId.trim().toLowerCase();
+    if (!query) return;
+    const match = orders.find((o) => o.id.toLowerCase() === query);
+    setFoundOrderId(match?.id ?? null);
+    setSearched(true);
+  }, [orderId, orders]);
+
+  const currentStepIndex = foundOrder
+    ? ORDER_STATUS_STEPS.indexOf(foundOrder.status as OrderStatus)
+    : -1;
+
+  // Determine display steps based on delivery type
+  const displaySteps = useMemo(() => {
+    if (!foundOrder) return ORDER_STATUS_STEPS;
+    if (foundOrder.deliveryType === "pickup_point") {
+      return ORDER_STATUS_STEPS.filter(
+        (s) => s !== "out_for_delivery" && s !== "delivered",
+      );
+    }
+    return ORDER_STATUS_STEPS.filter((s) => s !== "collected");
+  }, [foundOrder]);
+
+  return (
+    <section className="py-12 sm:py-16 bg-muted/30 border-b border-border/40">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        {/* Heading */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-4 py-1.5 text-sm text-primary font-medium mb-4">
+            <Package className="h-4 w-4" />
+            Order Tracking
+          </div>
+          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-2">
+            Track Your Order
+          </h2>
+          <p className="text-muted-foreground text-base max-w-md mx-auto">
+            Enter your order ID to see a live status update on where your order
+            is right now.
+          </p>
+        </div>
+
+        {/* Search box */}
+        <div className="flex gap-2 max-w-lg mx-auto mb-6">
+          <Input
+            placeholder="e.g. ord123456"
+            value={orderId}
+            onChange={(e) => {
+              setOrderId(e.target.value);
+              if (searched) setSearched(false);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleTrack()}
+            className="font-mono text-sm"
+            data-ocid="track.order_id.input"
+          />
+          <Button
+            onClick={handleTrack}
+            className="gap-2 shrink-0"
+            data-ocid="track.submit.button"
+          >
+            <Search className="h-4 w-4" />
+            Track
+          </Button>
+        </div>
+
+        {/* Not found */}
+        {searched && !foundOrder && (
+          <div
+            className="text-center py-6 text-muted-foreground"
+            data-ocid="track.not_found.error_state"
+          >
+            <div className="text-4xl mb-2">🔍</div>
+            <p className="font-semibold text-sm">No order found with that ID</p>
+            <p className="text-xs mt-1 text-muted-foreground/70">
+              Check the ID and try again. Order IDs are shown in your
+              confirmation.
+            </p>
+          </div>
+        )}
+
+        {/* Found order */}
+        {foundOrder && (
+          <Card
+            className="card-glow border border-primary/20 overflow-hidden"
+            data-ocid="track.result.panel"
+          >
+            {/* Order summary header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-primary/5">
+              <div>
+                <p className="font-display font-bold text-sm text-foreground">
+                  Order #{foundOrder.id}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(foundOrder.createdAt).toLocaleString("en-ZA", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-display font-bold text-primary text-sm">
+                  R{foundOrder.total.toFixed(2)}
+                </span>
+                <StatusBadge status={foundOrder.status} />
+              </div>
+            </div>
+
+            {/* Status timeline */}
+            <CardContent className="p-5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+                Order Progress
+              </p>
+              <div className="flex flex-col">
+                {displaySteps.map((step, i) => {
+                  const globalIdx = ORDER_STATUS_STEPS.indexOf(step);
+                  const isDone = currentStepIndex >= globalIdx;
+                  const isCurrent =
+                    foundOrder.status === step ||
+                    (i === displaySteps.length - 1 &&
+                      currentStepIndex >= globalIdx);
+                  const isLast = i === displaySteps.length - 1;
+                  return (
+                    <div key={step} className="flex gap-3">
+                      {/* Circle + connector */}
+                      <div className="flex flex-col items-center">
+                        <div className="relative">
+                          <div
+                            className={cn(
+                              "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 text-[9px] font-bold z-10 relative",
+                              isDone
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-border/60 bg-background text-muted-foreground",
+                            )}
+                          >
+                            {isDone ? "✓" : i + 1}
+                          </div>
+                          {isCurrent && isDone && (
+                            <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-40" />
+                          )}
+                        </div>
+                        {!isLast && (
+                          <div
+                            className={cn(
+                              "w-px flex-1 min-h-[20px] my-0.5",
+                              isDone ? "bg-primary/40" : "bg-border/40",
+                            )}
+                          />
+                        )}
+                      </div>
+                      {/* Label */}
+                      <div
+                        className={cn("flex-1 pb-3 pt-0.5", isLast && "pb-0")}
+                      >
+                        <span
+                          className={cn(
+                            "text-sm",
+                            isCurrent
+                              ? "font-semibold text-foreground"
+                              : isDone
+                                ? "text-muted-foreground"
+                                : "text-muted-foreground/50",
+                          )}
+                        >
+                          {ORDER_STATUS_LABELS[step]}
+                        </span>
+                        {isCurrent && (
+                          <span className="ml-2 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-border/50 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  <MapPin className="inline h-3 w-3 mr-1" />
+                  {foundOrder.pickupPointName}
+                  {foundOrder.deliveryType === "home_delivery" && (
+                    <span className="text-primary font-medium ml-1">
+                      → Home Delivery
+                    </span>
+                  )}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() =>
+                    navigate({
+                      to: "/orders/$orderId",
+                      params: { orderId: foundOrder.id },
+                    })
+                  }
+                >
+                  Full Details
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ─── Floating Cart Button ────────────────────────────────────────────────────
+
+function FloatingCartButton() {
+  const { cartCount } = useApp();
+  if (cartCount === 0) return null;
+  return (
+    <Link
+      to="/cart"
+      data-ocid="home.cart_float.button"
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-full shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all duration-200 font-semibold text-sm animate-in slide-in-from-bottom-2"
+      aria-label={`View cart with ${cartCount} items`}
+    >
+      <ShoppingCart className="h-4 w-4" />
+      View Cart ({cartCount} {cartCount === 1 ? "item" : "items"})
+    </Link>
+  );
+}
+
+// ─── Main Landing Page ───────────────────────────────────────────────────────
+
 export function LandingPage() {
   const { setDemoRole } = useApp();
 
@@ -94,9 +719,9 @@ export function LandingPage() {
               Everything, everywhere, all the time
             </p>
             <p className="text-white/60 text-base sm:text-lg mb-8 max-w-lg leading-relaxed">
-              The Mthandeni Umuntu Association brings shopping to your door.
-              Order online or walk into your nearest pick-up point — we handle
-              the rest.
+              Community empowerment and development working together — bringing
+              access, opportunity, and convenience to every neighbourhood. Order
+              online or walk into your nearest pick-up point.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
@@ -188,6 +813,12 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Popular In Your Town — Shop section */}
+      <PopularInTownSection />
+
+      {/* Track My Order */}
+      <TrackMyOrderSection />
 
       {/* Features */}
       <section className="py-16 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
@@ -444,8 +1075,8 @@ export function LandingPage() {
             </h2>
             <p className="text-muted-foreground text-lg mb-6 leading-relaxed">
               Currently active in Durban, Pietermaritzburg, and Richards Bay —
-              with more towns being added as the Mthandeni Umuntu Association
-              grows.
+              with more towns being added as we grow together with our
+              communities.
             </p>
             <div className="space-y-3">
               {[
@@ -515,8 +1146,8 @@ export function LandingPage() {
           <p className="text-xs text-muted-foreground italic mb-1">
             Yonke into, Yonki ndawo, Ngaso Sonke Iskhathi
           </p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Mthandeni Umuntu Association — Serving KwaZulu-Natal Communities
+          <p className="text-xs text-muted-foreground/60 mb-3">
+            A Mthandeni Umuntu Association initiative
           </p>
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()}. Built with ❤️ using{" "}
@@ -531,6 +1162,9 @@ export function LandingPage() {
           </p>
         </div>
       </footer>
+
+      {/* Floating cart button */}
+      <FloatingCartButton />
     </div>
   );
 }
