@@ -30,6 +30,7 @@ export function CheckoutPage() {
     currentUser,
     placeOrder,
     clearCart,
+    retailerProducts,
   } = useApp();
   const navigate = useNavigate();
 
@@ -41,14 +42,38 @@ export function CheckoutPage() {
   const [loading, setLoading] = useState(false);
 
   const cartItems = cart
-    .map((ci) => ({
-      ...ci,
-      product: products.find((p) => p.id === ci.productId),
-      retailerName: ci.chosenRetailerId
-        ? retailers.find((r) => r.id === ci.chosenRetailerId)?.name
-        : undefined,
-    }))
-    .filter((ci) => ci.product);
+    .map((ci) => {
+      // Retailer exclusive product
+      if (ci.retailerProductId) {
+        const rp = retailerProducts.find((p) => p.id === ci.retailerProductId);
+        if (!rp) return null;
+        const retailer = retailers.find((r) => r.id === rp.retailerId);
+        return {
+          ...ci,
+          product: {
+            id: rp.id,
+            name: rp.name,
+            imageEmoji: rp.imageEmoji,
+            images: rp.images,
+          },
+          retailerName: retailer?.name,
+          isRetailerProduct: true,
+        };
+      }
+      // Universal product
+      return {
+        ...ci,
+        product: products.find((p) => p.id === ci.productId),
+        retailerName: ci.chosenRetailerId
+          ? retailers.find((r) => r.id === ci.chosenRetailerId)?.name
+          : undefined,
+        isRetailerProduct: false,
+      };
+    })
+    .filter(
+      (ci): ci is NonNullable<typeof ci> =>
+        ci !== null && ci.product !== undefined,
+    );
 
   const subtotal = cartItems.reduce(
     (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
@@ -61,6 +86,7 @@ export function CheckoutPage() {
     retailers,
     businessAreas,
     deliveryType,
+    retailerProducts,
   );
   const deliveryFee = feeBreakdown.total;
   const total = subtotal + deliveryFee;
@@ -93,7 +119,7 @@ export function CheckoutPage() {
       customerPhone: currentUser?.phone || "",
       items: cartItems.map((ci) => ({
         productId: ci.productId,
-        productName: ci.product!.name,
+        productName: ci.product?.name ?? "",
         price: ci.chosenPrice ?? 0,
         quantity: ci.quantity,
       })),

@@ -17,12 +17,14 @@ import {
   type Product,
   type ProductListing,
   type Retailer,
+  type RetailerProduct,
   type StaffUser,
   type Town,
   businessAreas as initialBusinessAreas,
   productListings as initialListings,
   pickupPoints as initialPickupPoints,
   products as initialProducts,
+  retailerProducts as initialRetailerProducts,
   retailers as initialRetailers,
   staffUsers as initialStaffUsers,
   towns as initialTowns,
@@ -68,6 +70,12 @@ interface AppContextValue {
     retailerId: string,
     price: number,
   ) => void;
+  addRetailerProductToCart: (
+    retailerProductId: string,
+    retailerId: string,
+    price: number,
+    productName: string,
+  ) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
   clearCart: () => void;
@@ -86,6 +94,10 @@ interface AppContextValue {
   // Products
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+
+  // Retailer Products
+  retailerProducts: RetailerProduct[];
+  setRetailerProducts: React.Dispatch<React.SetStateAction<RetailerProduct[]>>;
 
   // Retailers & Listings
   retailers: Retailer[];
@@ -143,6 +155,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [orders, setOrders] = useState<Order[]>(sampleOrders);
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [retailerProducts, setRetailerProducts] = useState<RetailerProduct[]>(
+    initialRetailerProducts,
+  );
   const [retailers, setRetailers] = useState<Retailer[]>(initialRetailers);
   const [listings, setListings] = useState<ProductListing[]>(initialListings);
   const [towns, setTowns] = useState<Town[]>(initialTowns);
@@ -230,6 +245,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
             productId,
             quantity: 1,
             listingId,
+            chosenRetailerId: retailerId,
+            chosenPrice: price,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
+  const addRetailerProductToCart = useCallback(
+    (
+      retailerProductId: string,
+      retailerId: string,
+      price: number,
+      _productName: string,
+    ) => {
+      // Use retailerProductId as the productId key for cart lookup uniqueness
+      setCart((prev) => {
+        const existing = prev.find(
+          (i) => i.retailerProductId === retailerProductId,
+        );
+        if (existing) {
+          return prev.map((i) =>
+            i.retailerProductId === retailerProductId
+              ? { ...i, quantity: i.quantity + 1 }
+              : i,
+          );
+        }
+        return [
+          ...prev,
+          {
+            productId: `rp_${retailerProductId}`,
+            quantity: 1,
+            retailerProductId,
             chosenRetailerId: retailerId,
             chosenPrice: price,
           },
@@ -434,6 +483,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cart,
         addToCart,
         addToCartWithListing,
+        addRetailerProductToCart,
         removeFromCart,
         updateCartQty,
         clearCart,
@@ -444,6 +494,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateOrderStatus,
         products,
         setProducts,
+        retailerProducts,
+        setRetailerProducts,
         retailers,
         setRetailers,
         listings,

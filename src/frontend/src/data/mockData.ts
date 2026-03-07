@@ -78,12 +78,25 @@ export interface ProductListing {
   price: number;
 }
 
+export interface RetailerProduct {
+  id: string;
+  retailerId: string;
+  name: string;
+  description: string;
+  category: ProductCategory;
+  price: number;
+  imageEmoji: string;
+  images?: string[];
+  inStock: boolean;
+}
+
 export interface CartItem {
   productId: string;
   quantity: number;
   listingId?: string;
   chosenRetailerId?: string;
   chosenPrice?: number;
+  retailerProductId?: string;
 }
 
 export interface OrderItem {
@@ -129,6 +142,7 @@ export interface StaffUser {
   profileImageUrl?: string;
   createdAt: string;
   isPromotedAdmin?: boolean;
+  assignedRetailerIds?: string[];
 }
 
 export interface NomayiniWallet {
@@ -808,3 +822,5 @@ export const ORDER_STATUS_STEPS: OrderStatus[] = [
   "out_for_delivery",
   "delivered",
 ];
+
+export const retailerProducts: RetailerProduct[] = [];

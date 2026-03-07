@@ -3,6 +3,7 @@ import type {
   CartItem,
   DeliveryType,
   Retailer,
+  RetailerProduct,
 } from "../data/mockData";
 
 export interface DeliveryFeeBreakdown {
@@ -20,6 +21,7 @@ export function calculateDeliveryFee(
   retailers: Retailer[],
   businessAreas: BusinessArea[],
   deliveryType: DeliveryType,
+  retailerProductsData: RetailerProduct[] = [],
 ): DeliveryFeeBreakdown {
   if (cart.length === 0) {
     return {
@@ -34,10 +36,21 @@ export function calculateDeliveryFee(
   }
 
   // Collect unique business area IDs from chosen retailers
+  // For retailer products, resolve the retailer via retailerProductId -> retailer -> businessAreaId
   const seenAreaIds: string[] = [];
   for (const item of cart) {
-    if (!item.chosenRetailerId) continue;
-    const retailer = retailers.find((r) => r.id === item.chosenRetailerId);
+    let retailerId = item.chosenRetailerId;
+
+    // If this is a retailer-exclusive product, look up retailer from retailerProductsData
+    if (!retailerId && item.retailerProductId) {
+      const rp = retailerProductsData.find(
+        (p) => p.id === item.retailerProductId,
+      );
+      retailerId = rp?.retailerId;
+    }
+
+    if (!retailerId) continue;
+    const retailer = retailers.find((r) => r.id === retailerId);
     if (!retailer?.businessAreaId) continue;
     if (!seenAreaIds.includes(retailer.businessAreaId)) {
       seenAreaIds.push(retailer.businessAreaId);
@@ -69,8 +82,17 @@ export function calculateDeliveryFee(
     // Collect unique retailer names for items from this area
     const areaRetailerNames: string[] = [];
     for (const item of cart) {
-      if (!item.chosenRetailerId) continue;
-      const retailer = retailers.find((r) => r.id === item.chosenRetailerId);
+      let retailerId = item.chosenRetailerId;
+
+      if (!retailerId && item.retailerProductId) {
+        const rp = retailerProductsData.find(
+          (p) => p.id === item.retailerProductId,
+        );
+        retailerId = rp?.retailerId;
+      }
+
+      if (!retailerId) continue;
+      const retailer = retailers.find((r) => r.id === retailerId);
       if (retailer?.businessAreaId !== areaId) continue;
       if (!areaRetailerNames.includes(retailer.name)) {
         areaRetailerNames.push(retailer.name);

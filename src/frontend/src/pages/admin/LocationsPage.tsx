@@ -17,8 +17,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, MapPin, Package, Plus, Store, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Building2,
+  Info,
+  MapPin,
+  Package,
+  Plus,
+  Settings,
+  Store,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ImageUpload } from "../../components/ImageUpload";
@@ -26,9 +46,20 @@ import { useApp } from "../../context/AppContext";
 import type {
   BusinessArea,
   PickupPoint,
+  ProductCategory,
   Retailer,
+  RetailerProduct,
   Town,
 } from "../../data/mockData";
+
+const CATEGORIES: ProductCategory[] = [
+  "Groceries",
+  "Household",
+  "Fast Food",
+  "Beverages",
+  "Personal Care",
+  "Baby & Kids",
+];
 
 export function AdminLocationsPage() {
   const {
@@ -40,6 +71,10 @@ export function AdminLocationsPage() {
     setPickupPoints,
     retailers,
     setRetailers,
+    retailerProducts,
+    setRetailerProducts,
+    staffUsers,
+    setStaffUsers,
   } = useApp();
 
   // Town dialog
@@ -69,6 +104,17 @@ export function AdminLocationsPage() {
     name: "",
     townId: "",
     address: "",
+  });
+
+  // Retailer manage sheet
+  const [manageRetailer, setManageRetailer] = useState<Retailer | null>(null);
+  const [addProductDialog, setAddProductDialog] = useState(false);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    description: "",
+    category: "Groceries" as ProductCategory,
+    price: "",
+    images: [] as string[],
   });
 
   const addTown = () => {
@@ -145,6 +191,75 @@ export function AdminLocationsPage() {
   const deleteRetailer = (id: string) => {
     setRetailers((prev) => prev.filter((r) => r.id !== id));
     toast.success("Retailer removed");
+  };
+
+  const addRetailerProduct = () => {
+    if (!manageRetailer || !productForm.name.trim() || !productForm.price)
+      return;
+    const price = Number.parseFloat(productForm.price);
+    if (Number.isNaN(price) || price <= 0) {
+      toast.error("Enter a valid price");
+      return;
+    }
+    const newProduct: RetailerProduct = {
+      id: `rp${Date.now()}`,
+      retailerId: manageRetailer.id,
+      name: productForm.name,
+      description: productForm.description,
+      category: productForm.category,
+      price,
+      imageEmoji: "🏪",
+      images: productForm.images.length > 0 ? productForm.images : undefined,
+      inStock: true,
+    };
+    setRetailerProducts((prev) => [...prev, newProduct]);
+    toast.success("Product added");
+    setAddProductDialog(false);
+    setProductForm({
+      name: "",
+      description: "",
+      category: "Groceries",
+      price: "",
+      images: [],
+    });
+  };
+
+  const deleteRetailerProduct = (id: string) => {
+    setRetailerProducts((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Product removed");
+  };
+
+  const assignShopper = (shopperId: string, retailerId: string) => {
+    setStaffUsers((prev) =>
+      prev.map((u) =>
+        u.id === shopperId
+          ? {
+              ...u,
+              assignedRetailerIds: [
+                ...(u.assignedRetailerIds ?? []),
+                retailerId,
+              ],
+            }
+          : u,
+      ),
+    );
+    toast.success("Shopper assigned");
+  };
+
+  const unassignShopper = (shopperId: string, retailerId: string) => {
+    setStaffUsers((prev) =>
+      prev.map((u) =>
+        u.id === shopperId
+          ? {
+              ...u,
+              assignedRetailerIds: (u.assignedRetailerIds ?? []).filter(
+                (id) => id !== retailerId,
+              ),
+            }
+          : u,
+      ),
+    );
+    toast.success("Shopper removed");
   };
 
   return (
@@ -380,34 +495,74 @@ export function AdminLocationsPage() {
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1 mb-1.5">
                     {town.name}
                   </p>
-                  {townRetailers.map((retailer, i) => (
-                    <Card
-                      key={retailer.id}
-                      className="card-glow border-border/60 mb-2"
-                      data-ocid={`admin.retailer.item.${i + 1}`}
-                    >
-                      <CardContent className="flex items-center p-3">
-                        <Store className="h-4 w-4 text-primary mr-3" />
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm">
-                            {retailer.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {retailer.address}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteRetailer(retailer.id)}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          data-ocid={`admin.retailer.delete_button.${i + 1}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {townRetailers.map((retailer, i) => {
+                    const rpCount = retailerProducts.filter(
+                      (p) => p.retailerId === retailer.id,
+                    ).length;
+                    const assignedCount = staffUsers.filter(
+                      (u) =>
+                        u.role === "shopper" &&
+                        u.assignedRetailerIds?.includes(retailer.id),
+                    ).length;
+                    return (
+                      <Card
+                        key={retailer.id}
+                        className="card-glow border-border/60 mb-2"
+                        data-ocid={`admin.retailer.item.${i + 1}`}
+                      >
+                        <CardContent className="flex items-center p-3 gap-2">
+                          <Store className="h-4 w-4 text-primary shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm truncate">
+                              {retailer.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {retailer.address}
+                            </p>
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {rpCount > 0 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] px-1.5 py-0"
+                                >
+                                  {rpCount} exclusive product
+                                  {rpCount !== 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                              {assignedCount > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 text-amber-700 border-amber-300"
+                                >
+                                  {assignedCount} shopper
+                                  {assignedCount !== 1 ? "s" : ""} assigned
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setManageRetailer(retailer)}
+                            className="gap-1.5 h-8 text-xs shrink-0"
+                            data-ocid={`admin.retailer.edit_button.${i + 1}`}
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Manage
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteRetailer(retailer.id)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                            data-ocid={`admin.retailer.delete_button.${i + 1}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -425,6 +580,337 @@ export function AdminLocationsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Retailer Manage Sheet */}
+      <Sheet
+        open={!!manageRetailer}
+        onOpenChange={(open) => !open && setManageRetailer(null)}
+      >
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg overflow-y-auto"
+          data-ocid="admin.retailer.sheet"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <Store className="h-4 w-4 text-primary" />
+              {manageRetailer?.name}
+            </SheetTitle>
+          </SheetHeader>
+
+          {manageRetailer && (
+            <div className="space-y-6">
+              {/* Section A: Retailer Products */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm">
+                      Exclusive Products
+                    </h3>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAddProductDialog(true)}
+                    className="gap-1.5 h-7 text-xs"
+                    data-ocid="admin.retailer_product.open_modal_button"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Product
+                  </Button>
+                </div>
+
+                <div className="flex items-start gap-1.5 rounded-md bg-muted/40 px-3 py-2 mb-3">
+                  <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    These products are unique to this retailer and show in the
+                    catalogue with a fixed price. They do not need a listing.
+                  </p>
+                </div>
+
+                {retailerProducts.filter(
+                  (p) => p.retailerId === manageRetailer.id,
+                ).length === 0 ? (
+                  <div
+                    className="text-center py-6 rounded-lg border border-dashed border-border/60"
+                    data-ocid="admin.retailer_product.empty_state"
+                  >
+                    <Package className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
+                    <p className="text-xs text-muted-foreground">
+                      No exclusive products yet
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {retailerProducts
+                      .filter((p) => p.retailerId === manageRetailer.id)
+                      .map((product, idx) => (
+                        <div
+                          key={product.id}
+                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2.5"
+                          data-ocid={`admin.retailer_product.item.${idx + 1}`}
+                        >
+                          <div className="w-9 h-9 rounded-md bg-muted/40 flex items-center justify-center text-lg shrink-0 overflow-hidden">
+                            {product.images?.[0] ? (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              product.imageEmoji
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {product.name}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {product.category}
+                              </Badge>
+                              <span className="text-xs font-bold text-primary">
+                                R{product.price.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteRetailerProduct(product.id)}
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                            data-ocid={`admin.retailer_product.delete_button.${idx + 1}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Section B: Assigned Shoppers */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Assigned Shoppers</h3>
+                </div>
+
+                <div className="flex items-start gap-1.5 rounded-md bg-muted/40 px-3 py-2 mb-3">
+                  <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Assigned shoppers exclusively handle orders from this
+                    retailer. If none are assigned, all area shoppers can handle
+                    orders.
+                  </p>
+                </div>
+
+                {/* Assign shopper dropdown */}
+                {(() => {
+                  const availableShoppers = staffUsers.filter(
+                    (u) =>
+                      u.role === "shopper" &&
+                      u.status === "approved" &&
+                      !u.assignedRetailerIds?.includes(manageRetailer.id),
+                  );
+                  return availableShoppers.length > 0 ? (
+                    <div className="mb-3">
+                      <Select
+                        onValueChange={(shopperId) =>
+                          assignShopper(shopperId, manageRetailer.id)
+                        }
+                      >
+                        <SelectTrigger
+                          className="h-8 text-xs"
+                          data-ocid="admin.assign_shopper.select"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                            <SelectValue placeholder="Assign a shopper…" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableShoppers.map((s) => (
+                            <SelectItem
+                              key={s.id}
+                              value={s.id}
+                              className="text-xs"
+                            >
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null;
+                })()}
+
+                {staffUsers.filter(
+                  (u) =>
+                    u.role === "shopper" &&
+                    u.assignedRetailerIds?.includes(manageRetailer.id),
+                ).length === 0 ? (
+                  <div
+                    className="text-center py-5 rounded-lg border border-dashed border-border/60"
+                    data-ocid="admin.assigned_shoppers.empty_state"
+                  >
+                    <UserCheck className="h-6 w-6 text-muted-foreground mx-auto mb-1.5" />
+                    <p className="text-xs text-muted-foreground">
+                      No shoppers assigned — all area shoppers handle orders
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {staffUsers
+                      .filter(
+                        (u) =>
+                          u.role === "shopper" &&
+                          u.assignedRetailerIds?.includes(manageRetailer.id),
+                      )
+                      .map((shopper, idx) => (
+                        <div
+                          key={shopper.id}
+                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2.5"
+                          data-ocid={`admin.assigned_shoppers.item.${idx + 1}`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                            {shopper.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {shopper.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {shopper.phone}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              unassignShopper(shopper.id, manageRetailer.id)
+                            }
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                            data-ocid={`admin.assigned_shoppers.delete_button.${idx + 1}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Add Retailer Product Dialog */}
+      <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+        <DialogContent data-ocid="admin.retailer_product.dialog">
+          <DialogHeader>
+            <DialogTitle>
+              Add Exclusive Product — {manageRetailer?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-1.5">
+              <Label>Product Name</Label>
+              <Input
+                value={productForm.name}
+                onChange={(e) =>
+                  setProductForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="e.g. Zinger Burger Meal"
+                data-ocid="admin.retailer_product_name.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                value={productForm.description}
+                onChange={(e) =>
+                  setProductForm((f) => ({
+                    ...f,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Short product description"
+                className="h-20 resize-none"
+                data-ocid="admin.retailer_product_description.textarea"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={productForm.category}
+                onValueChange={(v) =>
+                  setProductForm((f) => ({
+                    ...f,
+                    category: v as ProductCategory,
+                  }))
+                }
+              >
+                <SelectTrigger data-ocid="admin.retailer_product_category.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Price (ZAR)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={productForm.price}
+                onChange={(e) =>
+                  setProductForm((f) => ({ ...f, price: e.target.value }))
+                }
+                placeholder="e.g. 89.90"
+                data-ocid="admin.retailer_product_price.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <ImageUpload
+                value={productForm.images}
+                onChange={(urls) =>
+                  setProductForm((f) => ({ ...f, images: urls }))
+                }
+                maxImages={3}
+                label="Product Images (up to 3)"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddProductDialog(false)}
+              data-ocid="admin.retailer_product.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={addRetailerProduct}
+              data-ocid="admin.retailer_product.confirm_button"
+            >
+              Add Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Town Dialog */}
       <Dialog open={townDialog} onOpenChange={setTownDialog}>

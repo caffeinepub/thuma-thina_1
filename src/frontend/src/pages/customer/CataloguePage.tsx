@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Search, ShoppingCart } from "lucide-react";
+import { Check, Search, ShoppingCart, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
@@ -34,13 +34,16 @@ export function CataloguePage() {
     products,
     cart,
     addToCartWithListing,
+    addRetailerProductToCart,
     removeFromCart,
     listings,
     retailers,
     businessAreas,
+    retailerProducts,
   } = useApp();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ProductCategory | "All">("All");
+  const [selectedRetailerId, setSelectedRetailerId] = useState<string>("all");
   // Track selected listing per product
   const [selectedListings, setSelectedListings] = useState<
     Record<string, string>
@@ -48,19 +51,54 @@ export function CataloguePage() {
 
   const available = products.filter((p) => !p.isSuggestion || p.approved);
 
-  const filtered = useMemo(() => {
+  // Filtered universal products
+  const filteredUniversal = useMemo(() => {
     return available.filter((p) => {
       const matchCat = category === "All" || p.category === category;
       const matchSearch =
         !search ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.description.toLowerCase().includes(search.toLowerCase());
-      return matchCat && matchSearch;
+      if (!matchCat || !matchSearch) return false;
+      // Retailer filter
+      if (selectedRetailerId !== "all") {
+        return listings.some(
+          (l) => l.productId === p.id && l.retailerId === selectedRetailerId,
+        );
+      }
+      return true;
     });
-  }, [available, search, category]);
+  }, [available, search, category, selectedRetailerId, listings]);
+
+  // Filtered retailer exclusive products
+  const filteredRetailerProducts = useMemo(() => {
+    return retailerProducts.filter((p) => {
+      const matchCat = category === "All" || p.category === category;
+      const matchSearch =
+        !search ||
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.description.toLowerCase().includes(search.toLowerCase());
+      if (!matchCat || !matchSearch) return false;
+      if (selectedRetailerId !== "all") {
+        return p.retailerId === selectedRetailerId;
+      }
+      return true;
+    });
+  }, [retailerProducts, search, category, selectedRetailerId]);
+
+  // Retailers that have listings or exclusive products (for the filter chips)
+  const activeRetailers = useMemo(() => {
+    const listingRetailerIds = listings.map((l) => l.retailerId);
+    const rpRetailerIds = retailerProducts.map((p) => p.retailerId);
+    const ids = new Set([...listingRetailerIds, ...rpRetailerIds]);
+    return retailers.filter((r) => ids.has(r.id));
+  }, [listings, retailerProducts, retailers]);
 
   const getCartQty = (productId: string) =>
     cart.find((i) => i.productId === productId)?.quantity || 0;
+
+  const getRetailerProductCartQty = (rpId: string) =>
+    cart.find((i) => i.retailerProductId === rpId)?.quantity || 0;
 
   const getProductListings = (productId: string) =>
     listings.filter((l) => l.productId === productId);
@@ -113,6 +151,8 @@ export function CataloguePage() {
     return listing?.price ?? null;
   };
 
+  const totalCount = filteredUniversal.length + filteredRetailerProducts.length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
       {/* Header */}
@@ -139,7 +179,7 @@ export function CataloguePage() {
       </div>
 
       {/* Category filter */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-2 mb-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
         {CATEGORIES.map((cat) => (
           <button
             type="button"
@@ -158,11 +198,47 @@ export function CataloguePage() {
         ))}
       </div>
 
+      {/* Retailer filter chips */}
+      {activeRetailers.length > 0 && (
+        <div className="flex gap-2 mb-5 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <button
+            type="button"
+            onClick={() => setSelectedRetailerId("all")}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+              selectedRetailerId === "all"
+                ? "bg-amber-600 text-white border-amber-600"
+                : "bg-card border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            }`}
+            data-ocid="catalogue.retailer_filter.tab"
+          >
+            All Retailers
+          </button>
+          {activeRetailers.map((retailer) => (
+            <button
+              type="button"
+              key={retailer.id}
+              onClick={() => setSelectedRetailerId(retailer.id)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                selectedRetailerId === retailer.id
+                  ? "bg-amber-600 text-white border-amber-600"
+                  : "bg-card border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid="catalogue.retailer_filter.tab"
+            >
+              {retailer.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Results count */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-muted-foreground">
-          {filtered.length} product{filtered.length !== 1 ? "s" : ""}
+          {totalCount} product{totalCount !== 1 ? "s" : ""}
           {category !== "All" ? ` in ${category}` : ""}
+          {selectedRetailerId !== "all"
+            ? ` from ${retailers.find((r) => r.id === selectedRetailerId)?.name}`
+            : ""}
         </p>
         {cart.length > 0 && (
           <a href="/cart">
@@ -175,7 +251,7 @@ export function CataloguePage() {
       </div>
 
       {/* Grid */}
-      {filtered.length === 0 ? (
+      {totalCount === 0 ? (
         <div className="text-center py-16" data-ocid="catalogue.empty_state">
           <p className="text-4xl mb-3">🔍</p>
           <p className="font-display font-semibold text-lg mb-1">
@@ -187,7 +263,8 @@ export function CataloguePage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {filtered.map((product, i) => {
+          {/* Universal products */}
+          {filteredUniversal.map((product, i) => {
             const qty = getCartQty(product.id);
             const inCart = qty > 0;
             const productListingList = getProductListings(product.id);
@@ -307,6 +384,119 @@ export function CataloguePage() {
                         disabled={!canAdd}
                         className="h-7 w-full text-xs gap-1"
                         data-ocid={`catalogue.add.button.${i + 1}`}
+                      >
+                        <Check className="h-3 w-3" />
+                        Add to Cart
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {/* Retailer exclusive products */}
+          {filteredRetailerProducts.map((rp, i) => {
+            const retailer = retailers.find((r) => r.id === rp.retailerId);
+            const area = businessAreas.find(
+              (a) => a.id === retailer?.businessAreaId,
+            );
+            const rpQty = getRetailerProductCartQty(rp.id);
+            const rpInCart = rpQty > 0;
+
+            return (
+              <Card
+                key={rp.id}
+                className={`card-glow border-amber-200/60 overflow-hidden transition-all ${
+                  !rp.inStock ? "opacity-60" : "hover:shadow-md"
+                }`}
+                data-ocid={`catalogue.exclusive.item.${i + 1}`}
+              >
+                <div className="relative bg-amber-50/60 dark:bg-amber-950/20 flex items-center justify-center h-24 sm:h-32 text-4xl sm:text-5xl overflow-hidden">
+                  {rp.images?.[0] ? (
+                    <img
+                      src={rp.images[0]}
+                      alt={rp.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    rp.imageEmoji
+                  )}
+                  <div className="absolute top-1.5 right-1.5">
+                    <Badge className="text-[9px] px-1.5 py-0 bg-amber-500 text-white border-0 gap-0.5 shadow-sm">
+                      <Star className="h-2 w-2 fill-white" />
+                      Exclusive
+                    </Badge>
+                  </div>
+                </div>
+                <CardContent className="p-3">
+                  <h3 className="font-semibold text-xs sm:text-sm leading-tight mb-1 line-clamp-2">
+                    {rp.name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-1.5 line-clamp-1">
+                    {rp.description}
+                  </p>
+                  {retailer && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1.5 truncate">
+                      {retailer.name}
+                      {area ? ` (${area.name})` : ""}
+                    </p>
+                  )}
+
+                  {/* Price — fixed, no dropdown */}
+                  <div className="mb-2">
+                    <span className="font-display font-bold text-primary text-sm">
+                      R{rp.price.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Add to cart */}
+                  <div className="flex items-center justify-between gap-1">
+                    {!rp.inStock ? (
+                      <Badge variant="secondary" className="text-[10px] px-1.5">
+                        Out of stock
+                      </Badge>
+                    ) : rpInCart ? (
+                      <div className="flex items-center gap-1 w-full justify-between">
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(`rp_${rp.id}`)}
+                          className="w-6 h-6 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted"
+                        >
+                          −
+                        </button>
+                        <span className="text-xs font-bold w-4 text-center">
+                          {rpQty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addRetailerProductToCart(
+                              rp.id,
+                              rp.retailerId,
+                              rp.price,
+                              rp.name,
+                            )
+                          }
+                          className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs"
+                          data-ocid={`catalogue.exclusive.add.button.${i + 1}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          addRetailerProductToCart(
+                            rp.id,
+                            rp.retailerId,
+                            rp.price,
+                            rp.name,
+                          )
+                        }
+                        className="h-7 w-full text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white border-0"
+                        data-ocid={`catalogue.exclusive.add.button.${i + 1}`}
                       >
                         <Check className="h-3 w-3" />
                         Add to Cart

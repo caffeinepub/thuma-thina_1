@@ -15,17 +15,42 @@ export function CartPage() {
     updateCartQty,
     removeFromCart,
     clearCart,
+    retailerProducts,
   } = useApp();
 
   const cartItems = cart
-    .map((ci) => ({
-      ...ci,
-      product: products.find((p) => p.id === ci.productId),
-      retailerName: ci.chosenRetailerId
-        ? retailers.find((r) => r.id === ci.chosenRetailerId)?.name
-        : undefined,
-    }))
-    .filter((ci) => ci.product);
+    .map((ci) => {
+      // Retailer exclusive product
+      if (ci.retailerProductId) {
+        const rp = retailerProducts.find((p) => p.id === ci.retailerProductId);
+        if (!rp) return null;
+        const retailer = retailers.find((r) => r.id === rp.retailerId);
+        return {
+          ...ci,
+          product: {
+            id: rp.id,
+            name: rp.name,
+            imageEmoji: rp.imageEmoji,
+            images: rp.images,
+          },
+          retailerName: retailer?.name,
+          isRetailerProduct: true,
+        };
+      }
+      // Universal product
+      return {
+        ...ci,
+        product: products.find((p) => p.id === ci.productId),
+        retailerName: ci.chosenRetailerId
+          ? retailers.find((r) => r.id === ci.chosenRetailerId)?.name
+          : undefined,
+        isRetailerProduct: false,
+      };
+    })
+    .filter(
+      (ci): ci is NonNullable<typeof ci> =>
+        ci !== null && ci.product !== undefined,
+    );
 
   const subtotal = cartItems.reduce(
     (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
@@ -38,6 +63,7 @@ export function CartPage() {
     retailers,
     businessAreas,
     "pickup_point",
+    retailerProducts,
   );
   const deliveryFee = feeBreakdown.total;
   const total = subtotal + deliveryFee;
