@@ -1,36 +1,33 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
+import type React from "react";
 import {
-  type BusinessArea,
-  type CartItem,
-  type DemoRole,
-  type NomayiniWallet,
-  type Order,
-  type OrderStatus,
-  type PickupPoint,
-  type Product,
-  type ProductListing,
-  type Retailer,
-  type RetailerProduct,
-  type StaffUser,
-  type Town,
-  businessAreas as initialBusinessAreas,
-  productListings as initialListings,
-  pickupPoints as initialPickupPoints,
-  products as initialProducts,
-  retailerProducts as initialRetailerProducts,
-  retailers as initialRetailers,
-  staffUsers as initialStaffUsers,
-  towns as initialTowns,
-  sampleOrders,
-  sampleWallet,
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { AppUserRole, type UserProfile } from "../backend.d";
+import type {
+  BusinessArea,
+  CartItem,
+  NomayiniWallet,
+  Order,
+  OrderItem,
+  OrderStatus,
+  PickupPoint,
+  Product,
+  ProductListing,
+  Retailer,
+  RetailerProduct,
+  StaffUser,
+  Town,
 } from "../data/mockData";
+import { useActor } from "../hooks/useActor";
+import { splitCartIntoSubOrders } from "../utils/orderSplit";
+import { useAuth } from "./AuthContext";
 
 // ─── Notification Types ───────────────────────────────────────────────────────
 
@@ -55,11 +52,14 @@ export interface AppNotification {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AppContextValue {
-  // Role/Auth
-  demoRole: DemoRole;
-  setDemoRole: (role: DemoRole) => void;
-  isSuperAdmin: boolean;
+  // Current user (derived from AuthContext or demo mode)
   currentUser: { id: string; name: string; phone: string } | null;
+  setCurrentUser: React.Dispatch<
+    React.SetStateAction<{ id: string; name: string; phone: string } | null>
+  >;
+
+  // Data loading state
+  dataLoading: boolean;
 
   // Cart
   cart: CartItem[];
@@ -117,6 +117,9 @@ interface AppContextValue {
   staffUsers: StaffUser[];
   setStaffUsers: React.Dispatch<React.SetStateAction<StaffUser[]>>;
 
+  // Shopper assignments (principal text → retailer IDs)
+  shopperAssignments: Map<string, string[]>;
+
   // Nomayini Wallet
   nomayiniWallet: NomayiniWallet;
   setNomayiniWallet: React.Dispatch<React.SetStateAction<NomayiniWallet>>;
@@ -131,18 +134,45 @@ interface AppContextValue {
   unreadCount: number;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseImages(imagesJson?: string): string[] | undefined {
+  if (!imagesJson) return undefined;
+  try {
+    const parsed = JSON.parse(imagesJson);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseOperatingHours(
+  hoursJson?: string,
+): import("../data/mockData").OperatingHours | undefined {
+  if (!hoursJson) return undefined;
+  try {
+    return JSON.parse(hoursJson);
+  } catch {
+    return undefined;
+  }
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [demoRole, setDemoRoleState] = useState<DemoRole>(() => {
-    try {
-      return (localStorage.getItem("tt_role") as DemoRole) || "customer";
-    } catch {
-      return "customer";
-    }
-  });
+  const { actor, isFetching: actorFetching } = useActor();
+  const { isAuthenticated } = useAuth();
+
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+  } | null>(null);
+
+  const [dataLoading, setDataLoading] = useState(false);
+  const lastLoadedPrincipal = useRef<string | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -153,33 +183,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const [orders, setOrders] = useState<Order[]>(sampleOrders);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [retailerProducts, setRetailerProducts] = useState<RetailerProduct[]>(
-    initialRetailerProducts,
+    [],
   );
-  const [retailers, setRetailers] = useState<Retailer[]>(initialRetailers);
-  const [listings, setListings] = useState<ProductListing[]>(initialListings);
-  const [towns, setTowns] = useState<Town[]>(initialTowns);
-  const [businessAreas, setBusinessAreas] =
-    useState<BusinessArea[]>(initialBusinessAreas);
-  const [pickupPoints, setPickupPoints] =
-    useState<PickupPoint[]>(initialPickupPoints);
-  const [staffUsers, setStaffUsers] = useState<StaffUser[]>(initialStaffUsers);
-  const [nomayiniWallet, setNomayiniWallet] =
-    useState<NomayiniWallet>(sampleWallet);
+  const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [listings, setListings] = useState<ProductListing[]>([]);
+  const [towns, setTowns] = useState<Town[]>([]);
+  const [businessAreas, setBusinessAreas] = useState<BusinessArea[]>([]);
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [shopperAssignments, setShopperAssignments] = useState<
+    Map<string, string[]>
+  >(new Map());
+  const [nomayiniWallet, setNomayiniWallet] = useState<NomayiniWallet>({
+    totalEarned: 0,
+    unlockedBalance: 0,
+    lockedShortTerm: 0,
+    lockedLongTerm: 0,
+    transactions: [],
+  });
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-
-  // Persist role
-  const setDemoRole = useCallback((role: DemoRole) => {
-    setDemoRoleState(role);
-    try {
-      localStorage.setItem("tt_role", role);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   // Persist cart
   useEffect(() => {
@@ -190,20 +216,152 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [cart]);
 
-  const isSuperAdmin = demoRole === "admin";
+  // ─── Load all backend data ────────────────────────────────────────────────────
 
-  const currentUser = React.useMemo(() => {
-    const users: Record<DemoRole, { id: string; name: string; phone: string }> =
-      {
-        customer: { id: "cust1", name: "Ntombi Cele", phone: "072 111 2222" },
-        shopper: { id: "u1", name: "Sipho Dlamini", phone: "071 234 5678" },
-        driver: { id: "u2", name: "Zanele Mthembu", phone: "082 345 6789" },
-        operator: { id: "u4", name: "Nomvula Zulu", phone: "083 567 8901" },
-        admin: { id: "admin1", name: "Admin User", phone: "000 000 0000" },
-        guest: { id: "", name: "Guest", phone: "" },
-      };
-    return users[demoRole] || null;
-  }, [demoRole]);
+  const loadAllData = useCallback(async () => {
+    if (!actor || actorFetching) return;
+
+    setDataLoading(true);
+    try {
+      const [
+        rawTowns,
+        rawBusinessAreas,
+        rawPickupPoints,
+        rawRetailers,
+        rawProducts,
+        rawListings,
+        rawRetailerProducts,
+        rawShopperAssignments,
+      ] = await Promise.all([
+        actor.getTowns(),
+        actor.getBusinessAreas(),
+        actor.getPickupPoints(),
+        actor.getRetailers(),
+        actor.getProducts(),
+        actor.getListings(),
+        actor.getRetailerProducts(),
+        actor.getAllShopperAssignments(),
+      ]);
+
+      // Map backend types → frontend types
+      setTowns(rawTowns as Town[]);
+
+      setBusinessAreas(
+        rawBusinessAreas.map((ba) => ({
+          id: ba.id,
+          name: ba.name,
+          townId: ba.townId,
+          type: ba.areaType as BusinessArea["type"],
+        })),
+      );
+
+      setPickupPoints(rawPickupPoints as PickupPoint[]);
+
+      setRetailers(
+        rawRetailers.map((r) => ({
+          id: r.id,
+          name: r.name,
+          townId: r.townId,
+          address: r.address,
+          businessAreaId: r.businessAreaId,
+          operatingHours: parseOperatingHours(r.operatingHoursJson),
+        })),
+      );
+
+      setProducts(
+        rawProducts
+          .filter((p) => p.approved || !p.isSuggestion)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            category: p.category as import("../data/mockData").ProductCategory,
+            imageEmoji: p.imageEmoji,
+            images: parseImages(p.imagesJson),
+            inStock: p.inStock,
+            isSuggestion: p.isSuggestion,
+            suggestedBy: p.suggestedBy,
+            approved: p.approved,
+          })),
+      );
+
+      setListings(
+        rawListings.map((l) => ({
+          id: l.id,
+          productId: l.productId,
+          retailerId: l.retailerId,
+          price: l.price,
+          outOfStock: l.outOfStock,
+        })),
+      );
+
+      setRetailerProducts(
+        rawRetailerProducts.map((rp) => ({
+          id: rp.id,
+          retailerId: rp.retailerId,
+          name: rp.name,
+          description: rp.description,
+          category: rp.category as import("../data/mockData").ProductCategory,
+          price: rp.price,
+          imageEmoji: rp.imageEmoji,
+          images: parseImages(rp.imagesJson),
+          inStock: rp.inStock,
+        })),
+      );
+
+      // Build shopper assignments map
+      const assignMap = new Map<string, string[]>();
+      for (const [principal, retailerIds] of rawShopperAssignments) {
+        assignMap.set(principal.toString(), retailerIds);
+      }
+      setShopperAssignments(assignMap);
+
+      // Load all users for staff list
+      try {
+        const allUsers = await actor.getAllUsers();
+        const mapped: StaffUser[] = allUsers
+          .filter((u) => u.role !== AppUserRole.customer)
+          .map((u: UserProfile) => ({
+            id: u.principal.toString(),
+            name: u.displayName,
+            phone: u.phone,
+            email: "",
+            role: u.role as import("../data/mockData").DemoRole,
+            status:
+              u.registrationStatus === "active"
+                ? ("approved" as const)
+                : u.registrationStatus === "pending"
+                  ? ("pending" as const)
+                  : ("rejected" as const),
+            createdAt: new Date().toISOString(),
+            businessAreaId: u.businessAreaId ?? undefined,
+            assignedRetailerIds: assignMap.get(u.principal.toString()) ?? [],
+          }));
+        setStaffUsers(mapped);
+      } catch {
+        // Non-admin users won't be able to call getAllUsers — that's OK
+      }
+    } catch (err) {
+      console.error("Failed to load backend data:", err);
+      toast.error("Failed to load data. Please refresh.");
+    } finally {
+      setDataLoading(false);
+    }
+  }, [actor, actorFetching]);
+
+  // Load data when actor becomes available
+  useEffect(() => {
+    if (actor && !actorFetching) {
+      // Use a stable key to avoid double-loading
+      const actorKey = isAuthenticated ? "auth" : "anon";
+      if (lastLoadedPrincipal.current !== actorKey) {
+        lastLoadedPrincipal.current = actorKey;
+        loadAllData();
+      }
+    }
+  }, [actor, actorFetching, isAuthenticated, loadAllData]);
+
+  // ─── Cart ─────────────────────────────────────────────────────────────────────
 
   const addToCart = useCallback((productId: string) => {
     setCart((prev) => {
@@ -261,7 +419,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       price: number,
       _productName: string,
     ) => {
-      // Use retailerProductId as the productId key for cart lookup uniqueness
       setCart((prev) => {
         const existing = prev.find(
           (i) => i.retailerProductId === retailerProductId,
@@ -335,18 +492,86 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const placeOrder = useCallback(
     (orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): string => {
-      const id = `ord${Date.now()}`;
+      const parentOrderId = `ord${Date.now()}`;
       const now = new Date().toISOString();
-      const newOrder: Order = {
-        ...orderData,
-        id,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setOrders((prev) => [newOrder, ...prev]);
 
-      // Award 10% Nomayini tokens
-      const earnedTokens = Math.round(orderData.total * 0.1 * 100) / 100;
+      const cartSnapshot = cart;
+      const splitGroups = splitCartIntoSubOrders(
+        cartSnapshot,
+        retailers,
+        retailerProducts,
+        staffUsers,
+        businessAreas,
+        listings,
+      );
+
+      const effectiveGroups =
+        splitGroups.length > 0
+          ? splitGroups
+          : [
+              {
+                dedicatedRetailerId: undefined,
+                retailerName: undefined,
+                items: cartSnapshot,
+                businessAreaId: orderData.businessAreaId,
+              },
+            ];
+
+      const grandTotal = orderData.total;
+      const subOrderCount = effectiveGroups.length;
+      const perSubDeliveryFee =
+        subOrderCount > 1
+          ? Math.round((grandTotal / subOrderCount) * 100) / 100
+          : 0;
+
+      const newOrders: Order[] = effectiveGroups.map((group, index) => {
+        const subId =
+          subOrderCount === 1
+            ? parentOrderId
+            : `${parentOrderId}_sub${index + 1}`;
+
+        const groupItemTotal = group.items.reduce((sum, ci) => {
+          return sum + (ci.chosenPrice ?? 0) * ci.quantity;
+        }, 0);
+
+        const orderItems: OrderItem[] = group.items.map((ci) => {
+          const matchedItem = orderData.items.find(
+            (oi) =>
+              oi.productId === ci.productId ||
+              (ci.retailerProductId &&
+                oi.productId === `rp_${ci.retailerProductId}`),
+          );
+          return {
+            productId: ci.retailerProductId
+              ? `rp_${ci.retailerProductId}`
+              : ci.productId,
+            productName: matchedItem?.productName ?? ci.productId,
+            price: ci.chosenPrice ?? 0,
+            quantity: ci.quantity,
+          };
+        });
+
+        const subTotal =
+          subOrderCount === 1
+            ? grandTotal
+            : Math.round((groupItemTotal + perSubDeliveryFee) * 100) / 100;
+
+        return {
+          ...orderData,
+          id: subId,
+          parentOrderId,
+          dedicatedRetailerId: group.dedicatedRetailerId,
+          items: orderItems,
+          total: subTotal,
+          businessAreaId: group.businessAreaId,
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+
+      setOrders((prev) => [...newOrders, ...prev]);
+
+      const earnedTokens = Math.round(grandTotal * 0.1 * 100) / 100;
       const threeMonthsFromNow = new Date();
       threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
       const newTx = {
@@ -365,24 +590,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         transactions: [newTx, ...prev.transactions],
       }));
 
-      // Notify shoppers of new order
-      setNotifications((prev) => [
-        {
+      const newNotifications: AppNotification[] = newOrders.map((subOrder) => {
+        const isDedicated = !!subOrder.dedicatedRetailerId;
+        const retailerName = isDedicated
+          ? (retailers.find((r) => r.id === subOrder.dedicatedRetailerId)
+              ?.name ?? "retailer")
+          : null;
+        return {
           id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          type: "order",
-          title: "New Order Available",
-          message:
-            "A new order has been placed. Ready for a shopper to accept.",
+          type: "order" as const,
+          title: isDedicated ? "New Dedicated Order" : "New Order Available",
+          message: isDedicated
+            ? `New order for ${retailerName} — ready for your assigned shopper.`
+            : "A new order has been placed. Ready for a shopper to accept.",
           read: false,
           createdAt: now,
-          targetRole: "shopper",
-        },
-        ...prev,
-      ]);
+          targetRole: "shopper" as const,
+        };
+      });
 
-      return id;
+      setNotifications((prev) => [...newNotifications, ...prev]);
+
+      return parentOrderId;
     },
-    [],
+    [cart, retailers, retailerProducts, staffUsers, businessAreas, listings],
   );
 
   const updateOrderStatus = useCallback(
@@ -401,7 +632,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
       );
 
-      // Fire role-targeted notifications based on new status
       const makeNotif = (
         type: AppNotification["type"],
         title: string,
@@ -469,17 +699,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const unreadCount = notifications.filter(
-    (n) => !n.read && (n.targetRole === demoRole || n.targetRole === "all"),
-  ).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <AppContext.Provider
       value={{
-        demoRole,
-        setDemoRole,
-        isSuperAdmin,
         currentUser,
+        setCurrentUser,
+        dataLoading,
         cart,
         addToCart,
         addToCartWithListing,
@@ -508,6 +735,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPickupPoints,
         staffUsers,
         setStaffUsers,
+        shopperAssignments,
         nomayiniWallet,
         setNomayiniWallet,
         notifications,

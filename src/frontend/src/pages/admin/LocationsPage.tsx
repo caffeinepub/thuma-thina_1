@@ -2,6 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -24,11 +29,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Building2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   Info,
+  Loader2,
   MapPin,
   Package,
   Plus,
@@ -45,12 +55,16 @@ import { ImageUpload } from "../../components/ImageUpload";
 import { useApp } from "../../context/AppContext";
 import type {
   BusinessArea,
+  DaySchedule,
+  OperatingHours,
   PickupPoint,
   ProductCategory,
   Retailer,
   RetailerProduct,
   Town,
 } from "../../data/mockData";
+import { DEFAULT_OPERATING_HOURS } from "../../data/mockData";
+import { useActor } from "../../hooks/useActor";
 
 const CATEGORIES: ProductCategory[] = [
   "Groceries",
@@ -59,6 +73,16 @@ const CATEGORIES: ProductCategory[] = [
   "Beverages",
   "Personal Care",
   "Baby & Kids",
+];
+
+const DAY_LABELS: { key: keyof OperatingHours; label: string }[] = [
+  { key: "mon", label: "Monday" },
+  { key: "tue", label: "Tuesday" },
+  { key: "wed", label: "Wednesday" },
+  { key: "thu", label: "Thursday" },
+  { key: "fri", label: "Friday" },
+  { key: "sat", label: "Saturday" },
+  { key: "sun", label: "Sunday" },
 ];
 
 export function AdminLocationsPage() {
@@ -76,6 +100,9 @@ export function AdminLocationsPage() {
     staffUsers,
     setStaffUsers,
   } = useApp();
+  const { actor } = useActor();
+
+  const [saving, setSaving] = useState(false);
 
   // Town dialog
   const [townDialog, setTownDialog] = useState(false);
@@ -103,6 +130,7 @@ export function AdminLocationsPage() {
   const [retailerForm, setRetailerForm] = useState({
     name: "",
     townId: "",
+    businessAreaId: "",
     address: "",
   });
 
@@ -116,84 +144,230 @@ export function AdminLocationsPage() {
     price: "",
     images: [] as string[],
   });
+  // Operating hours edit state (local draft while sheet is open)
+  const [hoursOpen, setHoursOpen] = useState(false);
+  const [hoursForm, setHoursForm] = useState<OperatingHours>(
+    DEFAULT_OPERATING_HOURS,
+  );
 
-  const addTown = () => {
+  const openManageRetailer = (retailer: Retailer) => {
+    setManageRetailer(retailer);
+    setHoursForm(retailer.operatingHours ?? { ...DEFAULT_OPERATING_HOURS });
+    setHoursOpen(false);
+  };
+
+  const saveOperatingHours = async () => {
+    if (!manageRetailer) return;
+    setSaving(true);
+    try {
+      if (actor) {
+        await actor.updateRetailerHours(
+          manageRetailer.id,
+          JSON.stringify(hoursForm),
+        );
+      }
+      setRetailers((prev) =>
+        prev.map((r) =>
+          r.id === manageRetailer.id ? { ...r, operatingHours: hoursForm } : r,
+        ),
+      );
+      toast.success("Operating hours saved");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save operating hours");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateDay = (
+    day: keyof OperatingHours,
+    field: keyof DaySchedule,
+    value: string | boolean,
+  ) => {
+    setHoursForm((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
+  };
+
+  const addTown = async () => {
     if (!townForm.name.trim()) return;
-    const newTown: Town = {
-      id: `t${Date.now()}`,
-      name: townForm.name,
-      province: townForm.province,
-    };
-    setTowns((prev) => [...prev, newTown]);
-    toast.success("Town added");
-    setTownDialog(false);
-    setTownForm({ name: "", province: "" });
+    const id = `t${Date.now()}`;
+    setSaving(true);
+    try {
+      if (actor) await actor.addTown(id, townForm.name, townForm.province);
+      const newTown: Town = {
+        id,
+        name: townForm.name,
+        province: townForm.province,
+      };
+      setTowns((prev) => [...prev, newTown]);
+      toast.success("Town added");
+      setTownDialog(false);
+      setTownForm({ name: "", province: "" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add town");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteTown = (id: string) => {
-    setTowns((prev) => prev.filter((t) => t.id !== id));
-    toast.success("Town removed");
+  const deleteTown = async (id: string) => {
+    try {
+      if (actor) await actor.deleteTown(id);
+      setTowns((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Town removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove town");
+    }
   };
 
-  const addBA = () => {
+  const addBA = async () => {
     if (!baForm.name.trim() || !baForm.townId) return;
-    const newBA: BusinessArea = {
-      id: `ba${Date.now()}`,
-      name: baForm.name,
-      townId: baForm.townId,
-      type: baForm.type,
-    };
-    setBusinessAreas((prev) => [...prev, newBA]);
-    toast.success("Business area added");
-    setBaDialog(false);
-    setBaForm({ name: "", townId: "", type: "mall" });
+    const id = `ba${Date.now()}`;
+    setSaving(true);
+    try {
+      if (actor)
+        await actor.addBusinessArea(
+          id,
+          baForm.name,
+          baForm.townId,
+          baForm.type,
+        );
+      const newBA: BusinessArea = {
+        id,
+        name: baForm.name,
+        townId: baForm.townId,
+        type: baForm.type,
+      };
+      setBusinessAreas((prev) => [...prev, newBA]);
+      toast.success("Business area added");
+      setBaDialog(false);
+      setBaForm({ name: "", townId: "", type: "mall" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add business area");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteBA = (id: string) => {
-    setBusinessAreas((prev) => prev.filter((ba) => ba.id !== id));
-    toast.success("Business area removed");
+  const deleteBA = async (id: string) => {
+    try {
+      if (actor) await actor.deleteBusinessArea(id);
+      setBusinessAreas((prev) => prev.filter((ba) => ba.id !== id));
+      toast.success("Business area removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove business area");
+    }
   };
 
-  const addPP = () => {
+  const addPP = async () => {
     if (!ppForm.name.trim() || !ppForm.townId) return;
-    const newPP: PickupPoint = {
-      id: `pp${Date.now()}`,
-      name: ppForm.name,
-      townId: ppForm.townId,
-      address: ppForm.address,
-      profileImageUrl: ppForm.profileImages[0] || undefined,
-    };
-    setPickupPoints((prev) => [...prev, newPP]);
-    toast.success("Pick-up point added");
-    setPpDialog(false);
-    setPpForm({ name: "", townId: "", address: "", profileImages: [] });
+    const id = `pp${Date.now()}`;
+    const profileImageUrl = ppForm.profileImages[0] || null;
+    setSaving(true);
+    try {
+      if (actor)
+        await actor.addPickupPoint(
+          id,
+          ppForm.name,
+          ppForm.townId,
+          ppForm.address,
+          profileImageUrl,
+        );
+      const newPP: PickupPoint = {
+        id,
+        name: ppForm.name,
+        townId: ppForm.townId,
+        address: ppForm.address,
+        profileImageUrl: profileImageUrl ?? undefined,
+      };
+      setPickupPoints((prev) => [...prev, newPP]);
+      toast.success("Pick-up point added");
+      setPpDialog(false);
+      setPpForm({ name: "", townId: "", address: "", profileImages: [] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add pick-up point");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deletePP = (id: string) => {
-    setPickupPoints((prev) => prev.filter((pp) => pp.id !== id));
-    toast.success("Pick-up point removed");
+  const deletePP = async (id: string) => {
+    try {
+      if (actor) await actor.deletePickupPoint(id);
+      setPickupPoints((prev) => prev.filter((pp) => pp.id !== id));
+      toast.success("Pick-up point removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove pick-up point");
+    }
   };
 
-  const addRetailer = () => {
-    if (!retailerForm.name.trim() || !retailerForm.townId) return;
-    const newRetailer: Retailer = {
-      id: `r${Date.now()}`,
-      name: retailerForm.name,
-      townId: retailerForm.townId,
-      address: retailerForm.address,
-    };
-    setRetailers((prev) => [...prev, newRetailer]);
-    toast.success("Retailer added");
-    setRetailerDialog(false);
-    setRetailerForm({ name: "", townId: "", address: "" });
+  const addRetailer = async () => {
+    if (
+      !retailerForm.name.trim() ||
+      !retailerForm.townId ||
+      !retailerForm.businessAreaId
+    ) {
+      toast.error("Please select a town and business area");
+      return;
+    }
+    const id = `r${Date.now()}`;
+    setSaving(true);
+    try {
+      if (actor) {
+        await actor.addRetailer(
+          id,
+          retailerForm.name,
+          retailerForm.townId,
+          retailerForm.businessAreaId,
+          retailerForm.address,
+          null,
+        );
+      }
+      const newRetailer: Retailer = {
+        id,
+        name: retailerForm.name,
+        townId: retailerForm.townId,
+        businessAreaId: retailerForm.businessAreaId,
+        address: retailerForm.address,
+      };
+      setRetailers((prev) => [...prev, newRetailer]);
+      toast.success("Retailer added");
+      setRetailerDialog(false);
+      setRetailerForm({
+        name: "",
+        townId: "",
+        businessAreaId: "",
+        address: "",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add retailer");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteRetailer = (id: string) => {
-    setRetailers((prev) => prev.filter((r) => r.id !== id));
-    toast.success("Retailer removed");
+  const deleteRetailer = async (id: string) => {
+    try {
+      if (actor) await actor.deleteRetailer(id);
+      setRetailers((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Retailer removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove retailer");
+    }
   };
 
-  const addRetailerProduct = () => {
+  const addRetailerProduct = async () => {
     if (!manageRetailer || !productForm.name.trim() || !productForm.price)
       return;
     const price = Number.parseFloat(productForm.price);
@@ -201,65 +375,135 @@ export function AdminLocationsPage() {
       toast.error("Enter a valid price");
       return;
     }
-    const newProduct: RetailerProduct = {
-      id: `rp${Date.now()}`,
-      retailerId: manageRetailer.id,
-      name: productForm.name,
-      description: productForm.description,
-      category: productForm.category,
-      price,
-      imageEmoji: "🏪",
-      images: productForm.images.length > 0 ? productForm.images : undefined,
-      inStock: true,
-    };
-    setRetailerProducts((prev) => [...prev, newProduct]);
-    toast.success("Product added");
-    setAddProductDialog(false);
-    setProductForm({
-      name: "",
-      description: "",
-      category: "Groceries",
-      price: "",
-      images: [],
-    });
+    const id = `rp${Date.now()}`;
+    const imagesJson =
+      productForm.images.length > 0 ? JSON.stringify(productForm.images) : null;
+    setSaving(true);
+    try {
+      if (actor) {
+        await actor.addRetailerProduct(
+          id,
+          manageRetailer.id,
+          productForm.name,
+          productForm.description,
+          productForm.category,
+          price,
+          "🏪",
+          imagesJson,
+        );
+      }
+      const newProduct: RetailerProduct = {
+        id,
+        retailerId: manageRetailer.id,
+        name: productForm.name,
+        description: productForm.description,
+        category: productForm.category,
+        price,
+        imageEmoji: "🏪",
+        images: productForm.images.length > 0 ? productForm.images : undefined,
+        inStock: true,
+      };
+      setRetailerProducts((prev) => [...prev, newProduct]);
+      toast.success("Product added");
+      setAddProductDialog(false);
+      setProductForm({
+        name: "",
+        description: "",
+        category: "Groceries",
+        price: "",
+        images: [],
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add product");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteRetailerProduct = (id: string) => {
-    setRetailerProducts((prev) => prev.filter((p) => p.id !== id));
-    toast.success("Product removed");
+  const deleteRetailerProduct = async (id: string) => {
+    try {
+      if (actor) await actor.deleteRetailerProduct(id);
+      setRetailerProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Product removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove product");
+    }
   };
 
-  const assignShopper = (shopperId: string, retailerId: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) =>
-        u.id === shopperId
-          ? {
-              ...u,
-              assignedRetailerIds: [
-                ...(u.assignedRetailerIds ?? []),
-                retailerId,
-              ],
-            }
-          : u,
-      ),
-    );
-    toast.success("Shopper assigned");
+  const toggleRetailerProductStock = async (
+    id: string,
+    currentInStock: boolean,
+  ) => {
+    try {
+      if (actor) await actor.setRetailerProductStock(id, !currentInStock);
+      setRetailerProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, inStock: !currentInStock } : p)),
+      );
+      toast.success(
+        !currentInStock ? "Marked in stock" : "Marked out of stock",
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update stock");
+    }
   };
 
-  const unassignShopper = (shopperId: string, retailerId: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) =>
-        u.id === shopperId
-          ? {
-              ...u,
-              assignedRetailerIds: (u.assignedRetailerIds ?? []).filter(
-                (id) => id !== retailerId,
-              ),
-            }
-          : u,
-      ),
-    );
-    toast.success("Shopper removed");
+  const getPrincipal = async (principalStr: string) => {
+    const mod = await import("@icp-sdk/core/principal");
+    return mod.Principal.fromText(principalStr);
+  };
+
+  const assignShopper = async (shopperId: string, retailerId: string) => {
+    try {
+      if (actor) {
+        const principal = await getPrincipal(shopperId);
+        await actor.assignShopperToRetailer(principal, retailerId);
+      }
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === shopperId
+            ? {
+                ...u,
+                assignedRetailerIds: [
+                  ...(u.assignedRetailerIds ?? []),
+                  retailerId,
+                ],
+              }
+            : u,
+        ),
+      );
+      toast.success("Shopper assigned");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to assign shopper");
+    }
+  };
+
+  const unassignShopper = async (shopperId: string, retailerId: string) => {
+    try {
+      if (actor) {
+        const principal = await getPrincipal(shopperId);
+        await actor.unassignShopperFromRetailer(principal, retailerId);
+      }
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === shopperId
+            ? {
+                ...u,
+                assignedRetailerIds: (u.assignedRetailerIds ?? []).filter(
+                  (id) => id !== retailerId,
+                ),
+              }
+            : u,
+        ),
+      );
+      toast.success("Shopper removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove shopper");
+    }
   };
 
   return (
@@ -543,7 +787,7 @@ export function AdminLocationsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setManageRetailer(retailer)}
+                            onClick={() => openManageRetailer(retailer)}
                             className="gap-1.5 h-8 text-xs shrink-0"
                             data-ocid={`admin.retailer.edit_button.${i + 1}`}
                           >
@@ -666,7 +910,7 @@ export function AdminLocationsPage() {
                             <p className="text-sm font-medium truncate">
                               {product.name}
                             </p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                               <Badge
                                 variant="secondary"
                                 className="text-[10px] px-1.5 py-0"
@@ -676,8 +920,30 @@ export function AdminLocationsPage() {
                               <span className="text-xs font-bold text-primary">
                                 R{product.price.toFixed(2)}
                               </span>
+                              <Badge
+                                variant={
+                                  product.inStock ? "outline" : "secondary"
+                                }
+                                className={`text-[10px] px-1.5 py-0 ${product.inStock ? "text-green-700 border-green-300" : "text-red-600 border-red-200"}`}
+                              >
+                                {product.inStock ? "In Stock" : "Out of Stock"}
+                              </Badge>
                             </div>
                           </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              toggleRetailerProductStock(
+                                product.id,
+                                product.inStock,
+                              )
+                            }
+                            className={`h-7 text-xs shrink-0 ${product.inStock ? "text-red-600 border-red-200 hover:bg-red-50" : "text-green-600 border-green-200 hover:bg-green-50"}`}
+                            data-ocid={`admin.retailer_product.toggle.${idx + 1}`}
+                          >
+                            {product.inStock ? "Mark OOS" : "Mark In Stock"}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -805,6 +1071,113 @@ export function AdminLocationsPage() {
                       ))}
                   </div>
                 )}
+              </div>
+
+              <Separator />
+
+              {/* Section C: Operating Hours */}
+              <div>
+                <Collapsible open={hoursOpen} onOpenChange={setHoursOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center justify-between w-full mb-2"
+                      data-ocid="admin.operating_hours.toggle"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-primary" />
+                        <h3 className="font-semibold text-sm">
+                          Operating Hours
+                        </h3>
+                      </div>
+                      {hoursOpen ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="flex items-start gap-1.5 rounded-md bg-muted/40 px-3 py-2 mb-3">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Set the hours this retailer is open. Closed retailers
+                        show a "Closed" badge in the catalogue and customers
+                        cannot add their items to cart.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 mb-3">
+                      {DAY_LABELS.map(({ key, label }) => {
+                        const day = hoursForm[key];
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2"
+                            data-ocid={`admin.hours_${key}.row`}
+                          >
+                            <span className="w-20 text-xs font-medium shrink-0">
+                              {label}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Switch
+                                checked={day.closed}
+                                onCheckedChange={(v) =>
+                                  updateDay(key, "closed", v)
+                                }
+                                className="scale-75"
+                                data-ocid={`admin.hours_${key}.switch`}
+                              />
+                              <span className="text-[11px] text-muted-foreground w-12">
+                                {day.closed ? "Closed" : "Open"}
+                              </span>
+                            </div>
+                            {!day.closed && (
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <Input
+                                  type="time"
+                                  value={day.open}
+                                  onChange={(e) =>
+                                    updateDay(key, "open", e.target.value)
+                                  }
+                                  className="h-7 text-xs flex-1"
+                                  data-ocid={`admin.hours_${key}_open.input`}
+                                />
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  to
+                                </span>
+                                <Input
+                                  type="time"
+                                  value={day.close}
+                                  onChange={(e) =>
+                                    updateDay(key, "close", e.target.value)
+                                  }
+                                  className="h-7 text-xs flex-1"
+                                  data-ocid={`admin.hours_${key}_close.input`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      size="sm"
+                      onClick={saveOperatingHours}
+                      disabled={saving}
+                      className="w-full gap-1.5"
+                      data-ocid="admin.operating_hours.save_button"
+                    >
+                      {saving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Clock className="h-3.5 w-3.5" />
+                      )}
+                      Save Operating Hours
+                    </Button>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
           )}
@@ -1116,7 +1489,11 @@ export function AdminLocationsPage() {
               <Select
                 value={retailerForm.townId}
                 onValueChange={(v) =>
-                  setRetailerForm((f) => ({ ...f, townId: v }))
+                  setRetailerForm((f) => ({
+                    ...f,
+                    townId: v,
+                    businessAreaId: "",
+                  }))
                 }
               >
                 <SelectTrigger data-ocid="admin.retailer_town.select">
@@ -1128,6 +1505,35 @@ export function AdminLocationsPage() {
                       {t.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Business Area</Label>
+              <Select
+                value={retailerForm.businessAreaId}
+                onValueChange={(v) =>
+                  setRetailerForm((f) => ({ ...f, businessAreaId: v }))
+                }
+                disabled={!retailerForm.townId}
+              >
+                <SelectTrigger data-ocid="admin.retailer_area.select">
+                  <SelectValue
+                    placeholder={
+                      retailerForm.townId
+                        ? "Select business area"
+                        : "Select town first"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {businessAreas
+                    .filter((ba) => ba.townId === retailerForm.townId)
+                    .map((ba) => (
+                      <SelectItem key={ba.id} value={ba.id}>
+                        {ba.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1164,8 +1570,12 @@ export function AdminLocationsPage() {
             </Button>
             <Button
               onClick={addRetailer}
+              disabled={saving}
               data-ocid="admin.retailer.confirm_button"
             >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : null}
               Add Retailer
             </Button>
           </DialogFooter>

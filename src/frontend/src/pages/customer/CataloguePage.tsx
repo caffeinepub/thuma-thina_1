@@ -9,11 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Search, ShoppingCart, Star } from "lucide-react";
+import { Check, Clock, Search, ShoppingCart, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import type { ProductCategory } from "../../data/mockData";
+import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
 
 const CATEGORIES: {
   value: ProductCategory | "All";
@@ -103,11 +104,27 @@ export function CataloguePage() {
   const getProductListings = (productId: string) =>
     listings.filter((l) => l.productId === productId);
 
-  const getListingLabel = (listing: { retailerId: string; price: number }) => {
-    const retailer = retailers.find((r) => r.id === listing.retailerId);
+  const getRetailerForListing = (retailerId: string) =>
+    retailers.find((r) => r.id === retailerId);
+
+  const getListingLabel = (listing: {
+    retailerId: string;
+    price: number;
+    outOfStock?: boolean;
+  }) => {
+    const retailer = getRetailerForListing(listing.retailerId);
     const area = businessAreas.find((a) => a.id === retailer?.businessAreaId);
     const areaLabel = area ? ` (${area.name})` : "";
     return `${retailer?.name ?? "Unknown"}${areaLabel} — R${listing.price.toFixed(2)}`;
+  };
+
+  const isListingDisabled = (listing: {
+    retailerId: string;
+    outOfStock?: boolean;
+  }) => {
+    const retailer = getRetailerForListing(listing.retailerId);
+    if (!retailer) return false;
+    return !isRetailerOpen(retailer) || !!listing.outOfStock;
   };
 
   const handleSelectListing = (productId: string, listingId: string) => {
@@ -117,7 +134,6 @@ export function CataloguePage() {
   const handleAdd = (productId: string, productName: string) => {
     const productListingList = getProductListings(productId);
     if (productListingList.length === 0) {
-      // No listings: edge case, don't add
       return;
     }
     const chosenListingId = selectedListings[productId];
@@ -129,6 +145,10 @@ export function CataloguePage() {
       (l) => l.id === chosenListingId,
     );
     if (!chosenListing) return;
+    if (isListingDisabled(chosenListing)) {
+      toast.error("This retailer is currently unavailable");
+      return;
+    }
     addToCartWithListing(
       productId,
       chosenListing.id,
@@ -161,8 +181,9 @@ export function CataloguePage() {
           Browse Catalogue
         </h1>
         <p className="text-muted-foreground text-sm">
-          {available.filter((p) => p.inStock).length} items available from local
-          stores and markets
+          {available.filter((p) => p.inStock).length +
+            retailerProducts.filter((p) => p.inStock).length}{" "}
+          items available from local stores and markets
         </p>
       </div>
 
@@ -272,7 +293,14 @@ export function CataloguePage() {
             const chosenListingId = selectedListings[product.id];
             const chosenPrice = getChosenPrice(product.id);
             const minPrice = getMinPrice(product.id);
-            const canAdd = hasListings && !!chosenListingId;
+            const chosenListing = productListingList.find(
+              (l) => l.id === chosenListingId,
+            );
+            const selectedIsDisabled = chosenListing
+              ? isListingDisabled(chosenListing)
+              : false;
+            const canAdd =
+              hasListings && !!chosenListingId && !selectedIsDisabled;
 
             return (
               <Card
@@ -334,17 +362,68 @@ export function CataloguePage() {
                           <SelectValue placeholder="Select retailer" />
                         </SelectTrigger>
                         <SelectContent>
-                          {productListingList.map((listing) => (
-                            <SelectItem
-                              key={listing.id}
-                              value={listing.id}
-                              className="text-xs"
-                            >
-                              {getListingLabel(listing)}
-                            </SelectItem>
-                          ))}
+                          {productListingList.map((listing) => {
+                            const retailer = getRetailerForListing(
+                              listing.retailerId,
+                            );
+                            const isClosed = retailer
+                              ? !isRetailerOpen(retailer)
+                              : false;
+                            const isOOS = !!listing.outOfStock;
+                            const disabled = isClosed || isOOS;
+                            return (
+                              <SelectItem
+                                key={listing.id}
+                                value={listing.id}
+                                className="text-xs"
+                                disabled={disabled}
+                              >
+                                <span className="flex items-center gap-1.5 flex-wrap">
+                                  <span>{getListingLabel(listing)}</span>
+                                  {isClosed && (
+                                    <span className="text-red-600 font-medium">
+                                      · Closed
+                                      {retailer
+                                        ? ` (${getNextOpeningText(retailer)})`
+                                        : ""}
+                                    </span>
+                                  )}
+                                  {!isClosed && isOOS && (
+                                    <span className="text-amber-600 font-medium">
+                                      · Out of Stock
+                                    </span>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
+                      {/* Show status badge for selected listing */}
+                      {chosenListing &&
+                        selectedIsDisabled &&
+                        (() => {
+                          const retailer = getRetailerForListing(
+                            chosenListing.retailerId,
+                          );
+                          const isClosed = retailer
+                            ? !isRetailerOpen(retailer)
+                            : false;
+                          return isClosed ? (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] text-red-600">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                {retailer
+                                  ? getNextOpeningText(retailer)
+                                  : "Closed"}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600">
+                              <span>⚠ Out of stock at this retailer</span>
+                            </div>
+                          );
+                        })()}
                     </div>
                   )}
 
@@ -403,12 +482,16 @@ export function CataloguePage() {
             );
             const rpQty = getRetailerProductCartQty(rp.id);
             const rpInCart = rpQty > 0;
+            const rpRetailerClosed = retailer
+              ? !isRetailerOpen(retailer)
+              : false;
+            const rpUnavailable = !rp.inStock || rpRetailerClosed;
 
             return (
               <Card
                 key={rp.id}
                 className={`card-glow border-amber-200/60 overflow-hidden transition-all ${
-                  !rp.inStock ? "opacity-60" : "hover:shadow-md"
+                  rpUnavailable ? "opacity-60" : "hover:shadow-md"
                 }`}
                 data-ocid={`catalogue.exclusive.item.${i + 1}`}
               >
@@ -422,11 +505,21 @@ export function CataloguePage() {
                   ) : (
                     rp.imageEmoji
                   )}
-                  <div className="absolute top-1.5 right-1.5">
+                  <div className="absolute top-1.5 right-1.5 flex flex-col gap-0.5 items-end">
                     <Badge className="text-[9px] px-1.5 py-0 bg-amber-500 text-white border-0 gap-0.5 shadow-sm">
                       <Star className="h-2 w-2 fill-white" />
                       Exclusive
                     </Badge>
+                    {rpRetailerClosed && (
+                      <Badge className="text-[9px] px-1.5 py-0 bg-red-500 text-white border-0 shadow-sm">
+                        Closed
+                      </Badge>
+                    )}
+                    {!rpRetailerClosed && !rp.inStock && (
+                      <Badge className="text-[9px] px-1.5 py-0 bg-amber-600 text-white border-0 shadow-sm">
+                        Out of Stock
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <CardContent className="p-3">
@@ -437,9 +530,15 @@ export function CataloguePage() {
                     {rp.description}
                   </p>
                   {retailer && (
-                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1.5 truncate">
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1 truncate">
                       {retailer.name}
                       {area ? ` (${area.name})` : ""}
+                    </p>
+                  )}
+                  {rpRetailerClosed && retailer && (
+                    <p className="text-[10px] text-red-600 mb-1 flex items-center gap-0.5">
+                      <Clock className="h-2.5 w-2.5" />
+                      {getNextOpeningText(retailer)}
                     </p>
                   )}
 
@@ -452,8 +551,18 @@ export function CataloguePage() {
 
                   {/* Add to cart */}
                   <div className="flex items-center justify-between gap-1">
-                    {!rp.inStock ? (
-                      <Badge variant="secondary" className="text-[10px] px-1.5">
+                    {rpRetailerClosed ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 text-red-600 border-red-200"
+                      >
+                        Retailer Closed
+                      </Badge>
+                    ) : !rp.inStock ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 text-amber-600"
+                      >
                         Out of stock
                       </Badge>
                     ) : rpInCart ? (

@@ -23,10 +23,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_STEPS,
   type OrderStatus,
+  type Retailer,
+  getNextOpeningText,
+  isRetailerOpen,
 } from "../data/mockData";
 
 // ─── Constant data ─────────────────────────────────────────────────────────
@@ -105,6 +109,8 @@ interface TownListing {
   price: number;
   retailerId: string;
   listingId: string;
+  outOfStock?: boolean;
+  retailer?: Retailer;
 }
 
 interface ProductCardProps {
@@ -138,6 +144,16 @@ function ProductCard({
     townListings[0]?.listingId ?? "",
   );
 
+  const availableListings = useMemo(
+    () =>
+      townListings.filter((l) => {
+        const retailer = l.retailer;
+        if (!retailer) return true;
+        return isRetailerOpen(retailer) && !l.outOfStock;
+      }),
+    [townListings],
+  );
+
   const lowestPrice = useMemo(
     () =>
       townListings.reduce(
@@ -151,8 +167,16 @@ function ProductCard({
     (l) => l.listingId === selectedListingId,
   );
 
+  const selectedIsUnavailable = useMemo(() => {
+    if (!selectedListing) return false;
+    const retailer = selectedListing.retailer;
+    if (!retailer) return false;
+    return !isRetailerOpen(retailer) || !!selectedListing.outOfStock;
+  }, [selectedListing]);
+
   const handleConfirm = useCallback(() => {
     if (!selectedListing) return;
+    if (selectedIsUnavailable) return;
     onAddToCart(
       product.id,
       selectedListing.listingId,
@@ -162,7 +186,13 @@ function ProductCard({
     );
     setExpanded(false);
     setSelectedListingId(townListings[0]?.listingId ?? "");
-  }, [selectedListing, product, onAddToCart, townListings]);
+  }, [
+    selectedListing,
+    selectedIsUnavailable,
+    product,
+    onAddToCart,
+    townListings,
+  ]);
 
   const categoryColor =
     CATEGORY_COLORS[product.category] ??
@@ -239,25 +269,167 @@ function ProductCard({
                 onChange={(e) => setSelectedListingId(e.target.value)}
                 data-ocid={`home.retailer.select.${index}`}
               >
-                {townListings.map((l) => (
-                  <option key={l.listingId} value={l.listingId}>
-                    {l.retailerName}
-                    {l.businessAreaName ? ` (${l.businessAreaName})` : ""} — R
-                    {l.price.toFixed(2)}
-                  </option>
-                ))}
+                {townListings.map((l) => {
+                  const retailer = l.retailer;
+                  const isClosed = retailer ? !isRetailerOpen(retailer) : false;
+                  const isOOS = !!l.outOfStock;
+                  const disabled = isClosed || isOOS;
+                  let suffix = "";
+                  if (isClosed && retailer) {
+                    suffix = ` (Closed · ${getNextOpeningText(retailer)})`;
+                  } else if (isOOS) {
+                    suffix = " (Out of Stock)";
+                  }
+                  return (
+                    <option
+                      key={l.listingId}
+                      value={l.listingId}
+                      disabled={disabled}
+                    >
+                      {l.retailerName}
+                      {l.businessAreaName ? ` (${l.businessAreaName})` : ""} — R
+                      {l.price.toFixed(2)}
+                      {suffix}
+                    </option>
+                  );
+                })}
               </select>
+              {selectedIsUnavailable &&
+                selectedListing?.retailer &&
+                (() => {
+                  const retailer = selectedListing.retailer;
+                  const isClosed = !isRetailerOpen(retailer);
+                  return isClosed ? (
+                    <p className="text-[10px] text-red-600 flex items-center gap-1">
+                      <span>🕐</span>
+                      {getNextOpeningText(retailer)}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-600">
+                      ⚠ Out of stock at this store
+                    </p>
+                  );
+                })()}
               <Button
                 size="sm"
                 className="w-full gap-1.5 text-xs bg-success hover:bg-success/90 text-success-foreground"
                 data-ocid={`home.confirm_add.button.${index}`}
                 onClick={handleConfirm}
+                disabled={
+                  selectedIsUnavailable || availableListings.length === 0
+                }
               >
                 <ShoppingCart className="h-3.5 w-3.5" />
-                Confirm — R{selectedListing?.price.toFixed(2) ?? "0.00"}
+                {selectedIsUnavailable
+                  ? "Unavailable"
+                  : `Confirm — R${selectedListing?.price.toFixed(2) ?? "0.00"}`}
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Exclusive Product Card (retailer-specific, fixed price) ─────────────────
+
+interface ExclusiveProductCardProps {
+  retailerProduct: {
+    id: string;
+    name: string;
+    category: string;
+    imageEmoji: string;
+    images?: string[];
+    inStock: boolean;
+    price: number;
+    retailerId: string;
+  };
+  retailer?: Retailer;
+  areaName: string;
+  index: number;
+  onAddToCart: (
+    retailerProductId: string,
+    retailerId: string,
+    price: number,
+    productName: string,
+  ) => void;
+}
+
+function ExclusiveProductCard({
+  retailerProduct,
+  retailer,
+  areaName,
+  index,
+  onAddToCart,
+}: ExclusiveProductCardProps) {
+  const categoryColor =
+    CATEGORY_COLORS[retailerProduct.category] ??
+    "bg-gray-100 text-gray-700 border-gray-200";
+
+  return (
+    <div
+      className="flex-shrink-0 w-[260px] sm:w-[280px]"
+      data-ocid={`home.product_card.item.${index}`}
+    >
+      <Card className="h-full overflow-hidden border border-amber-200/60 card-glow hover:shadow-md transition-shadow duration-200">
+        {/* Product image */}
+        <div className="relative h-40 bg-secondary/40 flex items-center justify-center overflow-hidden">
+          {retailerProduct.images && retailerProduct.images.length > 0 ? (
+            <img
+              src={retailerProduct.images[0]}
+              alt={retailerProduct.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-6xl select-none">
+              {retailerProduct.imageEmoji}
+            </span>
+          )}
+          {/* Category badge */}
+          <span
+            className={`absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${categoryColor}`}
+          >
+            {retailerProduct.category}
+          </span>
+          {/* Exclusive badge */}
+          <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-200">
+            Exclusive
+          </span>
+        </div>
+
+        <CardContent className="p-4">
+          <h3 className="font-display font-bold text-sm leading-snug mb-1 line-clamp-2 text-foreground">
+            {retailerProduct.name}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-1">
+            <span className="font-semibold text-foreground">
+              {retailer?.name ?? "Store"}
+            </span>
+            {areaName ? ` · ${areaName}` : ""}
+          </p>
+          <p className="text-xs text-muted-foreground mb-3">
+            <span className="font-semibold text-primary">
+              R{retailerProduct.price.toFixed(2)}
+            </span>
+          </p>
+          <Button
+            size="sm"
+            className="w-full gap-1.5 text-xs"
+            data-ocid={`home.add_to_cart.button.${index}`}
+            onClick={() =>
+              onAddToCart(
+                retailerProduct.id,
+                retailerProduct.retailerId,
+                retailerProduct.price,
+                retailerProduct.name,
+              )
+            }
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Add to Cart
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -273,9 +445,12 @@ function PopularInTownSection() {
     listings,
     towns,
     businessAreas,
+    retailerProducts,
     addToCartWithListing,
+    addRetailerProductToCart,
     cartCount,
   } = useApp();
+  const { isAuthenticated } = useAuth();
 
   const [selectedTownId, setSelectedTownId] = useState(towns[0]?.id ?? "t1");
 
@@ -292,7 +467,7 @@ function PopularInTownSection() {
     [retailers, selectedTownId],
   );
 
-  // Build filtered product list with their town-specific listings
+  // Build filtered universal product list with their town-specific listings
   const productsWithListings = useMemo(() => {
     return products
       .filter((p) => p.inStock && !p.isSuggestion)
@@ -313,13 +488,41 @@ function PopularInTownSection() {
               retailerName: retailer?.name ?? "Unknown Store",
               businessAreaName: area?.name ?? "",
               price: l.price,
+              outOfStock: l.outOfStock,
+              retailer,
             };
           });
         return { product: p, townListings };
       })
-      .filter((item) => item.townListings.length > 0)
-      .slice(0, 20);
+      .filter((item) => item.townListings.length > 0);
   }, [products, listings, retailers, townRetailerIds, businessAreas]);
+
+  // Build exclusive (retailer-specific) products for the selected town
+  const exclusiveProductsInTown = useMemo(() => {
+    return retailerProducts
+      .filter((rp) => rp.inStock && townRetailerIds.has(rp.retailerId))
+      .map((rp) => {
+        const retailer = retailers.find((r) => r.id === rp.retailerId);
+        const area = businessAreas.find(
+          (a) => a.id === retailer?.businessAreaId,
+        );
+        return { retailerProduct: rp, retailer, areaName: area?.name ?? "" };
+      });
+  }, [retailerProducts, retailers, townRetailerIds, businessAreas]);
+
+  // Combine and limit to 20
+  const totalCarouselCount =
+    productsWithListings.length + exclusiveProductsInTown.length;
+  const universalSlice = productsWithListings.slice(
+    0,
+    Math.min(20, productsWithListings.length),
+  );
+  const exclusiveSlice = exclusiveProductsInTown.slice(
+    0,
+    Math.max(0, 20 - universalSlice.length),
+  );
+
+  const navigate = useNavigate();
 
   const handleAddToCart = useCallback(
     (
@@ -329,12 +532,50 @@ function PopularInTownSection() {
       price: number,
       productName: string,
     ) => {
+      if (!isAuthenticated) {
+        toast.info("Please log in or create an account to add items to cart", {
+          action: {
+            label: "Log In",
+            onClick: () => navigate({ to: "/login" }),
+          },
+        });
+        return;
+      }
       addToCartWithListing(productId, listingId, retailerId, price);
       toast.success(`${productName} added to cart`, {
         description: `R${price.toFixed(2)} · Cart has ${cartCount + 1} item${cartCount + 1 !== 1 ? "s" : ""}`,
       });
     },
-    [addToCartWithListing, cartCount],
+    [isAuthenticated, addToCartWithListing, cartCount, navigate],
+  );
+
+  const handleAddExclusiveToCart = useCallback(
+    (
+      retailerProductId: string,
+      retailerId: string,
+      price: number,
+      productName: string,
+    ) => {
+      if (!isAuthenticated) {
+        toast.info("Please log in or create an account to add items to cart", {
+          action: {
+            label: "Log In",
+            onClick: () => navigate({ to: "/login" }),
+          },
+        });
+        return;
+      }
+      addRetailerProductToCart(
+        retailerProductId,
+        retailerId,
+        price,
+        productName,
+      );
+      toast.success(`${productName} added to cart`, {
+        description: `R${price.toFixed(2)} · Cart has ${cartCount + 1} item${cartCount + 1 !== 1 ? "s" : ""}`,
+      });
+    },
+    [isAuthenticated, addRetailerProductToCart, cartCount, navigate],
   );
 
   const scrollCarousel = useCallback((direction: "prev" | "next") => {
@@ -348,7 +589,7 @@ function PopularInTownSection() {
     });
   }, []);
 
-  if (productsWithListings.length === 0) {
+  if (totalCarouselCount === 0) {
     return null;
   }
 
@@ -426,7 +667,7 @@ function PopularInTownSection() {
             className="flex gap-4 overflow-x-auto pb-3 scroll-smooth"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            {productsWithListings.map(({ product, townListings }, idx) => (
+            {universalSlice.map(({ product, townListings }, idx) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -435,6 +676,18 @@ function PopularInTownSection() {
                 onAddToCart={handleAddToCart}
               />
             ))}
+            {exclusiveSlice.map(
+              ({ retailerProduct, retailer, areaName }, idx) => (
+                <ExclusiveProductCard
+                  key={retailerProduct.id}
+                  retailerProduct={retailerProduct}
+                  retailer={retailer}
+                  areaName={areaName}
+                  index={universalSlice.length + idx + 1}
+                  onAddToCart={handleAddExclusiveToCart}
+                />
+              ),
+            )}
           </div>
         </div>
 
@@ -676,24 +929,42 @@ function TrackMyOrderSection() {
 
 function FloatingCartButton() {
   const { cartCount } = useApp();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
   if (cartCount === 0) return null;
+
+  const handleCartClick = () => {
+    if (!isAuthenticated) {
+      toast.info("Please log in to view your cart and checkout", {
+        action: {
+          label: "Log In",
+          onClick: () => navigate({ to: "/login" }),
+        },
+      });
+      return;
+    }
+    navigate({ to: "/cart" });
+  };
+
   return (
-    <Link
-      to="/cart"
+    <button
+      type="button"
+      onClick={handleCartClick}
       data-ocid="home.cart_float.button"
       className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-full shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all duration-200 font-semibold text-sm animate-in slide-in-from-bottom-2"
       aria-label={`View cart with ${cartCount} items`}
     >
       <ShoppingCart className="h-4 w-4" />
       View Cart ({cartCount} {cartCount === 1 ? "item" : "items"})
-    </Link>
+    </button>
   );
 }
 
 // ─── Main Landing Page ───────────────────────────────────────────────────────
 
 export function LandingPage() {
-  const { setDemoRole } = useApp();
+  useApp(); // keep context alive
 
   return (
     <div className="min-h-screen">
@@ -707,7 +978,7 @@ export function LandingPage() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white/80 mb-6">
               <Star className="h-3 w-3 fill-current" />
-              Serving KwaZulu-Natal Communities
+              Serving Communities Across South Africa
             </div>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4">
               Thuma Thina
@@ -763,52 +1034,32 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Demo Role Quick-Access */}
-      <section className="bg-primary/5 border-y border-primary/15 py-4">
+      {/* Preview Mode Quick-Access */}
+      <section className="bg-muted/40 border-y border-border/40 py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center gap-3 text-sm">
             <span className="text-muted-foreground font-medium shrink-0">
-              🎭 Try a demo role:
+              🔐 Login to access your dashboard:
             </span>
             <div className="flex flex-wrap gap-2">
-              {[
-                {
-                  role: "customer" as const,
-                  label: "🛒 Customer",
-                  to: "/catalogue",
-                },
-                {
-                  role: "shopper" as const,
-                  label: "🛍️ Shopper",
-                  to: "/shopper/available",
-                },
-                {
-                  role: "driver" as const,
-                  label: "🚗 Driver",
-                  to: "/driver/available",
-                },
-                {
-                  role: "operator" as const,
-                  label: "📦 Operator",
-                  to: "/operator/incoming",
-                },
-                {
-                  role: "admin" as const,
-                  label: "⚙️ Admin",
-                  to: "/admin/approvals",
-                },
-              ].map(({ role, label, to }) => (
-                <Link key={role} to={to} data-ocid={`nav.demo_${role}.link`}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setDemoRole(role)}
-                  >
-                    {label}
-                  </Button>
-                </Link>
-              ))}
+              <Link to="/login" data-ocid="nav.login.link">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  Log In
+                </Button>
+              </Link>
+              <Link
+                to="/register/customer"
+                data-ocid="nav.register_customer.link"
+              >
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  Register as Customer
+                </Button>
+              </Link>
+              <Link to="/register/staff" data-ocid="nav.register_staff.link">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  Join Our Team
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -1074,21 +1325,42 @@ export function LandingPage() {
               Serving your community
             </h2>
             <p className="text-muted-foreground text-lg mb-6 leading-relaxed">
-              Currently active in Durban, Pietermaritzburg, and Richards Bay —
-              with more towns being added as we grow together with our
-              communities.
+              Currently active in Osizweni, Madadeni, and Newcastle — with more
+              towns being added as we grow together with our communities.
             </p>
-            <div className="space-y-3">
+
+            {/* Social benefits */}
+            <div className="space-y-4">
               {[
-                "KwaMashu",
-                "Umlazi",
-                "Pinetown",
-                "Pietermaritzburg CBD",
-                "Richards Bay",
-              ].map((area) => (
-                <div key={area} className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                  <span>{area} Community Pick-up Point</span>
+                {
+                  icon: "💼",
+                  title: "Job Creation",
+                  desc: "Every order creates work for local shoppers, drivers, and pick-up point operators in your community.",
+                },
+                {
+                  icon: "🏘️",
+                  title: "Community Circulation",
+                  desc: "Money spent on Thuma Thina stays local — supporting nearby retailers and small businesses.",
+                },
+                {
+                  icon: "📱",
+                  title: "Digital Inclusion",
+                  desc: "Walk-in pick-up points ensure everyone can access the service, even without a smartphone or data.",
+                },
+                {
+                  icon: "🌱",
+                  title: "Economic Growth",
+                  desc: "As we expand, new towns gain access to formal retail networks and sustainable income opportunities.",
+                },
+              ].map((benefit) => (
+                <div key={benefit.title} className="flex gap-3 items-start">
+                  <span className="text-2xl shrink-0">{benefit.icon}</span>
+                  <div>
+                    <p className="font-semibold text-sm">{benefit.title}</p>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      {benefit.desc}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

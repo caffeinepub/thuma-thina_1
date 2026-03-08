@@ -50,12 +50,29 @@ export interface PickupPoint {
   profileImageUrl?: string;
 }
 
+export interface DaySchedule {
+  open: string; // "08:00"
+  close: string; // "18:00"
+  closed: boolean;
+}
+
+export interface OperatingHours {
+  mon: DaySchedule;
+  tue: DaySchedule;
+  wed: DaySchedule;
+  thu: DaySchedule;
+  fri: DaySchedule;
+  sat: DaySchedule;
+  sun: DaySchedule;
+}
+
 export interface Retailer {
   id: string;
   name: string;
   townId: string;
   address: string;
   businessAreaId?: string;
+  operatingHours?: OperatingHours;
 }
 
 export interface Product {
@@ -76,6 +93,7 @@ export interface ProductListing {
   productId: string;
   retailerId: string;
   price: number;
+  outOfStock?: boolean;
 }
 
 export interface RetailerProduct {
@@ -128,6 +146,8 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   isWalkIn?: boolean;
+  parentOrderId?: string; // shared across all sub-orders from the same checkout
+  dedicatedRetailerId?: string; // if set, this sub-order is for a dedicated-shopper retailer
 }
 
 export interface StaffUser {
@@ -160,6 +180,89 @@ export interface WalletTransaction {
   description: string;
   date: string;
   unlockDate?: string;
+}
+
+// ─── Operating Hours Utilities ────────────────────────────────────────────────
+
+const DEFAULT_WEEKDAY: DaySchedule = {
+  open: "08:00",
+  close: "18:00",
+  closed: false,
+};
+const DEFAULT_SAT: DaySchedule = {
+  open: "08:00",
+  close: "14:00",
+  closed: false,
+};
+const DEFAULT_SUN: DaySchedule = {
+  open: "00:00",
+  close: "00:00",
+  closed: true,
+};
+
+export const DEFAULT_OPERATING_HOURS: OperatingHours = {
+  mon: { ...DEFAULT_WEEKDAY },
+  tue: { ...DEFAULT_WEEKDAY },
+  wed: { ...DEFAULT_WEEKDAY },
+  thu: { ...DEFAULT_WEEKDAY },
+  fri: { ...DEFAULT_WEEKDAY },
+  sat: { ...DEFAULT_SAT },
+  sun: { ...DEFAULT_SUN },
+};
+
+const DAY_KEYS: (keyof OperatingHours)[] = [
+  "sun",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+];
+
+export function isRetailerOpen(retailer: Retailer): boolean {
+  if (!retailer.operatingHours) return true;
+  const now = new Date();
+  const dayKey = DAY_KEYS[now.getDay()];
+  const schedule = retailer.operatingHours[dayKey];
+  if (schedule.closed) return false;
+  const [openH, openM] = schedule.open.split(":").map(Number);
+  const [closeH, closeM] = schedule.close.split(":").map(Number);
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const openMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+  return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+}
+
+export function getNextOpeningText(retailer: Retailer): string {
+  if (!retailer.operatingHours) return "";
+  const now = new Date();
+  const todayIdx = now.getDay(); // 0=Sun
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Check today first (maybe we're before opening)
+  const todayKey = DAY_KEYS[todayIdx];
+  const todaySchedule = retailer.operatingHours[todayKey];
+  if (!todaySchedule.closed) {
+    const [openH, openM] = todaySchedule.open.split(":").map(Number);
+    const openMinutes = openH * 60 + openM;
+    if (currentMinutes < openMinutes) {
+      return `Opens today at ${todaySchedule.open}`;
+    }
+  }
+
+  // Look ahead for the next open day
+  const SHORT_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  for (let i = 1; i <= 7; i++) {
+    const nextIdx = (todayIdx + i) % 7;
+    const nextKey = DAY_KEYS[nextIdx];
+    const nextSchedule = retailer.operatingHours[nextKey];
+    if (!nextSchedule.closed) {
+      const label = i === 1 ? "tomorrow" : SHORT_DAY_NAMES[nextIdx];
+      return `Opens ${label} at ${nextSchedule.open}`;
+    }
+  }
+  return "Closed indefinitely";
 }
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
@@ -228,6 +331,7 @@ export const retailers: Retailer[] = [
     townId: "t1",
     address: "Bluff Road, Durban",
     businessAreaId: "ba5",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
   {
     id: "r2",
@@ -235,6 +339,7 @@ export const retailers: Retailer[] = [
     townId: "t1",
     address: "Berea Centre, Durban",
     businessAreaId: "ba2",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
   {
     id: "r3",
@@ -242,6 +347,7 @@ export const retailers: Retailer[] = [
     townId: "t1",
     address: "Gateway Mall, Umhlanga",
     businessAreaId: "ba1",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
   {
     id: "r4",
@@ -249,6 +355,7 @@ export const retailers: Retailer[] = [
     townId: "t1",
     address: "Victoria Street, Durban",
     businessAreaId: "ba4",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
   {
     id: "r5",
@@ -256,6 +363,7 @@ export const retailers: Retailer[] = [
     townId: "t2",
     address: "Liberty Midlands Mall, PMB",
     businessAreaId: "ba6",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
   {
     id: "r6",
@@ -263,6 +371,7 @@ export const retailers: Retailer[] = [
     townId: "t3",
     address: "Boardwalk Mall, Richards Bay",
     businessAreaId: "ba8",
+    operatingHours: { ...DEFAULT_OPERATING_HOURS },
   },
 ];
 
@@ -438,7 +547,13 @@ export const productListings: ProductListing[] = [
   { id: "l8", productId: "p3", retailerId: "r2", price: 21.5 },
   { id: "l9", productId: "p3", retailerId: "r5", price: 23.99 },
   // p4 - Nando's (fast food — store-specific)
-  { id: "l10", productId: "p4", retailerId: "r4", price: 79.9 },
+  {
+    id: "l10",
+    productId: "p4",
+    retailerId: "r4",
+    price: 79.9,
+    outOfStock: true,
+  },
   // p5 - Coca-Cola 2L
   { id: "l11", productId: "p5", retailerId: "r1", price: 22.99 },
   { id: "l12", productId: "p5", retailerId: "r2", price: 20.99 },
@@ -453,7 +568,13 @@ export const productListings: ProductListing[] = [
   { id: "l19", productId: "p7", retailerId: "r2", price: 34.5 },
   { id: "l20", productId: "p7", retailerId: "r3", price: 36.99 },
   // p8 - Doom Insect Spray
-  { id: "l21", productId: "p8", retailerId: "r2", price: 45.99 },
+  {
+    id: "l21",
+    productId: "p8",
+    retailerId: "r2",
+    price: 45.99,
+    outOfStock: true,
+  },
   { id: "l22", productId: "p8", retailerId: "r3", price: 47.5 },
   // p9 - Steers Burger Meal (fast food)
   { id: "l23", productId: "p9", retailerId: "r1", price: 89.9 },
@@ -527,6 +648,17 @@ export const staffUsers: StaffUser[] = [
     role: "driver",
     status: "rejected",
     createdAt: "2026-01-25T13:00:00Z",
+  },
+  {
+    id: "u7",
+    name: "Khanyisile Mthembu",
+    phone: "073 901 2345",
+    email: "khanyisile@example.com",
+    role: "shopper",
+    status: "approved",
+    businessAreaId: "ba4",
+    assignedRetailerIds: ["r4"],
+    createdAt: "2026-02-10T07:00:00Z",
   },
 ];
 

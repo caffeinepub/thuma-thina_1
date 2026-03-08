@@ -21,6 +21,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import type { ProductCategory } from "../../data/mockData";
+import { useActor } from "../../hooks/useActor";
 
 const CATEGORIES: ProductCategory[] = [
   "Groceries",
@@ -33,6 +34,7 @@ const CATEGORIES: ProductCategory[] = [
 
 export function SuggestProductPage() {
   const { setProducts, currentUser } = useApp();
+  const { actor } = useActor();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -50,28 +52,39 @@ export function SuggestProductPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-
-    const newProduct = {
-      id: `p_sug_${Date.now()}`,
-      name: form.name,
-      description: form.description,
-      category: form.category as ProductCategory,
-      imageEmoji: "💡",
-      inStock: true,
-      isSuggestion: true,
-      suggestedBy: currentUser?.name || "Shopper",
-      approved: false,
-    };
-
-    setProducts((prev) => [...prev, newProduct]);
-    toast.success("Product suggestion submitted! Admin will review it.");
-    setForm({
-      name: "",
-      description: "",
-      category: "",
-    });
-    setLoading(false);
+    const id = `p_sug_${Date.now()}`;
+    const suggestedBy = currentUser?.name || "Shopper";
+    try {
+      if (actor) {
+        await actor.suggestProduct(
+          id,
+          form.name,
+          form.description,
+          form.category,
+          "💡",
+          suggestedBy,
+        );
+      }
+      const newProduct = {
+        id,
+        name: form.name,
+        description: form.description,
+        category: form.category as ProductCategory,
+        imageEmoji: "💡",
+        inStock: true,
+        isSuggestion: true,
+        suggestedBy,
+        approved: false,
+      };
+      setProducts((prev) => [...prev, newProduct]);
+      toast.success("Product suggestion submitted! Admin will review it.");
+      setForm({ name: "", description: "", category: "" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to submit suggestion");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

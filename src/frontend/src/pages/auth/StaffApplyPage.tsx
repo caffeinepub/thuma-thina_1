@@ -17,28 +17,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fingerprint, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useApp } from "../../context/AppContext";
-import type { DemoRole } from "../../data/mockData";
+import type { BusinessArea, Town } from "../../backend.d";
+import { AppUserRole } from "../../backend.d";
+import { useAuth } from "../../context/AuthContext";
+import { useActor } from "../../hooks/useActor";
 
-type StaffRole = "shopper" | "driver" | "operator";
+type StaffRole =
+  | AppUserRole.shopper
+  | AppUserRole.driver
+  | AppUserRole.operator;
 
 const ROLE_DETAILS: Record<
   StaffRole,
   { label: string; emoji: string; desc: string }
 > = {
-  shopper: {
+  [AppUserRole.shopper]: {
     label: "Personal Shopper",
     emoji: "🛍️",
     desc: "Physically purchase items for community members",
   },
-  driver: {
+  [AppUserRole.driver]: {
     label: "Delivery Driver",
     emoji: "🚗",
     desc: "Deliver orders to pick-up points and homes",
   },
-  operator: {
+  [AppUserRole.operator]: {
     label: "Pick-up Point Operator",
     emoji: "📦",
     desc: "Manage a community pick-up point",
@@ -46,51 +52,150 @@ const ROLE_DETAILS: Record<
 };
 
 export function StaffApplyPage() {
-  const { businessAreas, pickupPoints, towns, setStaffUsers } = useApp();
+  const {
+    isAuthenticated,
+    isLoading: authLoading,
+    login,
+    refetchProfile,
+  } = useAuth();
+  const { actor } = useActor();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<StaffRole>("shopper");
+  const [role, setRole] = useState<StaffRole>(AppUserRole.shopper);
   const [form, setForm] = useState({
     name: "",
     phone: "",
-    email: "",
-    password: "",
-    businessAreaId: "",
-    pickupPointId: "",
   });
+  const [businessAreaId, setBusinessAreaId] = useState<string>("");
+  const [towns, setTowns] = useState<Town[]>([]);
+  const [businessAreas, setBusinessAreas] = useState<BusinessArea[]>([]);
+
+  // Fetch towns and business areas for the area selector
+  useEffect(() => {
+    if (!actor) return;
+    Promise.all([actor.getTowns(), actor.getBusinessAreas()])
+      .then(([rawTowns, rawAreas]) => {
+        setTowns(rawTowns);
+        setBusinessAreas(rawAreas);
+      })
+      .catch(() => {
+        // Non-fatal: areas will just be empty
+      });
+  }, [actor]);
 
   const update = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (role === "shopper" && !form.businessAreaId) {
+    if (!form.name.trim()) {
+      toast.error("Please enter your display name");
+      return;
+    }
+    if (!form.phone.trim()) {
+      toast.error("Please enter your phone number");
+      return;
+    }
+    if (role === AppUserRole.shopper && !businessAreaId) {
       toast.error("Please select your business area");
       return;
     }
-    if (role === "operator" && !form.pickupPointId) {
-      toast.error("Please select your pick-up point");
-      return;
-    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    const newUser = {
-      id: `u${Date.now()}`,
-      name: form.name,
-      phone: form.phone,
-      email: form.email,
-      role: role as DemoRole,
-      status: "pending" as const,
-      businessAreaId: role === "shopper" ? form.businessAreaId : undefined,
-      pickupPointId: role === "operator" ? form.pickupPointId : undefined,
-      createdAt: new Date().toISOString(),
-    };
-    setStaffUsers((prev) => [newUser, ...prev]);
-    toast.success("Application submitted! You'll be notified when approved.");
-    navigate({ to: "/pending-approval" });
-    setLoading(false);
+    try {
+      if (!actor) throw new Error("Not connected to backend");
+      const areaId = businessAreaId || null;
+      await actor.registerUser(
+        role,
+        form.name.trim(),
+        form.phone.trim(),
+        areaId,
+      );
+      await refetchProfile();
+      toast.success("Application submitted! You'll be notified when approved.");
+      navigate({ to: "/pending-approval" });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (
+        errorMsg.includes("already registered") ||
+        errorMsg.includes("AlreadyRegistered") ||
+        errorMsg.includes("already exists")
+      ) {
+        await refetchProfile();
+        navigate({ to: "/pending-approval" });
+      } else {
+        toast.error("Application failed. Please try again.");
+        console.error(err);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Step 1: Not authenticated — show II login prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
+              <span className="text-primary-foreground font-display font-bold text-xl">
+                TT
+              </span>
+            </div>
+            <h1 className="font-display font-bold text-2xl">Join Our Team</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Apply to be part of Thuma Thina
+            </p>
+          </div>
+
+          <Card className="card-glow" data-ocid="auth.staff_apply.modal">
+            <CardHeader className="pb-4 text-center">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mx-auto mb-3">
+                <ShieldCheck className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle className="font-display text-lg">
+                Step 1: Verify your identity
+              </CardTitle>
+              <CardDescription>
+                First, connect with Internet Identity to secure your
+                application.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full gap-2 h-11"
+                onClick={() => login()}
+                disabled={authLoading}
+                data-ocid="auth.ii.submit_button"
+              >
+                {authLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="h-5 w-5" />
+                )}
+                {authLoading
+                  ? "Connecting…"
+                  : "Continue with Internet Identity"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Want to order instead?{" "}
+            <Link
+              to="/register/customer"
+              className="text-primary font-medium hover:underline"
+              data-ocid="auth.customer_register.link"
+            >
+              Register as customer
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Step 2: Authenticated — show application form
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
@@ -112,7 +217,8 @@ export function StaffApplyPage() {
               Staff Application
             </CardTitle>
             <CardDescription>
-              All applications require admin approval
+              Step 2: Fill in your details. All applications require admin
+              approval.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -129,7 +235,7 @@ export function StaffApplyPage() {
                   {(
                     Object.entries(ROLE_DETAILS) as [
                       StaffRole,
-                      typeof ROLE_DETAILS.shopper,
+                      (typeof ROLE_DETAILS)[AppUserRole.shopper],
                     ][]
                   ).map(([r, d]) => (
                     <div
@@ -157,7 +263,7 @@ export function StaffApplyPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">Display Name</Label>
                 <Input
                   id="name"
                   value={form.name}
@@ -167,100 +273,70 @@ export function StaffApplyPage() {
                   data-ocid="auth.name.input"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => update("phone", e.target.value)}
-                    placeholder="07x xxx xxxx"
-                    required
-                    data-ocid="auth.phone.input"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => update("email", e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                    data-ocid="auth.email.input"
-                  />
-                </div>
-              </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="phone">Phone Number</Label>
                 <Input
-                  id="password"
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
-                  placeholder="Create a password"
+                  id="phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => update("phone", e.target.value)}
+                  placeholder="07x xxx xxxx"
                   required
-                  minLength={6}
-                  data-ocid="auth.password.input"
+                  data-ocid="auth.phone.input"
                 />
               </div>
 
-              {role === "shopper" && (
+              {/* Business area — required for shoppers, optional for others */}
+              {(role === AppUserRole.shopper ||
+                role === AppUserRole.driver ||
+                role === AppUserRole.operator) && (
                 <div className="space-y-1.5">
-                  <Label>My Business Area</Label>
+                  <Label htmlFor="business-area">
+                    Business Area
+                    {role === AppUserRole.shopper && (
+                      <span className="text-destructive ml-1">*</span>
+                    )}
+                  </Label>
                   <Select
-                    value={form.businessAreaId}
-                    onValueChange={(v) => update("businessAreaId", v)}
+                    value={businessAreaId}
+                    onValueChange={setBusinessAreaId}
                   >
-                    <SelectTrigger data-ocid="auth.business_area.select">
-                      <SelectValue placeholder="Select your business area" />
+                    <SelectTrigger
+                      id="business-area"
+                      data-ocid="auth.business_area.select"
+                    >
+                      <SelectValue
+                        placeholder={
+                          role === AppUserRole.shopper
+                            ? "Select your business area"
+                            : "Select area (optional)"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      {towns.map((town) => {
-                        const areas = businessAreas.filter(
-                          (ba) => ba.townId === town.id,
-                        );
-                        return areas.length > 0 ? (
-                          <div key={town.id}>
-                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                              {town.name}
-                            </div>
-                            {areas.map((ba) => (
-                              <SelectItem key={ba.id} value={ba.id}>
-                                {ba.name}
-                              </SelectItem>
-                            ))}
-                          </div>
-                        ) : null;
-                      })}
+                      {businessAreas.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No areas available yet
+                        </SelectItem>
+                      ) : (
+                        businessAreas.map((area) => {
+                          const town = towns.find((t) => t.id === area.townId);
+                          return (
+                            <SelectItem key={area.id} value={area.id}>
+                              {area.name}
+                              {town ? ` — ${town.name}` : ""}
+                            </SelectItem>
+                          );
+                        })
+                      )}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
-
-              {role === "operator" && (
-                <div className="space-y-1.5">
-                  <Label>My Pick-up Point</Label>
-                  <Select
-                    value={form.pickupPointId}
-                    onValueChange={(v) => update("pickupPointId", v)}
-                  >
-                    <SelectTrigger data-ocid="auth.pickup.select">
-                      <SelectValue placeholder="Select your pick-up point" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pickupPoints.map((pp) => {
-                        const town = towns.find((t) => t.id === pp.townId);
-                        return (
-                          <SelectItem key={pp.id} value={pp.id}>
-                            {pp.name} — {town?.name}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  {role === AppUserRole.shopper && !businessAreaId && (
+                    <p className="text-xs text-muted-foreground">
+                      Shoppers must be linked to a business area to receive
+                      orders.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -270,7 +346,14 @@ export function StaffApplyPage() {
                 disabled={loading}
                 data-ocid="auth.staff_apply.submit_button"
               >
-                {loading ? "Submitting…" : "Submit Application"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  "Submit Application"
+                )}
               </Button>
             </form>
           </CardContent>

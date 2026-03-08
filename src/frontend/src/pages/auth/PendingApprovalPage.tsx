@@ -1,8 +1,60 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
-import { CheckCircle, Clock, Phone } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { CheckCircle, Clock, LogOut, Phone } from "lucide-react";
+import { useEffect } from "react";
+import {
+  AppUserRole,
+  Variant_active_pending_updateNeeded_rejected,
+} from "../../backend.d";
+import { useAuth } from "../../context/AuthContext";
+import { useActor } from "../../hooks/useActor";
+
+const ROLE_REDIRECTS: Record<AppUserRole, string> = {
+  [AppUserRole.customer]: "/catalogue",
+  [AppUserRole.shopper]: "/shopper/available",
+  [AppUserRole.driver]: "/driver/available",
+  [AppUserRole.operator]: "/operator/incoming",
+  [AppUserRole.admin]: "/admin/approvals",
+};
 
 export function PendingApprovalPage() {
+  const { logout, refetchProfile, userProfile, userRole } = useAuth();
+  const { actor } = useActor();
+  const navigate = useNavigate();
+
+  // Poll for approval every 8 seconds
+  useEffect(() => {
+    const check = async () => {
+      if (!actor) return;
+      try {
+        const approved = await actor.isCallerApproved();
+        if (approved) {
+          await refetchProfile();
+        }
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    // Initial check
+    check();
+
+    const interval = setInterval(check, 8000);
+    return () => clearInterval(interval);
+  }, [refetchProfile, actor]);
+
+  // When profile status becomes active, redirect
+  useEffect(() => {
+    if (
+      userProfile?.registrationStatus ===
+        Variant_active_pending_updateNeeded_rejected.active &&
+      userRole
+    ) {
+      const dest = ROLE_REDIRECTS[userRole] ?? "/";
+      navigate({ to: dest });
+    }
+  }, [userProfile, userRole, navigate]);
+
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
@@ -33,7 +85,7 @@ export function PendingApprovalPage() {
             },
             {
               icon: CheckCircle,
-              text: "Once approved, you can log in and start working",
+              text: "This page will automatically redirect when you are approved",
             },
           ].map((item) => (
             <div key={item.text} className="flex items-start gap-3">
@@ -43,22 +95,20 @@ export function PendingApprovalPage() {
           ))}
         </div>
 
-        <div className="space-y-3">
-          <Link to="/login">
-            <Button className="w-full" data-ocid="auth.login.primary_button">
-              Go to Login
-            </Button>
-          </Link>
-          <Link to="/">
-            <Button
-              variant="outline"
-              className="w-full"
-              data-ocid="auth.home.button"
-            >
-              Back to Home
-            </Button>
-          </Link>
+        <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground mb-6">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          Checking approval status automatically…
         </div>
+
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          onClick={logout}
+          data-ocid="auth.logout.button"
+        >
+          <LogOut className="h-4 w-4" />
+          Log Out
+        </Button>
       </div>
     </div>
   );

@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "@tanstack/react-router";
-import { CheckCircle, Plus, Search, Trash2 } from "lucide-react";
+import { CheckCircle, Clock, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import type { CartItem } from "../../data/mockData";
+import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
 
 export function OperatorWalkInOrderPage() {
   const {
@@ -60,11 +61,24 @@ export function OperatorWalkInOrderPage() {
   const getProductListings = (productId: string) =>
     listings.filter((l) => l.productId === productId);
 
-  const getListingLabel = (listing: { retailerId: string; price: number }) => {
+  const getListingLabel = (listing: {
+    retailerId: string;
+    price: number;
+    outOfStock?: boolean;
+  }) => {
     const retailer = retailers.find((r) => r.id === listing.retailerId);
     const area = businessAreas.find((a) => a.id === retailer?.businessAreaId);
     const areaLabel = area ? ` (${area.name})` : "";
     return `${retailer?.name ?? "Unknown"}${areaLabel} — R${listing.price.toFixed(2)}`;
+  };
+
+  const isListingUnavailable = (listing: {
+    retailerId: string;
+    outOfStock?: boolean;
+  }) => {
+    const retailer = retailers.find((r) => r.id === listing.retailerId);
+    if (!retailer) return false;
+    return !isRetailerOpen(retailer) || !!listing.outOfStock;
   };
 
   const handleSelectListing = (productId: string, listingId: string) => {
@@ -81,6 +95,10 @@ export function OperatorWalkInOrderPage() {
     const chosenListing = productListingList.find(
       (l) => l.id === chosenListingId,
     );
+    if (chosenListing && isListingUnavailable(chosenListing)) {
+      toast.error("This retailer is currently unavailable");
+      return;
+    }
     setWalkInCart((prev) => {
       const existing = prev.find((i) => i.productId === productId);
       if (existing)
@@ -241,6 +259,9 @@ export function OperatorWalkInOrderPage() {
                   : hasListings
                     ? Math.min(...productListingList.map((l) => l.price))
                     : null;
+                const chosenIsUnavailable = chosenListing
+                  ? isListingUnavailable(chosenListing)
+                  : false;
 
                 return (
                   <div
@@ -274,6 +295,27 @@ export function OperatorWalkInOrderPage() {
                             No listings
                           </p>
                         )}
+                        {chosenIsUnavailable &&
+                          (() => {
+                            const retailer = retailers.find(
+                              (r) => r.id === chosenListing?.retailerId,
+                            );
+                            const isClosed = retailer
+                              ? !isRetailerOpen(retailer)
+                              : false;
+                            return isClosed ? (
+                              <p className="text-[10px] text-red-600 flex items-center gap-0.5">
+                                <Clock className="h-2.5 w-2.5" />
+                                {retailer
+                                  ? getNextOpeningText(retailer)
+                                  : "Closed"}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-amber-600">
+                                ⚠ Out of stock
+                              </p>
+                            );
+                          })()}
                       </div>
                       {qty > 0 ? (
                         <div className="flex items-center gap-1.5">
@@ -300,7 +342,10 @@ export function OperatorWalkInOrderPage() {
                           type="button"
                           size="sm"
                           onClick={() => addItem(product.id)}
-                          disabled={hasListings && !chosenListingId}
+                          disabled={
+                            (hasListings && !chosenListingId) ||
+                            chosenIsUnavailable
+                          }
                           className="h-7 w-7 p-0 rounded-full"
                           data-ocid="operator.add.button"
                         >
@@ -319,15 +364,43 @@ export function OperatorWalkInOrderPage() {
                           <SelectValue placeholder="Select retailer & price" />
                         </SelectTrigger>
                         <SelectContent>
-                          {productListingList.map((listing) => (
-                            <SelectItem
-                              key={listing.id}
-                              value={listing.id}
-                              className="text-xs"
-                            >
-                              {getListingLabel(listing)}
-                            </SelectItem>
-                          ))}
+                          {productListingList.map((listing) => {
+                            const retailer = retailers.find(
+                              (r) => r.id === listing.retailerId,
+                            );
+                            const isClosed = retailer
+                              ? !isRetailerOpen(retailer)
+                              : false;
+                            const isOOS = !!listing.outOfStock;
+                            const disabled = isClosed || isOOS;
+                            return (
+                              <SelectItem
+                                key={listing.id}
+                                value={listing.id}
+                                className="text-xs"
+                                disabled={disabled}
+                              >
+                                <span>
+                                  {getListingLabel(listing)}
+                                  {isClosed && (
+                                    <span className="text-red-600 font-medium">
+                                      {" "}
+                                      · Closed
+                                      {retailer
+                                        ? ` (${getNextOpeningText(retailer)})`
+                                        : ""}
+                                    </span>
+                                  )}
+                                  {!isClosed && isOOS && (
+                                    <span className="text-amber-600 font-medium">
+                                      {" "}
+                                      · Out of Stock
+                                    </span>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     )}

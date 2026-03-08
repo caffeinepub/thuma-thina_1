@@ -43,23 +43,15 @@ function NotifIcon({ type }: { type: AppNotification["type"] }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function NotificationsBell() {
-  const {
-    notifications,
-    demoRole,
-    markNotificationRead,
-    markAllRead,
-    unreadCount,
-  } = useApp();
+  const { notifications, markNotificationRead, markAllRead, unreadCount } =
+    useApp();
 
   const [open, setOpen] = useState(false);
 
-  // Filter to only notifications relevant to the current role
-  const roleNotifications = notifications
-    .filter((n) => n.targetRole === demoRole || n.targetRole === "all")
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+  // Show all notifications (role filtering is done server-side in real app)
+  const roleNotifications = notifications.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

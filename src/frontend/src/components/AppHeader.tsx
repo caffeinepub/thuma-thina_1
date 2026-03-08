@@ -2,11 +2,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { Menu, ShoppingCart, X } from "lucide-react";
+import { LogOut, Menu, ShoppingCart, X } from "lucide-react";
 import { useState } from "react";
+import { AppUserRole } from "../backend.d";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import { NotificationsBell } from "./NotificationsBell";
-import { RoleSwitcher } from "./RoleSwitcher";
 
 interface NavLink {
   to: string;
@@ -15,13 +16,13 @@ interface NavLink {
 }
 
 const NAV_LINKS: Record<string, NavLink[]> = {
-  customer: [
+  [AppUserRole.customer]: [
     { to: "/catalogue", label: "Browse", ocid: "nav.catalogue.link" },
     { to: "/cart", label: "Cart", ocid: "nav.cart.link" },
     { to: "/my-orders", label: "My Orders", ocid: "nav.orders.link" },
     { to: "/wallet", label: "My Wallet", ocid: "nav.wallet.link" },
   ],
-  shopper: [
+  [AppUserRole.shopper]: [
     {
       to: "/shopper/available",
       label: "Available Orders",
@@ -34,12 +35,17 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       ocid: "nav.suggest.link",
     },
     {
+      to: "/shopper/stock",
+      label: "Stock",
+      ocid: "nav.stock.link",
+    },
+    {
       to: "/shopper/analytics",
       label: "Analytics",
       ocid: "nav.analytics.link",
     },
   ],
-  driver: [
+  [AppUserRole.driver]: [
     {
       to: "/driver/available",
       label: "Available Deliveries",
@@ -61,7 +67,7 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       ocid: "nav.analytics.link",
     },
   ],
-  operator: [
+  [AppUserRole.operator]: [
     {
       to: "/operator/incoming",
       label: "Incoming Orders",
@@ -75,7 +81,7 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       ocid: "nav.analytics.link",
     },
   ],
-  admin: [
+  [AppUserRole.admin]: [
     { to: "/admin/approvals", label: "Approvals", ocid: "nav.approvals.link" },
     { to: "/admin/orders", label: "Orders", ocid: "nav.orders.link" },
     { to: "/admin/products", label: "Catalogue", ocid: "nav.catalogue.link" },
@@ -86,13 +92,38 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       ocid: "nav.analytics.link",
     },
   ],
-  guest: [],
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  [AppUserRole.customer]: "Customer",
+  [AppUserRole.shopper]: "Shopper",
+  [AppUserRole.driver]: "Driver",
+  [AppUserRole.operator]: "Operator",
+  [AppUserRole.admin]: "Admin",
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  [AppUserRole.customer]: "bg-blue-100 text-blue-800",
+  [AppUserRole.shopper]: "bg-orange-100 text-orange-800",
+  [AppUserRole.driver]: "bg-purple-100 text-purple-800",
+  [AppUserRole.operator]: "bg-green-100 text-green-800",
+  [AppUserRole.admin]: "bg-red-100 text-red-800",
 };
 
 export function AppHeader() {
-  const { demoRole, cartCount } = useApp();
+  const { isAuthenticated, userRole, userProfile, logout, principalText } =
+    useAuth();
+  const { cartCount } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navLinks = NAV_LINKS[demoRole] || [];
+
+  const navLinks = (userRole ? NAV_LINKS[userRole] : null) || [];
+  const displayName =
+    userProfile?.displayName ||
+    (principalText ? `${principalText.slice(0, 8)}…` : null);
+  const roleBadgeClass = userRole
+    ? (ROLE_COLORS[userRole] ?? "bg-gray-100 text-gray-800")
+    : "";
+  const roleLabel = userRole ? (ROLE_LABELS[userRole] ?? userRole) : "";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur-sm">
@@ -138,28 +169,67 @@ export function AppHeader() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <RoleSwitcher />
-
-            {demoRole !== "guest" && <NotificationsBell />}
-
-            {demoRole === "customer" && (
-              <Link to="/cart" data-ocid="nav.cart.button">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="relative h-9 w-9"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  {cartCount > 0 && (
-                    <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 text-[10px] flex items-center justify-center rounded-full">
-                      {cartCount}
-                    </Badge>
+            {isAuthenticated && userRole ? (
+              <>
+                {/* User info */}
+                <div className="hidden sm:flex items-center gap-2">
+                  {displayName && (
+                    <span className="text-sm text-muted-foreground max-w-[120px] truncate">
+                      {displayName}
+                    </span>
                   )}
+                  <span
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
+                      roleBadgeClass,
+                    )}
+                  >
+                    {roleLabel}
+                  </span>
+                </div>
+
+                {/* Notifications bell */}
+                <NotificationsBell />
+
+                {/* Cart for customers */}
+                {userRole === AppUserRole.customer && (
+                  <Link to="/cart" data-ocid="nav.cart.button">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="relative h-9 w-9"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      {cartCount > 0 && (
+                        <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 text-[10px] flex items-center justify-center rounded-full">
+                          {cartCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </Link>
+                )}
+
+                {/* Logout */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                  onClick={logout}
+                  title="Log out"
+                  data-ocid="nav.logout.button"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <Link to="/login" data-ocid="nav.login.link">
+                <Button variant="outline" size="sm" className="text-sm">
+                  Log In
                 </Button>
               </Link>
             )}
 
-            {/* Mobile menu */}
+            {/* Mobile menu toggle */}
             <Button
               variant="ghost"
               size="icon"

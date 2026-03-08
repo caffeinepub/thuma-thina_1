@@ -1,66 +1,111 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckCircle,
   Clock,
   Crown,
+  Loader2,
+  RefreshCw,
   ShieldMinus,
   ShieldPlus,
   Users,
   XCircle,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  AppUserRole,
+  ApprovalStatus,
+  type UserApprovalInfo,
+  type UserProfile,
+  UserRole,
+  Variant_active_pending_updateNeeded_rejected,
+} from "../../backend.d";
 import { useApp } from "../../context/AppContext";
 import type { NotificationTargetRole } from "../../context/AppContext";
-import type { StaffUser } from "../../data/mockData";
+import { useActor } from "../../hooks/useActor";
 
 const ROLE_EMOJI: Record<string, string> = {
-  shopper: "🛍️",
-  driver: "🚗",
-  operator: "📦",
+  [AppUserRole.shopper]: "🛍️",
+  [AppUserRole.driver]: "🚗",
+  [AppUserRole.operator]: "📦",
+  [AppUserRole.customer]: "🛒",
+  [AppUserRole.admin]: "⚙️",
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  shopper: "Personal Shopper",
-  driver: "Delivery Driver",
-  operator: "Pick-up Point Operator",
+  [AppUserRole.shopper]: "Personal Shopper",
+  [AppUserRole.driver]: "Delivery Driver",
+  [AppUserRole.operator]: "Pick-up Point Operator",
+  [AppUserRole.customer]: "Customer",
+  [AppUserRole.admin]: "Admin",
 };
 
 const STATUS_BADGE: Record<string, { class: string; label: string }> = {
-  pending: { class: "bg-yellow-100 text-yellow-800", label: "Pending" },
-  approved: { class: "bg-green-100 text-green-800", label: "Approved" },
-  rejected: { class: "bg-red-100 text-red-800", label: "Rejected" },
+  [ApprovalStatus.pending]: {
+    class: "bg-yellow-100 text-yellow-800",
+    label: "Pending",
+  },
+  [ApprovalStatus.approved]: {
+    class: "bg-green-100 text-green-800",
+    label: "Approved",
+  },
+  [ApprovalStatus.rejected]: {
+    class: "bg-red-100 text-red-800",
+    label: "Rejected",
+  },
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", {
+function formatDate(isoOrBigInt: string | bigint) {
+  const ms =
+    typeof isoOrBigInt === "bigint"
+      ? Number(isoOrBigInt / BigInt(1_000_000))
+      : new Date(isoOrBigInt).getTime();
+  return new Date(ms).toLocaleDateString("en-ZA", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
+interface ApprovalUserInfo {
+  approvalInfo: UserApprovalInfo;
+  profile: UserProfile | null;
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 function ApplicantCard({
-  user,
+  item,
   index,
   onApprove,
   onReject,
-  businessAreas,
-  pickupPoints,
+  actionLoading,
 }: {
-  user: StaffUser;
+  item: ApprovalUserInfo;
   index: number;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  businessAreas: { id: string; name: string }[];
-  pickupPoints: { id: string; name: string }[];
+  onApprove: (principal: string) => void;
+  onReject: (principal: string) => void;
+  actionLoading: string | null;
 }) {
-  const area = businessAreas.find((ba) => ba.id === user.businessAreaId);
-  const pp = pickupPoints.find((pp) => pp.id === user.pickupPointId);
-  const sb = STATUS_BADGE[user.status];
+  const { approvalInfo, profile } = item;
+  const principalStr = approvalInfo.principal.toString();
+  const sb = STATUS_BADGE[approvalInfo.status] ?? {
+    class: "bg-gray-100 text-gray-800",
+    label: approvalInfo.status,
+  };
+  const isLoading = actionLoading === principalStr;
 
   return (
     <Card
@@ -70,61 +115,61 @@ function ApplicantCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            {/* Profile picture or emoji avatar */}
-            {user.role === "driver" || user.role === "operator" ? (
-              <Avatar className="w-10 h-10 shrink-0">
-                <AvatarImage src={user.profileImageUrl} alt={user.name} />
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-display font-bold">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-            ) : (
-              <span className="text-2xl leading-none mt-0.5">
-                {ROLE_EMOJI[user.role] || "👤"}
-              </span>
-            )}
+            <Avatar className="w-10 h-10 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary text-sm font-display font-bold">
+                {profile ? getInitials(profile.displayName) : "??"}
+              </AvatarFallback>
+            </Avatar>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm">{user.name}</span>
+                <span className="font-semibold text-sm">
+                  {profile?.displayName ?? "Unknown User"}
+                </span>
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${sb.class}`}
                 >
                   {sb.label}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {user.email} · {user.phone}
+              <p className="text-xs text-muted-foreground font-mono">
+                {principalStr.slice(0, 24)}…
               </p>
-              <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                Role: {user.role}
-                {area ? ` — ${area.name}` : ""}
-                {pp ? ` — ${pp.name}` : ""}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Applied: {formatDate(user.createdAt)}
-              </p>
+              {profile && (
+                <>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    📞 {profile.phone}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                    Role: {ROLE_LABEL[profile.role] ?? profile.role}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Registered: {formatDate(profile.registeredAt)}
+                  </p>
+                </>
+              )}
             </div>
           </div>
-          {user.status === "pending" && (
+          {approvalInfo.status === ApprovalStatus.pending && (
             <div className="flex gap-2 shrink-0">
               <Button
                 size="sm"
-                onClick={() => onApprove(user.id)}
+                onClick={() => onApprove(principalStr)}
+                disabled={isLoading}
                 className="h-8 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
                 data-ocid={`admin.approve.confirm_button.${index}`}
               >
-                <CheckCircle className="h-3.5 w-3.5" />
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-3.5 w-3.5" />
+                )}
                 Approve
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onReject(user.id)}
+                onClick={() => onReject(principalStr)}
+                disabled={isLoading}
                 className="h-8 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
                 data-ocid={`admin.reject.delete_button.${index}`}
               >
@@ -139,23 +184,22 @@ function ApplicantCard({
   );
 }
 
-function AdminStaffCard({
-  user,
+function AdminUserCard({
+  profile,
   index,
   onPromote,
   onRevoke,
-  businessAreas,
-  pickupPoints,
+  actionLoading,
 }: {
-  user: StaffUser;
+  profile: UserProfile;
   index: number;
-  onPromote: (id: string) => void;
-  onRevoke: (id: string) => void;
-  businessAreas: { id: string; name: string }[];
-  pickupPoints: { id: string; name: string }[];
+  onPromote: (principal: string) => void;
+  onRevoke: (principal: string) => void;
+  actionLoading: string | null;
 }) {
-  const area = businessAreas.find((ba) => ba.id === user.businessAreaId);
-  const pp = pickupPoints.find((p) => p.id === user.pickupPointId);
+  const principalStr = profile.principal.toString();
+  const isLoading = actionLoading === principalStr;
+  const isAdmin = profile.role === AppUserRole.admin;
 
   return (
     <Card
@@ -165,34 +209,18 @@ function AdminStaffCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            {/* Avatar */}
-            {user.role === "driver" || user.role === "operator" ? (
-              <Avatar className="w-10 h-10 shrink-0">
-                <AvatarImage src={user.profileImageUrl} alt={user.name} />
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-display font-bold">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 text-lg">
-                {ROLE_EMOJI[user.role] || "👤"}
-              </div>
-            )}
-
+            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 text-lg">
+              {ROLE_EMOJI[profile.role] || "👤"}
+            </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="font-semibold text-sm">{user.name}</span>
-                {/* Role chip */}
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
-                  {ROLE_LABEL[user.role] ?? user.role}
+                <span className="font-semibold text-sm">
+                  {profile.displayName}
                 </span>
-                {/* Admin badge — amber/gold */}
-                {user.isPromotedAdmin && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+                  {ROLE_LABEL[profile.role] ?? profile.role}
+                </span>
+                {isAdmin && (
                   <Badge
                     className="gap-1 text-[10px] px-1.5 py-0.5 h-auto border font-semibold"
                     style={{
@@ -206,39 +234,44 @@ function AdminStaffCard({
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {user.email} · {user.phone}
+              <p className="text-xs text-muted-foreground font-mono">
+                {principalStr.slice(0, 24)}…
               </p>
-              {(area || pp) && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {area ? area.name : ""}
-                  {pp ? pp.name : ""}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                📞 {profile.phone}
+              </p>
             </div>
           </div>
-
-          {/* Action button */}
           <div className="shrink-0">
-            {user.isPromotedAdmin ? (
+            {isAdmin ? (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onRevoke(user.id)}
+                onClick={() => onRevoke(principalStr)}
+                disabled={isLoading}
                 className="h-8 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
                 data-ocid={`admin.revoke.button.${index}`}
               >
-                <ShieldMinus className="h-3.5 w-3.5" />
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ShieldMinus className="h-3.5 w-3.5" />
+                )}
                 Revoke Admin
               </Button>
             ) : (
               <Button
                 size="sm"
-                onClick={() => onPromote(user.id)}
+                onClick={() => onPromote(principalStr)}
+                disabled={isLoading}
                 className="h-8 gap-1.5"
                 data-ocid={`admin.promote.button.${index}`}
               >
-                <ShieldPlus className="h-3.5 w-3.5" />
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ShieldPlus className="h-3.5 w-3.5" />
+                )}
                 Make Admin
               </Button>
             )}
@@ -250,86 +283,166 @@ function AdminStaffCard({
 }
 
 export function AdminApprovalsPage() {
-  const {
-    staffUsers,
-    setStaffUsers,
-    businessAreas,
-    pickupPoints,
-    addNotification,
-  } = useApp();
+  const { addNotification } = useApp();
+  const { actor } = useActor();
 
-  const pending = staffUsers.filter((u) => u.status === "pending");
-  const approved = staffUsers.filter((u) => u.status === "approved");
-  const rejected = staffUsers.filter((u) => u.status === "rejected");
-  // All staff (non-admin roles) that have been approved — eligible for admin promotion
-  const eligibleForAdmin = staffUsers.filter(
-    (u) => u.status === "approved" && u.role !== "admin",
+  const [approvals, setApprovals] = useState<ApprovalUserInfo[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!actor) return;
+    setLoading(true);
+    try {
+      const [approvalList, userList] = await Promise.all([
+        actor.listApprovals(),
+        actor.getAllUsers(),
+      ]);
+
+      // Fetch profiles for approval items
+      const profiles = await Promise.all(
+        approvalList.map((a) => actor.getUserProfile(a.principal)),
+      );
+
+      const items: ApprovalUserInfo[] = approvalList.map((a, i) => ({
+        approvalInfo: a,
+        profile: profiles[i] ?? null,
+      }));
+
+      setApprovals(items);
+      setAllUsers(userList);
+    } catch (err) {
+      console.error("Failed to load approvals:", err);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    if (actor) {
+      loadData();
+    }
+  }, [actor, loadData]);
+
+  const getPrincipal = useCallback(async (principalStr: string) => {
+    const mod = await import("@icp-sdk/core/principal");
+    return mod.Principal.fromText(principalStr);
+  }, []);
+
+  const handleApprove = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const principal = await getPrincipal(principalStr);
+      await actor.setApproval(principal, ApprovalStatus.approved);
+      addNotification({
+        type: "approval",
+        title: "Application Approved",
+        message:
+          "An application to join Thuma Thina has been approved. Welcome aboard!",
+        targetRole: "all",
+      });
+      toast.success("Application approved ✅");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to approve application");
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const principal = await getPrincipal(principalStr);
+      await actor.setApproval(principal, ApprovalStatus.rejected);
+      addNotification({
+        type: "approval",
+        title: "Application Update",
+        message: "An application was not approved at this time.",
+        targetRole: "all",
+      });
+      toast.error("Application rejected");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to reject application");
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePromote = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const principal = await getPrincipal(principalStr);
+      await actor.assignCallerUserRole(principal, UserRole.admin);
+      toast.success("Admin role granted 🛡️");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to grant admin role");
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevoke = async (principalStr: string) => {
+    if (!actor) return;
+    setActionLoading(principalStr);
+    try {
+      const principal = await getPrincipal(principalStr);
+      await actor.assignCallerUserRole(principal, UserRole.user);
+      toast.success("Admin role revoked");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to revoke admin role");
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const pending = approvals.filter(
+    (a) => a.approvalInfo.status === ApprovalStatus.pending,
+  );
+  const approved = approvals.filter(
+    (a) => a.approvalInfo.status === ApprovalStatus.approved,
+  );
+  const rejected = approvals.filter(
+    (a) => a.approvalInfo.status === ApprovalStatus.rejected,
   );
 
-  const getRoleTarget = (id: string): NotificationTargetRole => {
-    const user = staffUsers.find((u) => u.id === id);
-    if (
-      user?.role === "shopper" ||
-      user?.role === "driver" ||
-      user?.role === "operator"
-    ) {
-      return user.role;
-    }
-    return "all";
-  };
-
-  const handleApprove = (id: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: "approved" } : u)),
-    );
-    addNotification({
-      type: "approval",
-      title: "Application Approved",
-      message:
-        "Your application to join Thuma Thina has been approved. Welcome aboard!",
-      targetRole: getRoleTarget(id),
-    });
-    toast.success("Application approved ✅");
-  };
-
-  const handleReject = (id: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, status: "rejected" } : u)),
-    );
-    addNotification({
-      type: "approval",
-      title: "Application Update",
-      message:
-        "Your application to join Thuma Thina was not approved at this time.",
-      targetRole: getRoleTarget(id),
-    });
-    toast.error("Application rejected");
-  };
-
-  const handlePromote = (id: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, isPromotedAdmin: true } : u)),
-    );
-    toast.success("Admin role granted 🛡️");
-  };
-
-  const handleRevoke = (id: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, isPromotedAdmin: false } : u)),
-    );
-    toast.success("Admin role revoked");
-  };
-
-  const props = {
-    onApprove: handleApprove,
-    onReject: handleReject,
-    businessAreas,
-    pickupPoints,
-  };
-
-  const promotedCount = eligibleForAdmin.filter(
-    (u) => u.isPromotedAdmin,
+  // All users (for Admin tab) — show everyone
+  const adminEligible = allUsers.filter(
+    (u) =>
+      u.registrationStatus ===
+      Variant_active_pending_updateNeeded_rejected.active,
+  );
+  const adminCount = allUsers.filter(
+    (u) => u.role === AppUserRole.admin,
   ).length;
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Users className="h-5 w-5 text-primary" />
+          <h1 className="font-display text-2xl font-bold">Approval Queue</h1>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
@@ -341,9 +454,19 @@ export function AdminApprovalsPage() {
             Manage staff applications &amp; admin roles
           </p>
         </div>
-        {pending.length > 0 && (
-          <Badge className="ml-auto">{pending.length} pending</Badge>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {pending.length > 0 && <Badge>{pending.length} pending</Badge>}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={loadData}
+            title="Refresh"
+            data-ocid="admin.approvals.refresh_button"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="pending" data-ocid="admin.approvals.tab">
@@ -367,7 +490,7 @@ export function AdminApprovalsPage() {
           >
             <Crown className="h-3.5 w-3.5" />
             Admins
-            {promotedCount > 0 && (
+            {adminCount > 0 && (
               <span
                 className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                 style={{
@@ -375,7 +498,7 @@ export function AdminApprovalsPage() {
                   color: "oklch(0.38 0.12 60)",
                 }}
               >
-                {promotedCount}
+                {adminCount}
               </span>
             )}
           </TabsTrigger>
@@ -394,8 +517,15 @@ export function AdminApprovalsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {pending.map((u, i) => (
-                <ApplicantCard key={u.id} user={u} index={i + 1} {...props} />
+              {pending.map((item, i) => (
+                <ApplicantCard
+                  key={item.approvalInfo.principal.toString()}
+                  item={item}
+                  index={i + 1}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  actionLoading={actionLoading}
+                />
               ))}
             </div>
           )}
@@ -411,8 +541,15 @@ export function AdminApprovalsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {approved.map((u, i) => (
-                <ApplicantCard key={u.id} user={u} index={i + 1} {...props} />
+              {approved.map((item, i) => (
+                <ApplicantCard
+                  key={item.approvalInfo.principal.toString()}
+                  item={item}
+                  index={i + 1}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  actionLoading={actionLoading}
+                />
               ))}
             </div>
           )}
@@ -428,8 +565,15 @@ export function AdminApprovalsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {rejected.map((u, i) => (
-                <ApplicantCard key={u.id} user={u} index={i + 1} {...props} />
+              {rejected.map((item, i) => (
+                <ApplicantCard
+                  key={item.approvalInfo.principal.toString()}
+                  item={item}
+                  index={i + 1}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  actionLoading={actionLoading}
+                />
               ))}
             </div>
           )}
@@ -456,14 +600,14 @@ export function AdminApprovalsPage() {
             </p>
           </div>
 
-          {eligibleForAdmin.length === 0 ? (
+          {adminEligible.length === 0 ? (
             <div
               className="text-center py-12"
               data-ocid="admin.admins.empty_state"
             >
               <Crown className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
               <p className="font-display font-semibold text-muted-foreground">
-                No approved staff members yet
+                No active users yet
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 Approve staff applications first before granting admin roles.
@@ -471,15 +615,14 @@ export function AdminApprovalsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {eligibleForAdmin.map((u, i) => (
-                <AdminStaffCard
-                  key={u.id}
-                  user={u}
+              {adminEligible.map((u, i) => (
+                <AdminUserCard
+                  key={u.principal.toString()}
+                  profile={u}
                   index={i + 1}
                   onPromote={handlePromote}
                   onRevoke={handleRevoke}
-                  businessAreas={businessAreas}
-                  pickupPoints={pickupPoints}
+                  actionLoading={actionLoading}
                 />
               ))}
             </div>

@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -9,11 +10,14 @@ import {
   Home,
   MapPin,
   Sparkles,
+  Star,
   Truck,
   User,
 } from "lucide-react";
+import { AppUserRole } from "../backend.d";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_STEPS,
@@ -33,7 +37,9 @@ function formatDate(iso: string) {
 export function OrderDetailPage() {
   const params = useParams({ from: "/orders/$orderId" });
   const navigate = useNavigate();
-  const { orders, products, demoRole } = useApp();
+  const { orders, products, retailers } = useApp();
+  const { userRole } = useAuth();
+  const isCustomer = userRole === AppUserRole.customer;
 
   const order = orders.find((o) => o.id === params.orderId);
 
@@ -72,16 +78,44 @@ export function OrderDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5">
         <div>
-          <h1 className="font-display font-bold text-xl">Order #{order.id}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-display font-bold text-xl">
+              Order #{order.id}
+            </h1>
+            {order.dedicatedRetailerId &&
+              (() => {
+                const retailer = retailers.find(
+                  (r) => r.id === order.dedicatedRetailerId,
+                );
+                return retailer ? (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 text-xs gap-1"
+                    data-ocid="order.dedicated_retailer.toggle"
+                  >
+                    <Star className="h-3 w-3 fill-current" />
+                    Dedicated Retailer Order — {retailer.name}
+                  </Badge>
+                ) : null;
+              })()}
+          </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             {formatDate(order.createdAt)}
           </p>
+          {order.parentOrderId && order.parentOrderId !== order.id && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Part of checkout{" "}
+              <span className="font-mono font-medium">
+                #{order.parentOrderId}
+              </span>
+            </p>
+          )}
         </div>
         <StatusBadge status={order.status} />
       </div>
 
       {/* Nomayini reward banner — shown for customer on newly placed orders */}
-      {demoRole === "customer" && order.status === "pending" && (
+      {isCustomer && order.status === "pending" && (
         <div
           className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 mb-4"
           data-ocid="order.reward.success_state"
@@ -255,7 +289,7 @@ export function OrderDetailPage() {
               </div>
             </div>
           )}
-          {order.shopperName && demoRole !== "customer" && (
+          {order.shopperName && !isCustomer && (
             <div className="flex items-center gap-2 text-sm">
               <User className="h-4 w-4 text-orange-600 shrink-0" />
               <div>
@@ -266,7 +300,7 @@ export function OrderDetailPage() {
               </div>
             </div>
           )}
-          {order.driverName && demoRole !== "customer" && (
+          {order.driverName && !isCustomer && (
             <div className="flex items-center gap-2 text-sm">
               <Truck className="h-4 w-4 text-purple-600 shrink-0" />
               <div>

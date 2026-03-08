@@ -10,12 +10,81 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type AppUserRole = { 'admin' : null } |
+  { 'customer' : null } |
+  { 'operator' : null } |
+  { 'shopper' : null } |
+  { 'driver' : null };
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface BusinessArea {
+  'id' : string,
+  'name' : string,
+  'townId' : string,
+  'areaType' : string,
+}
+export interface PickupPoint {
+  'id' : string,
+  'name' : string,
+  'townId' : string,
+  'address' : string,
+  'profileImageUrl' : [] | [string],
+}
+export interface Product {
+  'id' : string,
+  'suggestedBy' : [] | [string],
+  'inStock' : boolean,
+  'isSuggestion' : boolean,
+  'name' : string,
+  'description' : string,
+  'imageEmoji' : string,
+  'approved' : boolean,
+  'category' : string,
+  'imagesJson' : [] | [string],
+}
+export interface ProductListing {
+  'id' : string,
+  'productId' : string,
+  'outOfStock' : boolean,
+  'price' : number,
+  'retailerId' : string,
+}
+export interface Retailer {
+  'id' : string,
+  'name' : string,
+  'operatingHoursJson' : [] | [string],
+  'townId' : string,
+  'address' : string,
+  'businessAreaId' : string,
+}
+export interface RetailerProduct {
+  'id' : string,
+  'inStock' : boolean,
+  'name' : string,
+  'description' : string,
+  'imageEmoji' : string,
+  'category' : string,
+  'price' : number,
+  'imagesJson' : [] | [string],
+  'retailerId' : string,
+}
+export interface Town { 'id' : string, 'province' : string, 'name' : string }
 export interface UserApprovalInfo {
   'status' : ApprovalStatus,
   'principal' : Principal,
+}
+export interface UserProfile {
+  'principal' : Principal,
+  'displayName' : string,
+  'role' : AppUserRole,
+  'phone' : string,
+  'registrationStatus' : { 'active' : null } |
+    { 'pending' : null } |
+    { 'updateNeeded' : null } |
+    { 'rejected' : null },
+  'registeredAt' : bigint,
+  'businessAreaId' : [] | [string],
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -48,13 +117,82 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addBusinessArea' : ActorMethod<[string, string, string, string], undefined>,
+  'addListing' : ActorMethod<[string, string, string, number], undefined>,
+  'addPickupPoint' : ActorMethod<
+    [string, string, string, string, [] | [string]],
+    undefined
+  >,
+  'addProduct' : ActorMethod<
+    [string, string, string, string, string, [] | [string]],
+    undefined
+  >,
+  'addRetailer' : ActorMethod<
+    [string, string, string, string, string, [] | [string]],
+    undefined
+  >,
+  'addRetailerProduct' : ActorMethod<
+    [string, string, string, string, string, number, string, [] | [string]],
+    undefined
+  >,
+  /**
+   * / *********************************************************
+   * /    * Persistence API Endpoints
+   * /   ***********************************************************
+   */
+  'addTown' : ActorMethod<[string, string, string], undefined>,
+  'approveSuggestion' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'assignShopperToRetailer' : ActorMethod<[Principal, string], undefined>,
+  'deleteBusinessArea' : ActorMethod<[string], undefined>,
+  'deleteListing' : ActorMethod<[string], undefined>,
+  'deletePickupPoint' : ActorMethod<[string], undefined>,
+  'deleteProduct' : ActorMethod<[string], undefined>,
+  'deleteRetailer' : ActorMethod<[string], undefined>,
+  'deleteRetailerProduct' : ActorMethod<[string], undefined>,
+  'deleteTown' : ActorMethod<[string], undefined>,
+  'getAllShopperAssignments' : ActorMethod<
+    [],
+    Array<[Principal, Array<string>]>
+  >,
+  'getAllUsers' : ActorMethod<[], Array<UserProfile>>,
+  'getBusinessAreas' : ActorMethod<[], Array<BusinessArea>>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getListings' : ActorMethod<[], Array<ProductListing>>,
+  'getMyProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getPickupPoints' : ActorMethod<[], Array<PickupPoint>>,
+  'getProducts' : ActorMethod<[], Array<Product>>,
+  'getRetailerProducts' : ActorMethod<[], Array<RetailerProduct>>,
+  'getRetailers' : ActorMethod<[], Array<Retailer>>,
+  'getShopperRetailerIds' : ActorMethod<[Principal], Array<string>>,
+  'getStaffBusinessArea' : ActorMethod<[Principal], [] | [string]>,
+  'getTowns' : ActorMethod<[], Array<Town>>,
+  'getUserCount' : ActorMethod<[], bigint>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'hasAnyAdmin' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
+  'registerUser' : ActorMethod<
+    [AppUserRole, string, string, [] | [string]],
+    undefined
+  >,
+  'rejectSuggestion' : ActorMethod<[string], undefined>,
   'requestApproval' : ActorMethod<[], undefined>,
+  'saveCallerUserProfile' : ActorMethod<
+    [string, string, [] | [string]],
+    undefined
+  >,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
+  'setListingStock' : ActorMethod<[string, boolean], undefined>,
+  'setRetailerProductStock' : ActorMethod<[string, boolean], undefined>,
+  'suggestProduct' : ActorMethod<
+    [string, string, string, string, string, string],
+    undefined
+  >,
+  'unassignShopperFromRetailer' : ActorMethod<[Principal, string], undefined>,
+  'updateRetailerHours' : ActorMethod<[string, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

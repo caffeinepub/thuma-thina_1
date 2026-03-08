@@ -7,8 +7,10 @@ import {
   createRouter,
   redirect,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { AppProvider, useApp } from "./context/AppContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 // Pages
 import { LandingPage } from "./pages/LandingPage";
@@ -38,7 +40,58 @@ import { OperatorWalkInOrderPage } from "./pages/operator/WalkInOrderPage";
 import { ShopperAvailableOrdersPage } from "./pages/shopper/AvailableOrdersPage";
 import { ShopperMyOrdersPage } from "./pages/shopper/MyShopperOrdersPage";
 import { ShopperAnalyticsPage } from "./pages/shopper/ShopperAnalyticsPage";
+import { ShopperStockPage } from "./pages/shopper/ShopperStockPage";
 import { SuggestProductPage } from "./pages/shopper/SuggestProductPage";
+
+// ─── Sync auth user to app context ───────────────────────────────────────────
+
+function UserSyncBridge() {
+  const { userProfile, principalText } = useAuth();
+  const { setCurrentUser } = useApp();
+
+  useEffect(() => {
+    if (userProfile) {
+      setCurrentUser({
+        id: principalText ?? userProfile.principal.toString(),
+        name: userProfile.displayName,
+        phone: userProfile.phone,
+      });
+    } else {
+      setCurrentUser(null);
+    }
+  }, [userProfile, principalText, setCurrentUser]);
+
+  return null;
+}
+
+// ─── Protected Route Wrapper ──────────────────────────────────────────────────
+
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, needsRegistration } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // Redirect to login
+    throw redirect({ to: "/login" });
+  }
+
+  if (needsRegistration) {
+    // Authenticated via II but no backend profile yet — go to registration
+    throw redirect({ to: "/register/customer" });
+  }
+
+  return <>{children}</>;
+}
 
 // ─── Layout component ─────────────────────────────────────────────────────────
 
@@ -91,143 +144,245 @@ const pendingApprovalRoute = createRoute({
 const catalogueRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/catalogue",
-  component: CataloguePage,
+  component: () => (
+    <ProtectedPage>
+      <CataloguePage />
+    </ProtectedPage>
+  ),
 });
 
 const cartRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/cart",
-  component: CartPage,
+  component: () => (
+    <ProtectedPage>
+      <CartPage />
+    </ProtectedPage>
+  ),
 });
 
 const checkoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/checkout",
-  component: CheckoutPage,
+  component: () => (
+    <ProtectedPage>
+      <CheckoutPage />
+    </ProtectedPage>
+  ),
 });
 
 const myOrdersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/my-orders",
-  component: MyOrdersPage,
+  component: () => (
+    <ProtectedPage>
+      <MyOrdersPage />
+    </ProtectedPage>
+  ),
 });
 
 const walletRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/wallet",
-  component: NomayiniWalletPage,
+  component: () => (
+    <ProtectedPage>
+      <NomayiniWalletPage />
+    </ProtectedPage>
+  ),
 });
 
 const orderDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/orders/$orderId",
-  component: OrderDetailPage,
+  component: () => (
+    <ProtectedPage>
+      <OrderDetailPage />
+    </ProtectedPage>
+  ),
 });
 
 // Shopper
 const shopperAnalyticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopper/analytics",
-  component: ShopperAnalyticsPage,
+  component: () => (
+    <ProtectedPage>
+      <ShopperAnalyticsPage />
+    </ProtectedPage>
+  ),
 });
 
 const shopperAvailableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopper/available",
-  component: ShopperAvailableOrdersPage,
+  component: () => (
+    <ProtectedPage>
+      <ShopperAvailableOrdersPage />
+    </ProtectedPage>
+  ),
 });
 
 const shopperMyOrdersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopper/my-orders",
-  component: ShopperMyOrdersPage,
+  component: () => (
+    <ProtectedPage>
+      <ShopperMyOrdersPage />
+    </ProtectedPage>
+  ),
 });
 
 const shopperSuggestRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopper/suggest",
-  component: SuggestProductPage,
+  component: () => (
+    <ProtectedPage>
+      <SuggestProductPage />
+    </ProtectedPage>
+  ),
+});
+
+const shopperStockRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shopper/stock",
+  component: () => (
+    <ProtectedPage>
+      <ShopperStockPage />
+    </ProtectedPage>
+  ),
 });
 
 // Driver
 const driverAnalyticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/driver/analytics",
-  component: DriverAnalyticsPage,
+  component: () => (
+    <ProtectedPage>
+      <DriverAnalyticsPage />
+    </ProtectedPage>
+  ),
 });
 
 const driverAvailableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/driver/available",
-  component: DriverAvailableDeliveriesPage,
+  component: () => (
+    <ProtectedPage>
+      <DriverAvailableDeliveriesPage />
+    </ProtectedPage>
+  ),
 });
 
 const driverMyDeliveriesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/driver/my-deliveries",
-  component: DriverMyDeliveriesPage,
+  component: () => (
+    <ProtectedPage>
+      <DriverMyDeliveriesPage />
+    </ProtectedPage>
+  ),
 });
 
 const driverProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/driver/profile",
-  component: DriverProfilePage,
+  component: () => (
+    <ProtectedPage>
+      <DriverProfilePage />
+    </ProtectedPage>
+  ),
 });
 
 // Operator
 const operatorAnalyticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/operator/analytics",
-  component: OperatorAnalyticsPage,
+  component: () => (
+    <ProtectedPage>
+      <OperatorAnalyticsPage />
+    </ProtectedPage>
+  ),
 });
 
 const operatorIncomingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/operator/incoming",
-  component: OperatorIncomingOrdersPage,
+  component: () => (
+    <ProtectedPage>
+      <OperatorIncomingOrdersPage />
+    </ProtectedPage>
+  ),
 });
 
 const operatorWalkinRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/operator/walkin",
-  component: OperatorWalkInOrderPage,
+  component: () => (
+    <ProtectedPage>
+      <OperatorWalkInOrderPage />
+    </ProtectedPage>
+  ),
 });
 
 const operatorProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/operator/profile",
-  component: OperatorProfilePage,
+  component: () => (
+    <ProtectedPage>
+      <OperatorProfilePage />
+    </ProtectedPage>
+  ),
 });
 
 // Admin
 const adminApprovalsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/approvals",
-  component: AdminApprovalsPage,
+  component: () => (
+    <ProtectedPage>
+      <AdminApprovalsPage />
+    </ProtectedPage>
+  ),
 });
 
 const adminLocationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/locations",
-  component: AdminLocationsPage,
+  component: () => (
+    <ProtectedPage>
+      <AdminLocationsPage />
+    </ProtectedPage>
+  ),
 });
 
 const adminProductsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/products",
-  component: AdminProductsPage,
+  component: () => (
+    <ProtectedPage>
+      <AdminProductsPage />
+    </ProtectedPage>
+  ),
 });
 
 const adminOrdersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/orders",
-  component: AdminOrdersPage,
+  component: () => (
+    <ProtectedPage>
+      <AdminOrdersPage />
+    </ProtectedPage>
+  ),
 });
 
 const adminAnalyticsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/analytics",
-  component: AdminAnalyticsPage,
+  component: () => (
+    <ProtectedPage>
+      <AdminAnalyticsPage />
+    </ProtectedPage>
+  ),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -246,6 +401,7 @@ const routeTree = rootRoute.addChildren([
   shopperAvailableRoute,
   shopperMyOrdersRoute,
   shopperSuggestRoute,
+  shopperStockRoute,
   driverAnalyticsRoute,
   driverAvailableRoute,
   driverMyDeliveriesRoute,
@@ -273,9 +429,12 @@ declare module "@tanstack/react-router" {
 
 export default function App() {
   return (
-    <AppProvider>
-      <RouterProvider router={router} />
-      <Toaster richColors position="top-right" />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <UserSyncBridge />
+        <RouterProvider router={router} />
+        <Toaster richColors position="top-right" />
+      </AppProvider>
+    </AuthProvider>
   );
 }

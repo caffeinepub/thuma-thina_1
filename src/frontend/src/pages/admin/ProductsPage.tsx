@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle,
   List,
+  Loader2,
   Package,
   Plus,
   Search,
@@ -38,6 +39,7 @@ import type {
   ProductCategory,
   ProductListing,
 } from "../../data/mockData";
+import { useActor } from "../../hooks/useActor";
 
 const CATEGORIES: ProductCategory[] = [
   "Groceries",
@@ -59,7 +61,9 @@ const EMOJIS: Record<ProductCategory, string> = {
 
 export function AdminProductsPage() {
   const { products, setProducts, listings, setListings, retailers } = useApp();
+  const { actor } = useActor();
   const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
   const [addDialog, setAddDialog] = useState(false);
   const [listingDialog, setListingDialog] = useState(false);
   const [form, setForm] = useState({
@@ -87,52 +91,92 @@ export function AdminProductsPage() {
   const update = (field: string, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.name.trim() || !form.category) {
       toast.error("Please fill in all required fields");
       return;
     }
-    const newProduct: Product = {
-      id: `p_${Date.now()}`,
-      name: form.name,
-      description: form.description,
-      category: form.category as ProductCategory,
-      imageEmoji: EMOJIS[form.category as ProductCategory] || "📦",
-      images: form.images.length > 0 ? form.images : undefined,
-      inStock: true,
-    };
-    setProducts((prev) => [newProduct, ...prev]);
-    toast.success("Product added to catalogue");
-    setAddDialog(false);
-    setForm({
-      name: "",
-      description: "",
-      category: "",
-      imageEmoji: "📦",
-      images: [],
-    });
+    const id = `p_${Date.now()}`;
+    const imageEmoji = EMOJIS[form.category as ProductCategory] || "📦";
+    const imagesJson =
+      form.images.length > 0 ? JSON.stringify(form.images) : null;
+    setSaving(true);
+    try {
+      if (actor) {
+        await actor.addProduct(
+          id,
+          form.name,
+          form.description,
+          form.category,
+          imageEmoji,
+          imagesJson,
+        );
+      }
+      const newProduct: Product = {
+        id,
+        name: form.name,
+        description: form.description,
+        category: form.category as ProductCategory,
+        imageEmoji,
+        images: form.images.length > 0 ? form.images : undefined,
+        inStock: true,
+      };
+      setProducts((prev) => [newProduct, ...prev]);
+      toast.success("Product added to catalogue");
+      setAddDialog(false);
+      setForm({
+        name: "",
+        description: "",
+        category: "",
+        imageEmoji: "📦",
+        images: [],
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add product");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    toast.success("Product removed");
+  const handleDelete = async (id: string) => {
+    try {
+      if (actor) await actor.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Product removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove product");
+    }
   };
 
-  const handleApproveSuggestion = (id: string) => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, approved: true, isSuggestion: false } : p,
-      ),
-    );
-    toast.success("Product suggestion approved and added to catalogue ✅");
+  const handleApproveSuggestion = async (id: string) => {
+    try {
+      if (actor) await actor.approveSuggestion(id);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, approved: true, isSuggestion: false } : p,
+        ),
+      );
+      toast.success("Product suggestion approved and added to catalogue ✅");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to approve suggestion");
+    }
   };
 
-  const handleRejectSuggestion = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    toast.error("Product suggestion rejected");
+  const handleRejectSuggestion = async (id: string) => {
+    try {
+      if (actor) await actor.rejectSuggestion(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.error("Product suggestion rejected");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to reject suggestion");
+    }
   };
 
-  const handleAddListing = () => {
+  const handleAddListing = async () => {
     if (
       !listingForm.productId ||
       !listingForm.retailerId ||
@@ -141,21 +185,57 @@ export function AdminProductsPage() {
       toast.error("Please fill in all listing fields");
       return;
     }
-    const newListing: ProductListing = {
-      id: `l_${Date.now()}`,
-      productId: listingForm.productId,
-      retailerId: listingForm.retailerId,
-      price: Number.parseFloat(listingForm.price),
-    };
-    setListings((prev) => [...prev, newListing]);
-    toast.success("Listing added");
-    setListingDialog(false);
-    setListingForm({ productId: "", retailerId: "", price: "" });
+    const id = `l_${Date.now()}`;
+    const price = Number.parseFloat(listingForm.price);
+    setSaving(true);
+    try {
+      if (actor)
+        await actor.addListing(
+          id,
+          listingForm.productId,
+          listingForm.retailerId,
+          price,
+        );
+      const newListing: ProductListing = {
+        id,
+        productId: listingForm.productId,
+        retailerId: listingForm.retailerId,
+        price,
+      };
+      setListings((prev) => [...prev, newListing]);
+      toast.success("Listing added");
+      setListingDialog(false);
+      setListingForm({ productId: "", retailerId: "", price: "" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add listing");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteListing = (id: string) => {
-    setListings((prev) => prev.filter((l) => l.id !== id));
-    toast.success("Listing removed");
+  const handleDeleteListing = async (id: string) => {
+    try {
+      if (actor) await actor.deleteListing(id);
+      setListings((prev) => prev.filter((l) => l.id !== id));
+      toast.success("Listing removed");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove listing");
+    }
+  };
+
+  const handleToggleListingStock = async (id: string, currentOOS: boolean) => {
+    try {
+      if (actor) await actor.setListingStock(id, !currentOOS);
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, outOfStock: !currentOOS } : l)),
+      );
+      toast.success(!currentOOS ? "Marked out of stock" : "Marked in stock");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update stock");
+    }
   };
 
   const getProductName = (productId: string) =>
@@ -413,6 +493,26 @@ export function AdminProductsPage() {
                     <span className="font-display font-bold text-sm text-primary shrink-0">
                       R{listing.price.toFixed(2)}
                     </span>
+                    <Badge
+                      variant={listing.outOfStock ? "secondary" : "outline"}
+                      className={`text-[10px] shrink-0 ${listing.outOfStock ? "text-red-600 border-red-200" : "text-green-700 border-green-300"}`}
+                    >
+                      {listing.outOfStock ? "Out of Stock" : "In Stock"}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleToggleListingStock(
+                          listing.id,
+                          !!listing.outOfStock,
+                        )
+                      }
+                      className={`h-7 text-xs shrink-0 ${listing.outOfStock ? "text-green-600 border-green-200 hover:bg-green-50" : "text-red-600 border-red-200 hover:bg-red-50"}`}
+                      data-ocid={`admin.listing.toggle.${i + 1}`}
+                    >
+                      {listing.outOfStock ? "Mark In Stock" : "Mark OOS"}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -501,8 +601,10 @@ export function AdminProductsPage() {
             </Button>
             <Button
               onClick={handleAdd}
+              disabled={saving}
               data-ocid="admin.add_product.confirm_button"
             >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Add Product
             </Button>
           </DialogFooter>
@@ -581,8 +683,10 @@ export function AdminProductsPage() {
             </Button>
             <Button
               onClick={handleAddListing}
+              disabled={saving}
               data-ocid="admin.listing.confirm_button"
             >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Add Listing
             </Button>
           </DialogFooter>

@@ -31,6 +31,7 @@ export function CheckoutPage() {
     placeOrder,
     clearCart,
     retailerProducts,
+    orders,
   } = useApp();
   const navigate = useNavigate();
 
@@ -136,9 +137,21 @@ export function CheckoutPage() {
 
     clearCart();
     const earnedTokens = Math.round(total * 0.1 * 100) / 100;
-    toast.success(
-      `Order placed! 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
-    );
+
+    // Count sub-orders created for this checkout
+    const subOrders = orders.filter((o) => o.parentOrderId === orderId);
+    const subOrderCount = subOrders.length;
+
+    if (subOrderCount > 1) {
+      toast.success(
+        `Order placed and split into ${subOrderCount} sub-orders! 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
+      );
+    } else {
+      toast.success(
+        `Order placed! 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
+      );
+    }
+
     navigate({ to: `/orders/${orderId}` });
     setLoading(false);
   };
