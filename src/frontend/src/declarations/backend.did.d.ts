@@ -24,6 +24,31 @@ export interface BusinessArea {
   'townId' : string,
   'areaType' : string,
 }
+export interface Order {
+  'id' : string,
+  'customerName' : string,
+  'status' : string,
+  'driverId' : [] | [string],
+  'isWalkIn' : boolean,
+  'total' : number,
+  'customerPhone' : string,
+  'pickupPointId' : string,
+  'pickupPointName' : string,
+  'dedicatedRetailerId' : [] | [string],
+  'createdAt' : string,
+  'deliveryType' : string,
+  'deliveryAreasJson' : [] | [string],
+  'parentOrderId' : [] | [string],
+  'updatedAt' : string,
+  'homeAddress' : [] | [string],
+  'shopperId' : [] | [string],
+  'townId' : string,
+  'customerId' : string,
+  'itemsJson' : string,
+  'driverName' : [] | [string],
+  'businessAreaId' : string,
+  'shopperName' : [] | [string],
+}
 export interface PickupPoint {
   'id' : string,
   'name' : string,
@@ -146,6 +171,7 @@ export interface _SERVICE {
   'assignShopperToRetailer' : ActorMethod<[Principal, string], undefined>,
   'deleteBusinessArea' : ActorMethod<[string], undefined>,
   'deleteListing' : ActorMethod<[string], undefined>,
+  'deleteOrder' : ActorMethod<[string], undefined>,
   'deletePickupPoint' : ActorMethod<[string], undefined>,
   'deleteProduct' : ActorMethod<[string], undefined>,
   'deleteRetailer' : ActorMethod<[string], undefined>,
@@ -160,7 +186,13 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getListings' : ActorMethod<[], Array<ProductListing>>,
+  'getMyOrders' : ActorMethod<[string], Array<Order>>,
   'getMyProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getOrderById' : ActorMethod<[string], [] | [Order]>,
+  'getOrders' : ActorMethod<[], Array<Order>>,
+  'getOrdersByArea' : ActorMethod<[string], Array<Order>>,
+  'getOrdersByCustomerId' : ActorMethod<[string], Array<Order>>,
+  'getOrdersByStatus' : ActorMethod<[string], Array<Order>>,
   'getPickupPoints' : ActorMethod<[], Array<PickupPoint>>,
   'getProducts' : ActorMethod<[], Array<Product>>,
   'getRetailerProducts' : ActorMethod<[], Array<RetailerProduct>>,
@@ -174,6 +206,28 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
+  'placeOrder' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      string,
+      number,
+      string,
+      string,
+      string,
+      [] | [string],
+      string,
+      string,
+      [] | [string],
+      string,
+      boolean,
+      [] | [string],
+      [] | [string],
+    ],
+    undefined
+  >,
   'registerUser' : ActorMethod<
     [AppUserRole, string, string, [] | [string]],
     undefined
@@ -192,6 +246,18 @@ export interface _SERVICE {
     undefined
   >,
   'unassignShopperFromRetailer' : ActorMethod<[Principal, string], undefined>,
+  'updateOrderStatus' : ActorMethod<
+    [
+      string,
+      string,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+      [] | [string],
+      string,
+    ],
+    undefined
+  >,
   'updateRetailerHours' : ActorMethod<[string, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

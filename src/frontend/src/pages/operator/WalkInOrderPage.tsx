@@ -153,11 +153,10 @@ export function OperatorWalkInOrderPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
 
     const businessAreaId = businessAreas[0]?.id || "ba4";
 
-    const orderId = placeOrder({
+    const orderId = await placeOrder({
       customerId: `walkin_${Date.now()}`,
       customerName,
       customerPhone: customerPhone || "000 000 0000",

@@ -13,12 +13,16 @@ import { AppUserRole, type UserProfile } from "../backend.d";
 import type {
   BusinessArea,
   CartItem,
+  DeliveryType,
+  DemoRole,
   NomayiniWallet,
+  OperatingHours,
   Order,
   OrderItem,
   OrderStatus,
   PickupPoint,
   Product,
+  ProductCategory,
   ProductListing,
   Retailer,
   RetailerProduct,
@@ -84,12 +88,14 @@ interface AppContextValue {
   // Orders
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  placeOrder: (order: Omit<Order, "id" | "createdAt" | "updatedAt">) => string;
+  placeOrder: (
+    order: Omit<Order, "id" | "createdAt" | "updatedAt">,
+  ) => Promise<string>;
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus,
     extra?: Partial<Order>,
-  ) => void;
+  ) => Promise<void>;
 
   // Products
   products: Product[];
@@ -146,9 +152,7 @@ function parseImages(imagesJson?: string): string[] | undefined {
   }
 }
 
-function parseOperatingHours(
-  hoursJson?: string,
-): import("../data/mockData").OperatingHours | undefined {
+function parseOperatingHours(hoursJson?: string): OperatingHours | undefined {
   if (!hoursJson) return undefined;
   try {
     return JSON.parse(hoursJson);
@@ -157,13 +161,63 @@ function parseOperatingHours(
   }
 }
 
+// Type alias to avoid import() in function signatures
+type BackendOrder = import("../backend.d").Order;
+
+/**
+ * Map a backend Order (with itemsJson) to a frontend Order (with items array).
+ */
+function mapBackendOrder(backendOrder: BackendOrder): Order {
+  let items: OrderItem[] = [];
+  try {
+    items = JSON.parse(backendOrder.itemsJson);
+  } catch {
+    items = [];
+  }
+
+  let deliveryAreas: string[] | undefined;
+  if (backendOrder.deliveryAreasJson) {
+    try {
+      deliveryAreas = JSON.parse(backendOrder.deliveryAreasJson);
+    } catch {
+      deliveryAreas = undefined;
+    }
+  }
+
+  return {
+    id: backendOrder.id,
+    customerId: backendOrder.customerId,
+    customerName: backendOrder.customerName,
+    customerPhone: backendOrder.customerPhone,
+    items,
+    total: backendOrder.total,
+    status: backendOrder.status as OrderStatus,
+    deliveryType: backendOrder.deliveryType as DeliveryType,
+    pickupPointId: backendOrder.pickupPointId,
+    pickupPointName: backendOrder.pickupPointName,
+    homeAddress: backendOrder.homeAddress,
+    townId: backendOrder.townId,
+    businessAreaId: backendOrder.businessAreaId,
+    deliveryAreas,
+    shopperId: backendOrder.shopperId,
+    shopperName: backendOrder.shopperName,
+    driverId: backendOrder.driverId,
+    driverName: backendOrder.driverName,
+    createdAt: backendOrder.createdAt,
+    updatedAt: backendOrder.updatedAt,
+    isWalkIn: backendOrder.isWalkIn,
+    parentOrderId: backendOrder.parentOrderId,
+    dedicatedRetailerId: backendOrder.dedicatedRetailerId,
+  };
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { actor, isFetching: actorFetching } = useActor();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin, userRole, principalText } = useAuth();
 
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -216,6 +270,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [cart]);
 
+  // ─── Load orders from backend ─────────────────────────────────────────────────
+
+  const loadOrdersFromBackend = useCallback(async () => {
+    if (!actor || actorFetching) return;
+
+    try {
+      let rawOrders: BackendOrder[] = [];
+
+      if (isAdmin) {
+        // Admin sees all orders
+        rawOrders = await actor.getOrders();
+      } else if (userRole === AppUserRole.customer && principalText) {
+        // Customer sees their own orders
+        rawOrders = await actor.getMyOrders(principalText);
+      } else if (userRole === AppUserRole.shopper) {
+        // Shopper sees pending orders + their accepted orders
+        const [pendingOrders, acceptedOrders] = await Promise.all([
+          actor.getOrdersByStatus("pending"),
+          actor.getOrdersByStatus("accepted_by_shopper"),
+        ]);
+        const shoppingOrders = await actor.getOrdersByStatus(
+          "shopping_in_progress",
+        );
+        const readyOrders = await actor.getOrdersByStatus(
+          "ready_for_collection",
+        );
+
+        // Filter accepted/shopping/ready orders to only ones belonging to this shopper
+        const myAccepted = [
+          ...acceptedOrders,
+          ...shoppingOrders,
+          ...readyOrders,
+        ].filter((o) => o.shopperId === principalText);
+
+        // Deduplicate
+        const seen = new Set<string>();
+        for (const o of [...pendingOrders, ...myAccepted]) {
+          if (!seen.has(o.id)) {
+            seen.add(o.id);
+            rawOrders.push(o);
+          }
+        }
+      } else if (userRole === AppUserRole.driver) {
+        // Driver sees ready-for-collection orders + their accepted deliveries
+        const [readyOrders, acceptedByDriver] = await Promise.all([
+          actor.getOrdersByStatus("ready_for_collection"),
+          actor.getOrdersByStatus("accepted_by_driver"),
+        ]);
+        const outForDelivery =
+          await actor.getOrdersByStatus("out_for_delivery");
+
+        const myDeliveries = [...acceptedByDriver, ...outForDelivery].filter(
+          (o) => o.driverId === principalText,
+        );
+
+        const seen = new Set<string>();
+        for (const o of [...readyOrders, ...myDeliveries]) {
+          if (!seen.has(o.id)) {
+            seen.add(o.id);
+            rawOrders.push(o);
+          }
+        }
+      } else if (userRole === AppUserRole.operator && principalText) {
+        // Operator sees orders they placed (walk-in orders)
+        rawOrders = await actor.getOrdersByCustomerId(principalText);
+      }
+
+      setOrders(rawOrders.map(mapBackendOrder));
+    } catch (err) {
+      console.error("Failed to load orders:", err);
+      // Don't toast here — it's called silently after mutations
+    }
+  }, [actor, actorFetching, isAdmin, userRole, principalText]);
+
   // ─── Load all backend data ────────────────────────────────────────────────────
 
   const loadAllData = useCallback(async () => {
@@ -223,6 +351,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setDataLoading(true);
     try {
+      // Load all public/shared data (does NOT include admin-only endpoints)
       const [
         rawTowns,
         rawBusinessAreas,
@@ -231,7 +360,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         rawProducts,
         rawListings,
         rawRetailerProducts,
-        rawShopperAssignments,
       ] = await Promise.all([
         actor.getTowns(),
         actor.getBusinessAreas(),
@@ -240,7 +368,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         actor.getProducts(),
         actor.getListings(),
         actor.getRetailerProducts(),
-        actor.getAllShopperAssignments(),
       ]);
 
       // Map backend types → frontend types
@@ -275,7 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             id: p.id,
             name: p.name,
             description: p.description,
-            category: p.category as import("../data/mockData").ProductCategory,
+            category: p.category as ProductCategory,
             imageEmoji: p.imageEmoji,
             images: parseImages(p.imagesJson),
             inStock: p.inStock,
@@ -301,7 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           retailerId: rp.retailerId,
           name: rp.name,
           description: rp.description,
-          category: rp.category as import("../data/mockData").ProductCategory,
+          category: rp.category as ProductCategory,
           price: rp.price,
           imageEmoji: rp.imageEmoji,
           images: parseImages(rp.imagesJson),
@@ -309,57 +436,91 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })),
       );
 
-      // Build shopper assignments map
-      const assignMap = new Map<string, string[]>();
-      for (const [principal, retailerIds] of rawShopperAssignments) {
-        assignMap.set(principal.toString(), retailerIds);
-      }
-      setShopperAssignments(assignMap);
+      // Admin-only: load shopper assignments and all users
+      if (isAdmin) {
+        try {
+          const rawShopperAssignments = await actor.getAllShopperAssignments();
+          const assignMap = new Map<string, string[]>();
+          for (const [principal, retailerIds] of rawShopperAssignments) {
+            assignMap.set(principal.toString(), retailerIds);
+          }
+          setShopperAssignments(assignMap);
 
-      // Load all users for staff list
-      try {
-        const allUsers = await actor.getAllUsers();
-        const mapped: StaffUser[] = allUsers
-          .filter((u) => u.role !== AppUserRole.customer)
-          .map((u: UserProfile) => ({
-            id: u.principal.toString(),
-            name: u.displayName,
-            phone: u.phone,
-            email: "",
-            role: u.role as import("../data/mockData").DemoRole,
-            status:
-              u.registrationStatus === "active"
-                ? ("approved" as const)
-                : u.registrationStatus === "pending"
-                  ? ("pending" as const)
-                  : ("rejected" as const),
-            createdAt: new Date().toISOString(),
-            businessAreaId: u.businessAreaId ?? undefined,
-            assignedRetailerIds: assignMap.get(u.principal.toString()) ?? [],
-          }));
-        setStaffUsers(mapped);
-      } catch {
-        // Non-admin users won't be able to call getAllUsers — that's OK
+          // Load all users for staff list
+          const allUsers = await actor.getAllUsers();
+          const mapped: StaffUser[] = allUsers
+            .filter((u) => u.role !== AppUserRole.customer)
+            .map((u: UserProfile) => ({
+              id: u.principal.toString(),
+              name: u.displayName,
+              phone: u.phone,
+              email: "",
+              role: u.role as DemoRole,
+              status:
+                u.registrationStatus === "active"
+                  ? ("approved" as const)
+                  : u.registrationStatus === "pending"
+                    ? ("pending" as const)
+                    : ("rejected" as const),
+              createdAt: new Date().toISOString(),
+              businessAreaId: u.businessAreaId ?? undefined,
+              assignedRetailerIds: assignMap.get(u.principal.toString()) ?? [],
+            }));
+          setStaffUsers(mapped);
+        } catch {
+          // ignore if admin-only calls fail
+        }
+      } else {
+        // For non-admin authenticated users, try to load staff info for self
+        try {
+          const allUsers = await actor.getAllUsers();
+          const mapped: StaffUser[] = allUsers
+            .filter((u) => u.role !== AppUserRole.customer)
+            .map((u: UserProfile) => ({
+              id: u.principal.toString(),
+              name: u.displayName,
+              phone: u.phone,
+              email: "",
+              role: u.role as DemoRole,
+              status:
+                u.registrationStatus === "active"
+                  ? ("approved" as const)
+                  : u.registrationStatus === "pending"
+                    ? ("pending" as const)
+                    : ("rejected" as const),
+              createdAt: new Date().toISOString(),
+              businessAreaId: u.businessAreaId ?? undefined,
+              assignedRetailerIds: [],
+            }));
+          setStaffUsers(mapped);
+        } catch {
+          // Non-admin users won't be able to call getAllUsers — that's OK
+        }
       }
+
+      // Load orders for the current user/role
+      await loadOrdersFromBackend();
     } catch (err) {
       console.error("Failed to load backend data:", err);
       toast.error("Failed to load data. Please refresh.");
     } finally {
       setDataLoading(false);
     }
-  }, [actor, actorFetching]);
+  }, [actor, actorFetching, isAdmin, loadOrdersFromBackend]);
 
   // Load data when actor becomes available
   useEffect(() => {
     if (actor && !actorFetching) {
       // Use a stable key to avoid double-loading
-      const actorKey = isAuthenticated ? "auth" : "anon";
+      const actorKey = isAuthenticated
+        ? `auth_${principalText ?? "unknown"}`
+        : "anon";
       if (lastLoadedPrincipal.current !== actorKey) {
         lastLoadedPrincipal.current = actorKey;
         loadAllData();
       }
     }
-  }, [actor, actorFetching, isAuthenticated, loadAllData]);
+  }, [actor, actorFetching, isAuthenticated, principalText, loadAllData]);
 
   // ─── Cart ─────────────────────────────────────────────────────────────────────
 
@@ -490,8 +651,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
+  // ─── placeOrder ──────────────────────────────────────────────────────────────
+
   const placeOrder = useCallback(
-    (orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): string => {
+    async (
+      orderData: Omit<Order, "id" | "createdAt" | "updatedAt">,
+    ): Promise<string> => {
       const parentOrderId = `ord${Date.now()}`;
       const now = new Date().toISOString();
 
@@ -524,6 +689,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? Math.round((grandTotal / subOrderCount) * 100) / 100
           : 0;
 
+      // Build sub-orders in memory first (we need them for notifications)
       const newOrders: Order[] = effectiveGroups.map((group, index) => {
         const subId =
           subOrderCount === 1
@@ -569,8 +735,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       });
 
-      setOrders((prev) => [...newOrders, ...prev]);
+      // Persist each sub-order to the backend
+      if (actor && !actorFetching) {
+        try {
+          await Promise.all(
+            newOrders.map((subOrder) =>
+              actor.placeOrder(
+                subOrder.id,
+                subOrder.customerId,
+                subOrder.customerName,
+                subOrder.customerPhone,
+                JSON.stringify(subOrder.items),
+                subOrder.total,
+                subOrder.deliveryType,
+                subOrder.pickupPointId,
+                subOrder.pickupPointName,
+                subOrder.homeAddress ?? null,
+                subOrder.townId,
+                subOrder.businessAreaId,
+                subOrder.deliveryAreas
+                  ? JSON.stringify(subOrder.deliveryAreas)
+                  : null,
+                subOrder.createdAt,
+                subOrder.isWalkIn ?? false,
+                subOrder.parentOrderId ?? null,
+                subOrder.dedicatedRetailerId ?? null,
+              ),
+            ),
+          );
+          // Reload orders from backend after placing
+          await loadOrdersFromBackend();
+        } catch (err) {
+          console.error("Failed to persist orders to backend:", err);
+          toast.error("Order may not have been saved. Please try again.");
+          // Fall back to in-memory update so user isn't left empty-handed
+          setOrders((prev) => [...newOrders, ...prev]);
+        }
+      } else {
+        // Actor not available — update in memory
+        setOrders((prev) => [...newOrders, ...prev]);
+      }
 
+      // Update Nomayini wallet (in-memory for now)
       const earnedTokens = Math.round(grandTotal * 0.1 * 100) / 100;
       const threeMonthsFromNow = new Date();
       threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
@@ -590,6 +796,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         transactions: [newTx, ...prev.transactions],
       }));
 
+      // Create notifications (in-memory)
       const newNotifications: AppNotification[] = newOrders.map((subOrder) => {
         const isDedicated = !!subOrder.dedicatedRetailerId;
         const retailerName = isDedicated
@@ -613,25 +820,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       return parentOrderId;
     },
-    [cart, retailers, retailerProducts, staffUsers, businessAreas, listings],
+    [
+      cart,
+      retailers,
+      retailerProducts,
+      staffUsers,
+      businessAreas,
+      listings,
+      actor,
+      actorFetching,
+      loadOrdersFromBackend,
+    ],
   );
 
-  const updateOrderStatus = useCallback(
-    (orderId: string, status: OrderStatus, extra?: Partial<Order>) => {
-      const now = new Date().toISOString();
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? {
-                ...o,
-                status,
-                updatedAt: now,
-                ...(extra || {}),
-              }
-            : o,
-        ),
-      );
+  // ─── updateOrderStatus ───────────────────────────────────────────────────────
 
+  const updateOrderStatus = useCallback(
+    async (
+      orderId: string,
+      status: OrderStatus,
+      extra?: Partial<Order>,
+    ): Promise<void> => {
+      const now = new Date().toISOString();
+
+      if (actor && !actorFetching) {
+        try {
+          await actor.updateOrderStatus(
+            orderId,
+            status,
+            extra?.shopperId ?? null,
+            extra?.shopperName ?? null,
+            extra?.driverId ?? null,
+            extra?.driverName ?? null,
+            now,
+          );
+          // Reload orders from backend after updating
+          await loadOrdersFromBackend();
+        } catch (err) {
+          console.error("Failed to update order status on backend:", err);
+          toast.error("Failed to update order status. Please try again.");
+          // Fall back to optimistic in-memory update
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.id === orderId
+                ? { ...o, status, updatedAt: now, ...(extra || {}) }
+                : o,
+            ),
+          );
+        }
+      } else {
+        // Actor not available — update in memory
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, status, updatedAt: now, ...(extra || {}) }
+              : o,
+          ),
+        );
+      }
+
+      // Notification logic (always in-memory)
       const makeNotif = (
         type: AppNotification["type"],
         title: string,
@@ -696,7 +944,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           break;
       }
     },
-    [],
+    [actor, actorFetching, loadOrdersFromBackend],
   );
 
   const unreadCount = notifications.filter((n) => !n.read).length;

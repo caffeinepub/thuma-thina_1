@@ -1,7 +1,9 @@
 import Map "mo:core/Map";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
+import List "mo:core/List";
 import Iter "mo:core/Iter";
+import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
@@ -10,6 +12,7 @@ import UserApproval "user-approval/approval";
 import Authorization "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Migration "migration";
+
 (with migration = Migration.run)
 actor {
   include MixinStorage();
@@ -391,6 +394,32 @@ actor {
     assignments : Map.Map<Principal, [Text]>;
   };
 
+  type Order = {
+    id : Text;
+    customerId : Text;
+    customerName : Text;
+    customerPhone : Text;
+    itemsJson : Text;
+    total : Float;
+    status : Text;
+    deliveryType : Text;
+    pickupPointId : Text;
+    pickupPointName : Text;
+    homeAddress : ?Text;
+    townId : Text;
+    businessAreaId : Text;
+    deliveryAreasJson : ?Text;
+    shopperId : ?Text;
+    shopperName : ?Text;
+    driverId : ?Text;
+    driverName : ?Text;
+    createdAt : Text;
+    updatedAt : Text;
+    isWalkIn : Bool;
+    parentOrderId : ?Text;
+    dedicatedRetailerId : ?Text;
+  };
+
   let towns = Map.empty<Text, Town>();
   let businessAreas = Map.empty<Text, BusinessArea>();
   let pickupPoints = Map.empty<Text, PickupPoint>();
@@ -399,6 +428,7 @@ actor {
   let productListings = Map.empty<Text, ProductListing>();
   let retailerProducts = Map.empty<Text, RetailerProduct>();
   let shopperAssignments = Map.empty<Principal, [Text]>();
+  let orders = Map.empty<Text, Order>();
 
   /***********************************************************
    * Persistence API Endpoints
@@ -736,5 +766,226 @@ actor {
     };
     let iter = shopperAssignments.entries();
     iter.toArray();
+  };
+
+  // Orders
+  public shared ({ caller }) func placeOrder(
+    id : Text,
+    customerId : Text,
+    customerName : Text,
+    customerPhone : Text,
+    itemsJson : Text,
+    total : Float,
+    deliveryType : Text,
+    pickupPointId : Text,
+    pickupPointName : Text,
+    homeAddress : ?Text,
+    townId : Text,
+    businessAreaId : Text,
+    deliveryAreasJson : ?Text,
+    createdAt : Text,
+    isWalkIn : Bool,
+    parentOrderId : ?Text,
+    dedicatedRetailerId : ?Text,
+  ) : async () {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot place orders");
+    };
+
+    // Authorization: Verify customerId matches caller (for regular users) or caller is approved staff (for walk-in orders)
+    let callerPrincipalText = caller.toText();
+    let isAdmin = Authorization.hasPermission(accessControlState, caller, #admin);
+    let isApprovedStaff = isCallerApprovedInternal(caller);
+    
+    // For walk-in orders, only approved staff or admin can place them
+    if (isWalkIn) {
+      if (not (isAdmin or isApprovedStaff)) {
+        Runtime.trap("Unauthorized: Only admins or approved staff can place walk-in orders");
+      };
+    } else {
+      // For regular orders, customerId must match caller unless caller is admin/staff
+      if (customerId != callerPrincipalText and not (isAdmin or isApprovedStaff)) {
+        Runtime.trap("Unauthorized: Cannot place orders for other customers");
+      };
+    };
+
+    let order : Order = {
+      id;
+      customerId;
+      customerName;
+      customerPhone;
+      itemsJson;
+      total;
+      status = "pending";
+      deliveryType;
+      pickupPointId;
+      pickupPointName;
+      homeAddress;
+      townId;
+      businessAreaId;
+      deliveryAreasJson;
+      shopperId = null;
+      shopperName = null;
+      driverId = null;
+      driverName = null;
+      createdAt;
+      updatedAt = createdAt;
+      isWalkIn;
+      parentOrderId;
+      dedicatedRetailerId;
+    };
+    orders.add(id, order);
+  };
+
+  public query ({ caller }) func getOrders() : async [Order] {
+    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    orders.values().toArray();
+  };
+
+  public query ({ caller }) func getMyOrders(customerId : Text) : async [Order] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    
+    // Authorization: customerId must match caller's principal
+    let callerPrincipalText = caller.toText();
+    if (customerId != callerPrincipalText) {
+      Runtime.trap("Unauthorized: Can only view your own orders");
+    };
+    
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        order.customerId == customerId;
+      }
+    );
+    filteredOrders;
+  };
+
+  public query ({ caller }) func getOrderById(id : Text) : async ?Order {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    switch (orders.get(id)) {
+      case (null) { null };
+      case (?order) {
+        let isAdmin = Authorization.isAdmin(accessControlState, caller);
+        let callerPrincipalText = caller.toText();
+        let isOwner = order.customerId == callerPrincipalText;
+        
+        // Check if caller is assigned shopper or driver
+        let isAssignedShopper = switch (order.shopperId) {
+          case (null) { false };
+          case (?shopperId) { shopperId == callerPrincipalText };
+        };
+        let isAssignedDriver = switch (order.driverId) {
+          case (null) { false };
+          case (?driverId) { driverId == callerPrincipalText };
+        };
+        let isAssignedStaff = isAssignedShopper or isAssignedDriver;
+        
+        if (not (isAdmin or isOwner or isAssignedStaff)) {
+          Runtime.trap("Unauthorized: Not permitted to access this order");
+        };
+        ?order;
+      };
+    };
+  };
+
+  public query ({ caller }) func getOrdersByStatus(statusText : Text) : async [Order] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    let isStaff = isCallerApprovedInternal(caller) or Authorization.isAdmin(accessControlState, caller);
+    if (not isStaff) {
+      Runtime.trap("Unauthorized: Only approved staff can access orders by status");
+    };
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        order.status == statusText;
+      }
+    );
+    filteredOrders;
+  };
+
+  public query ({ caller }) func getOrdersByArea(businessAreaId : Text) : async [Order] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders by area");
+    };
+    
+    // Authorization: Only approved staff or admin can view orders by area
+    let isAdmin = Authorization.isAdmin(accessControlState, caller);
+    let isApprovedStaff = isCallerApprovedInternal(caller);
+    
+    if (not (isAdmin or isApprovedStaff)) {
+      Runtime.trap("Unauthorized: Only admins or approved staff can access orders by area");
+    };
+    
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        order.businessAreaId == businessAreaId and order.status == "pending"
+      }
+    );
+    filteredOrders;
+  };
+
+  public shared ({ caller }) func updateOrderStatus(
+    id : Text,
+    statusText : Text,
+    shopperId : ?Text,
+    shopperName : ?Text,
+    driverId : ?Text,
+    driverName : ?Text,
+    updatedAt : Text,
+  ) : async () {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot update orders");
+    };
+    switch (orders.get(id)) {
+      case (null) { Runtime.trap("Order not found") };
+      case (?order) {
+        let isAdmin = Authorization.hasPermission(accessControlState, caller, #admin);
+        let isRelevantStaff = isCallerApprovedInternal(caller);
+        if (not (isAdmin or isRelevantStaff)) {
+          Runtime.trap("Unauthorized: Only admins or approved staff can update orders");
+        };
+        let updatedOrder = {
+          order with
+          status = statusText;
+          shopperId;
+          shopperName;
+          driverId;
+          driverName;
+          updatedAt;
+        };
+        orders.add(id, updatedOrder);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteOrder(id : Text) : async () {
+    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete orders");
+    };
+    orders.remove(id);
+  };
+
+  public query ({ caller }) func getOrdersByCustomerId(customerId : Text) : async [Order] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    
+    let isAdmin = Authorization.isAdmin(accessControlState, caller);
+    let isStaff = isCallerApprovedInternal(caller);
+    if (not (isAdmin or isStaff)) {
+      Runtime.trap("Unauthorized: Only admins or approved staff can access customer orders");
+    };
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        order.customerId == customerId;
+      }
+    );
+    filteredOrders;
   };
 };

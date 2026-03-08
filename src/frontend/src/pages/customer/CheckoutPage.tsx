@@ -112,9 +112,8 @@ export function CheckoutPage() {
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
 
-    const orderId = placeOrder({
+    const orderId = await placeOrder({
       customerId: currentUser?.id || "cust1",
       customerName: currentUser?.name || "Customer",
       customerPhone: currentUser?.phone || "",

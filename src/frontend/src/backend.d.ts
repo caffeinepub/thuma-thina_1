@@ -32,6 +32,31 @@ export interface RetailerProduct {
     imagesJson?: string;
     retailerId: string;
 }
+export interface Order {
+    id: string;
+    customerName: string;
+    status: string;
+    driverId?: string;
+    isWalkIn: boolean;
+    total: number;
+    customerPhone: string;
+    pickupPointId: string;
+    pickupPointName: string;
+    dedicatedRetailerId?: string;
+    createdAt: string;
+    deliveryType: string;
+    deliveryAreasJson?: string;
+    parentOrderId?: string;
+    updatedAt: string;
+    homeAddress?: string;
+    shopperId?: string;
+    townId: string;
+    customerId: string;
+    itemsJson: string;
+    driverName?: string;
+    businessAreaId: string;
+    shopperName?: string;
+}
 export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
@@ -43,18 +68,18 @@ export interface ProductListing {
     price: number;
     retailerId: string;
 }
+export interface BusinessArea {
+    id: string;
+    name: string;
+    townId: string;
+    areaType: string;
+}
 export interface PickupPoint {
     id: string;
     name: string;
     townId: string;
     address: string;
     profileImageUrl?: string;
-}
-export interface BusinessArea {
-    id: string;
-    name: string;
-    townId: string;
-    areaType: string;
 }
 export interface Product {
     id: string;
@@ -117,6 +142,7 @@ export interface backendInterface {
     assignShopperToRetailer(shopperPrincipal: Principal, retailerId: string): Promise<void>;
     deleteBusinessArea(id: string): Promise<void>;
     deleteListing(id: string): Promise<void>;
+    deleteOrder(id: string): Promise<void>;
     deletePickupPoint(id: string): Promise<void>;
     deleteProduct(id: string): Promise<void>;
     deleteRetailer(id: string): Promise<void>;
@@ -128,7 +154,13 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getListings(): Promise<Array<ProductListing>>;
+    getMyOrders(customerId: string): Promise<Array<Order>>;
     getMyProfile(): Promise<UserProfile | null>;
+    getOrderById(id: string): Promise<Order | null>;
+    getOrders(): Promise<Array<Order>>;
+    getOrdersByArea(businessAreaId: string): Promise<Array<Order>>;
+    getOrdersByCustomerId(customerId: string): Promise<Array<Order>>;
+    getOrdersByStatus(statusText: string): Promise<Array<Order>>;
     getPickupPoints(): Promise<Array<PickupPoint>>;
     getProducts(): Promise<Array<Product>>;
     getRetailerProducts(): Promise<Array<RetailerProduct>>;
@@ -142,6 +174,7 @@ export interface backendInterface {
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
+    placeOrder(id: string, customerId: string, customerName: string, customerPhone: string, itemsJson: string, total: number, deliveryType: string, pickupPointId: string, pickupPointName: string, homeAddress: string | null, townId: string, businessAreaId: string, deliveryAreasJson: string | null, createdAt: string, isWalkIn: boolean, parentOrderId: string | null, dedicatedRetailerId: string | null): Promise<void>;
     registerUser(role: AppUserRole, displayName: string, phone: string, businessAreaId: string | null): Promise<void>;
     rejectSuggestion(id: string): Promise<void>;
     requestApproval(): Promise<void>;
@@ -151,5 +184,6 @@ export interface backendInterface {
     setRetailerProductStock(id: string, inStock: boolean): Promise<void>;
     suggestProduct(id: string, name: string, description: string, category: string, imageEmoji: string, suggestedBy: string): Promise<void>;
     unassignShopperFromRetailer(shopperPrincipal: Principal, retailerId: string): Promise<void>;
+    updateOrderStatus(id: string, statusText: string, shopperId: string | null, shopperName: string | null, driverId: string | null, driverName: string | null, updatedAt: string): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
 }
