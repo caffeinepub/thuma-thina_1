@@ -336,11 +336,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Operator sees orders they placed (walk-in orders)
         rawOrders = await actor.getOrdersByCustomerId(principalText);
       }
+      // For unauthenticated users or users with no role yet, leave rawOrders empty
 
       setOrders(rawOrders.map(mapBackendOrder));
     } catch (err) {
       console.error("Failed to load orders:", err);
-      // Don't toast here — it's called silently after mutations
+      // Don't toast here — it's called silently and orders are optional
     }
   }, [actor, actorFetching, isAdmin, userRole, principalText]);
 
@@ -351,7 +352,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setDataLoading(true);
     try {
-      // Load all public/shared data (does NOT include admin-only endpoints)
+      // ── Step 1: Load all public data (no auth required) ──────────────────────
+      // These backend functions are open query calls — no authorization guard.
+      // They must NEVER fail due to auth issues.
       const [
         rawTowns,
         rawBusinessAreas,
@@ -436,7 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })),
       );
 
-      // Admin-only: load shopper assignments and all users
+      // ── Step 2: Admin-only data (silently skip on failure) ────────────────────
       if (isAdmin) {
         try {
           const rawShopperAssignments = await actor.getAllShopperAssignments();
@@ -446,7 +449,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
           setShopperAssignments(assignMap);
 
-          // Load all users for staff list
           const allUsers = await actor.getAllUsers();
           const mapped: StaffUser[] = allUsers
             .filter((u) => u.role !== AppUserRole.customer)
@@ -468,41 +470,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }));
           setStaffUsers(mapped);
         } catch {
-          // ignore if admin-only calls fail
-        }
-      } else {
-        // For non-admin authenticated users, try to load staff info for self
-        try {
-          const allUsers = await actor.getAllUsers();
-          const mapped: StaffUser[] = allUsers
-            .filter((u) => u.role !== AppUserRole.customer)
-            .map((u: UserProfile) => ({
-              id: u.principal.toString(),
-              name: u.displayName,
-              phone: u.phone,
-              email: "",
-              role: u.role as DemoRole,
-              status:
-                u.registrationStatus === "active"
-                  ? ("approved" as const)
-                  : u.registrationStatus === "pending"
-                    ? ("pending" as const)
-                    : ("rejected" as const),
-              createdAt: new Date().toISOString(),
-              businessAreaId: u.businessAreaId ?? undefined,
-              assignedRetailerIds: [],
-            }));
-          setStaffUsers(mapped);
-        } catch {
-          // Non-admin users won't be able to call getAllUsers — that's OK
+          // Silently ignore — admin-only calls may fail for non-admin or unregistered users
         }
       }
+      // NOTE: Non-admin users do NOT call getAllUsers(). That endpoint requires
+      // admin permission and would throw for everyone else. Staff users only
+      // need their own profile, which is handled in AuthContext.
+    } catch (err) {
+      // Public data load failed — clear the cached key so the next
+      // trigger (e.g. a page refresh or re-render) will retry.
+      lastLoadedPrincipal.current = null;
+      console.error("Failed to load public backend data:", err);
+      toast.error("Failed to load data. Please refresh.");
+      setDataLoading(false);
+      return; // Exit early — don't attempt orders load
+    }
 
-      // Load orders for the current user/role
+    // ── Step 3: Orders (isolated — failure here does NOT affect catalogue) ─────
+    // This runs outside the public-data try/catch so a failed order fetch
+    // (e.g. new user with no profile yet) never prevents products from showing.
+    try {
       await loadOrdersFromBackend();
     } catch (err) {
-      console.error("Failed to load backend data:", err);
-      toast.error("Failed to load data. Please refresh.");
+      console.error("Failed to load orders:", err);
+      // Don't show a toast — orders failing silently is acceptable
     } finally {
       setDataLoading(false);
     }
@@ -511,7 +502,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load data when actor becomes available
   useEffect(() => {
     if (actor && !actorFetching) {
-      // Use a stable key to avoid double-loading
       const actorKey = isAuthenticated
         ? `auth_${principalText ?? "unknown"}`
         : "anon";
