@@ -103,19 +103,30 @@ export function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              className="w-full gap-2 h-11 text-base font-semibold"
-              onClick={handleLogin}
-              disabled={isLoading}
-              data-ocid="auth.login.submit_button"
-            >
-              {isLoading ? (
+            {isAuthenticated ? (
+              <Button
+                className="w-full gap-2 h-11 text-base font-semibold"
+                disabled
+                data-ocid="auth.login.loading_state"
+              >
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Fingerprint className="h-5 w-5" />
-              )}
-              {isLoading ? "Connecting…" : "Login with Internet Identity"}
-            </Button>
+                Setting up your account…
+              </Button>
+            ) : (
+              <Button
+                className="w-full gap-2 h-11 text-base font-semibold"
+                onClick={handleLogin}
+                disabled={isLoading}
+                data-ocid="auth.login.submit_button"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="h-5 w-5" />
+                )}
+                {isLoading ? "Connecting…" : "Login with Internet Identity"}
+              </Button>
+            )}
 
             {/* Explainer toggle */}
             <button

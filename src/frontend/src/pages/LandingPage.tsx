@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
@@ -453,6 +453,17 @@ function PopularInTownSection() {
   const { isAuthenticated } = useAuth();
 
   const [selectedTownId, setSelectedTownId] = useState(towns[0]?.id ?? "t1");
+
+  useEffect(() => {
+    if (towns.length === 0) return;
+    const isValidTown = towns.some((t) => t.id === selectedTownId);
+    if (!isValidTown) {
+      const osizweni = towns.find((t) =>
+        t.name.toLowerCase().includes("osizweni"),
+      );
+      setSelectedTownId(osizweni?.id ?? towns[0].id);
+    }
+  }, [towns, selectedTownId]);
 
   const carouselRef = useRef<HTMLDivElement>(null);
 

@@ -355,15 +355,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // ── Step 1: Load all public data (no auth required) ──────────────────────
       // These backend functions are open query calls — no authorization guard.
       // They must NEVER fail due to auth issues.
-      const [
-        rawTowns,
-        rawBusinessAreas,
-        rawPickupPoints,
-        rawRetailers,
-        rawProducts,
-        rawListings,
-        rawRetailerProducts,
-      ] = await Promise.all([
+      const results = await Promise.allSettled([
         actor.getTowns(),
         actor.getBusinessAreas(),
         actor.getPickupPoints(),
@@ -372,6 +364,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         actor.getListings(),
         actor.getRetailerProducts(),
       ]);
+
+      const [
+        townsRes,
+        areasRes,
+        pickupsRes,
+        retailersRes,
+        productsRes,
+        listingsRes,
+        retailerProductsRes,
+      ] = results;
+
+      const rawTowns = townsRes.status === "fulfilled" ? townsRes.value : [];
+      const rawBusinessAreas =
+        areasRes.status === "fulfilled" ? areasRes.value : [];
+      const rawPickupPoints =
+        pickupsRes.status === "fulfilled" ? pickupsRes.value : [];
+      const rawRetailers =
+        retailersRes.status === "fulfilled" ? retailersRes.value : [];
+      const rawProducts =
+        productsRes.status === "fulfilled" ? productsRes.value : [];
+      const rawListings =
+        listingsRes.status === "fulfilled" ? listingsRes.value : [];
+      const rawRetailerProducts =
+        retailerProductsRes.status === "fulfilled"
+          ? retailerProductsRes.value
+          : [];
+
+      const allFailed = results.every((r) => r.status === "rejected");
+      if (allFailed) {
+        lastLoadedPrincipal.current = null;
+        toast.error("Failed to load data. Please refresh.");
+        setDataLoading(false);
+        return;
+      }
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.warn(
+            `Data load: call ${i} failed`,
+            (r as PromiseRejectedResult).reason,
+          );
+        }
+      });
 
       // Map backend types → frontend types
       setTowns(rawTowns as Town[]);
