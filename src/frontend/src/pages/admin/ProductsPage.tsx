@@ -24,6 +24,7 @@ import {
   List,
   Loader2,
   Package,
+  Pencil,
   Plus,
   Search,
   Store,
@@ -78,6 +79,19 @@ export function AdminProductsPage() {
     retailerId: "",
     price: "",
   });
+  const [customCategory, setCustomCategory] = useState("");
+  const [editProductDialog, setEditProductDialog] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editProductForm, setEditProductForm] = useState({
+    name: "",
+    description: "",
+    category: "",
+    imageEmoji: "📦",
+    images: [] as string[],
+  });
+  const [editListingDialog, setEditListingDialog] = useState(false);
+  const [editListing, setEditListing] = useState<ProductListing | null>(null);
+  const [editListingPrice, setEditListingPrice] = useState("");
 
   const official = products.filter((p) => !p.isSuggestion);
   const suggestions = products.filter((p) => p.isSuggestion && !p.approved);
@@ -354,6 +368,25 @@ export function AdminProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => {
+                          setEditProduct(product);
+                          setEditProductForm({
+                            name: product.name,
+                            description: product.description || "",
+                            category: product.category,
+                            imageEmoji: product.imageEmoji,
+                            images: product.images || [],
+                          });
+                          setEditProductDialog(true);
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+                        data-ocid={`admin.product.edit_button.${i + 1}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDelete(product.id)}
                         className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                         data-ocid={`admin.product.delete_button.${i + 1}`}
@@ -516,6 +549,19 @@ export function AdminProductsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => {
+                        setEditListing(listing);
+                        setEditListingPrice(String(listing.price));
+                        setEditListingDialog(true);
+                      }}
+                      className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+                      data-ocid={`admin.listing.edit_button.${i + 1}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleDeleteListing(listing.id)}
                       className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                       data-ocid={`admin.listing.delete_button.${i + 1}`}
@@ -562,20 +608,50 @@ export function AdminProductsPage() {
             <div className="space-y-1.5">
               <Label>Category</Label>
               <Select
-                value={form.category}
-                onValueChange={(v) => update("category", v)}
+                value={
+                  form.category === customCategory && customCategory
+                    ? "__custom__"
+                    : form.category
+                }
+                onValueChange={(v) => {
+                  if (v !== "__custom__") {
+                    update("category", v);
+                    setCustomCategory("");
+                  }
+                }}
               >
                 <SelectTrigger data-ocid="admin.product_category.select">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
+                  {[
+                    ...CATEGORIES,
+                    ...(customCategory &&
+                    !CATEGORIES.includes(customCategory as ProductCategory)
+                      ? [customCategory as ProductCategory]
+                      : []),
+                  ].map((c) => (
                     <SelectItem key={c} value={c}>
                       {c}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                placeholder="Or type a new category name…"
+                value={customCategory}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomCategory(val);
+                  if (val.trim()) {
+                    update("category", val.trim());
+                  }
+                }}
+                data-ocid="admin.product_custom_category.input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave blank to use the dropdown selection above
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Product Images (optional, up to 3)</Label>
@@ -688,6 +764,197 @@ export function AdminProductsPage() {
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Add Listing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Product Dialog */}
+      <Dialog open={editProductDialog} onOpenChange={setEditProductDialog}>
+        <DialogContent
+          className="max-w-md"
+          data-ocid="admin.edit_product.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Product Name</Label>
+              <Input
+                value={editProductForm.name}
+                onChange={(e) =>
+                  setEditProductForm((f) => ({ ...f, name: e.target.value }))
+                }
+                data-ocid="admin.edit_product_name.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                value={editProductForm.description}
+                onChange={(e) =>
+                  setEditProductForm((f) => ({
+                    ...f,
+                    description: e.target.value,
+                  }))
+                }
+                rows={2}
+                data-ocid="admin.edit_product_desc.textarea"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Input
+                value={editProductForm.category}
+                onChange={(e) =>
+                  setEditProductForm((f) => ({
+                    ...f,
+                    category: e.target.value,
+                  }))
+                }
+                placeholder="e.g. Groceries"
+                data-ocid="admin.edit_product_cat.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Photo</Label>
+              <ImageUpload
+                value={editProductForm.images}
+                onChange={(imgs) =>
+                  setEditProductForm((f) => ({ ...f, images: imgs }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditProductDialog(false)}
+              data-ocid="admin.edit_product.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editProduct || !editProductForm.name.trim()) return;
+                setSaving(true);
+                try {
+                  const imageEmoji =
+                    EMOJIS[editProductForm.category as ProductCategory] ||
+                    editProduct.imageEmoji;
+                  const imagesJson =
+                    editProductForm.images.length > 0
+                      ? JSON.stringify(editProductForm.images)
+                      : null;
+                  if (actor)
+                    await actor.updateProduct(
+                      editProduct.id,
+                      editProductForm.name,
+                      editProductForm.description,
+                      editProductForm.category,
+                      imageEmoji,
+                      imagesJson,
+                    );
+                  setProducts((prev) =>
+                    prev.map((p) =>
+                      p.id === editProduct.id
+                        ? {
+                            ...p,
+                            name: editProductForm.name,
+                            description: editProductForm.description,
+                            category:
+                              editProductForm.category as ProductCategory,
+                            imageEmoji,
+                            images:
+                              editProductForm.images.length > 0
+                                ? editProductForm.images
+                                : undefined,
+                          }
+                        : p,
+                    ),
+                  );
+                  toast.success("Product updated");
+                  setEditProductDialog(false);
+                } catch {
+                  toast.error("Failed to update product");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              data-ocid="admin.edit_product.save_button"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Listing Dialog */}
+      <Dialog open={editListingDialog} onOpenChange={setEditListingDialog}>
+        <DialogContent
+          className="max-w-sm"
+          data-ocid="admin.edit_listing.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Listing Price</DialogTitle>
+          </DialogHeader>
+          {editListing && (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                {getProductName(editListing.productId)} @{" "}
+                {getRetailerName(editListing.retailerId)}
+              </p>
+              <div className="space-y-1.5">
+                <Label>Price (ZAR)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editListingPrice}
+                  onChange={(e) => setEditListingPrice(e.target.value)}
+                  data-ocid="admin.edit_listing_price.input"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditListingDialog(false)}
+              data-ocid="admin.edit_listing.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editListing) return;
+                const price = Number.parseFloat(editListingPrice);
+                if (Number.isNaN(price)) {
+                  toast.error("Invalid price");
+                  return;
+                }
+                setSaving(true);
+                try {
+                  if (actor)
+                    await actor.updateListingPrice(editListing.id, price);
+                  setListings((prev) =>
+                    prev.map((l) =>
+                      l.id === editListing.id ? { ...l, price } : l,
+                    ),
+                  );
+                  toast.success("Listing price updated");
+                  setEditListingDialog(false);
+                } catch {
+                  toast.error("Failed to update listing");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              data-ocid="admin.edit_listing.save_button"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -295,10 +295,14 @@ export function AdminApprovalsPage() {
     if (!actor) return;
     setLoading(true);
     try {
-      const [approvalList, userList] = await Promise.all([
-        actor.listApprovals(),
-        actor.getAllUsers(),
-      ]);
+      const approvalList = await actor.listApprovals();
+
+      let userList: UserProfile[] = [];
+      try {
+        userList = await actor.getAllUsers();
+      } catch {
+        // non-critical — approvals can still show without full user list
+      }
 
       // Fetch profiles for approval items
       const profiles = await Promise.all(

@@ -1,6 +1,4 @@
-import { ExternalBlob } from "@/backend";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Camera, Loader2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -20,34 +18,25 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
 
   const canAdd = value.length < maxImages;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so same file can be re-selected
     e.target.value = "";
 
     setUploading(true);
-    setProgress(0);
-
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
-        (pct: number) => setProgress(pct),
-      );
-      // Trigger upload by getting URL (upload happens lazily on getDirectURL)
-      const url = blob.getDirectURL();
-      onChange([...value, url]);
+      // Compress image if too large (> 200KB)
+      const base64 = await compressAndEncode(file);
+      onChange([...value, base64]);
       toast.success("Image uploaded");
     } catch (err) {
       console.error(err);
       toast.error("Image upload failed");
     } finally {
       setUploading(false);
-      setProgress(0);
     }
   };
 
@@ -63,13 +52,13 @@ export function ImageUpload({
         {/* Existing images */}
         {value.map((url, idx) => (
           <div
-            key={url}
+            key={url.length > 50 ? url.slice(0, 50) : url}
             className="relative group w-20 h-20 rounded-lg overflow-hidden border border-border/60 bg-muted/30"
           >
             <img
               src={url}
               alt={`Upload ${idx + 1}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
             <button
               type="button"
@@ -82,11 +71,10 @@ export function ImageUpload({
           </div>
         ))}
 
-        {/* Upload progress placeholder */}
+        {/* Upload spinner */}
         {uploading && (
           <div className="w-20 h-20 rounded-lg border border-border/60 bg-muted/30 flex flex-col items-center justify-center gap-1">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <Progress value={progress} className="h-1 w-14" />
           </div>
         )}
 
@@ -99,18 +87,10 @@ export function ImageUpload({
             data-ocid="image.upload_button"
           >
             <Camera className="h-5 w-5" />
-            <span className="text-[10px] font-medium">
-              {value.length === 0 ? "Add photo" : "Add more"}
-            </span>
+            <span className="text-[10px]">Add photo</span>
           </button>
         )}
       </div>
-
-      {maxImages > 1 && (
-        <p className="text-[11px] text-muted-foreground">
-          {value.length}/{maxImages} images
-        </p>
-      )}
 
       <input
         ref={inputRef}
@@ -118,8 +98,33 @@ export function ImageUpload({
         accept="image/*"
         className="hidden"
         onChange={handleFileChange}
-        data-ocid="image.dropzone"
       />
     </div>
   );
+}
+
+async function compressAndEncode(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const scale = MAX / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas not supported"));
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.75));
+    };
+    img.onerror = reject;
+    img.src = objectUrl;
+  });
 }

@@ -124,6 +124,20 @@ export enum Variant_active_pending_updateNeeded_rejected {
     updateNeeded = "updateNeeded",
     rejected = "rejected"
 }
+export interface NomayiniBalance {
+    totalEarned: number;
+    unlockedBalance: number;
+    lockedShortTerm: number;
+    lockedLongTerm: number;
+}
+export interface NomayiniTransaction {
+    id: string;
+    txType: string;
+    amount: number;
+    description: string;
+    date: string;
+    unlockDate?: string;
+}
 export interface backendInterface {
     addBusinessArea(id: string, name: string, townId: string, areaType: string): Promise<void>;
     addListing(id: string, productId: string, retailerId: string, price: number): Promise<void>;
@@ -185,5 +199,12 @@ export interface backendInterface {
     suggestProduct(id: string, name: string, description: string, category: string, imageEmoji: string, suggestedBy: string): Promise<void>;
     unassignShopperFromRetailer(shopperPrincipal: Principal, retailerId: string): Promise<void>;
     updateOrderStatus(id: string, statusText: string, shopperId: string | null, shopperName: string | null, driverId: string | null, driverName: string | null, updatedAt: string): Promise<void>;
+    updateListingPrice(id: string, price: number): Promise<void>;
+    updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
+    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
+    getNomayiniBalance(): Promise<NomayiniBalance>;
+    getNomayiniTransactions(): Promise<Array<NomayiniTransaction>>;
+    sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void>;
 }

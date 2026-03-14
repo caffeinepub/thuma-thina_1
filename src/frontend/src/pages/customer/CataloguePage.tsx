@@ -13,6 +13,7 @@ import { Check, Clock, Search, ShoppingCart, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 import type { ProductCategory } from "../../data/mockData";
 import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
 
@@ -31,6 +32,7 @@ const CATEGORIES: {
 ];
 
 export function CataloguePage() {
+  const { isAuthenticated } = useAuth();
   const {
     products,
     cart,
@@ -175,6 +177,15 @@ export function CataloguePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {!isAuthenticated && (
+        <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-primary flex items-center gap-2">
+          <span>📍</span>
+          <span>
+            Browsing products available in <strong>Osizweni</strong>. Log in to
+            add items to your cart.
+          </span>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-6">
         <h1 className="font-display text-2xl sm:text-3xl font-bold mb-1">
@@ -315,7 +326,7 @@ export function CataloguePage() {
                     <img
                       src={product.images[0]}
                       alt={product.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain bg-white"
                     />
                   ) : (
                     product.imageEmoji
@@ -500,7 +511,7 @@ export function CataloguePage() {
                     <img
                       src={rp.images[0]}
                       alt={rp.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain bg-white"
                     />
                   ) : (
                     rp.imageEmoji

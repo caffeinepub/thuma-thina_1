@@ -259,6 +259,10 @@ export interface _SERVICE {
     undefined
   >,
   'updateRetailerHours' : ActorMethod<[string, string], undefined>,
+  'updateListingPrice' : ActorMethod<[string, number], undefined>,
+  'updatePickupPoint' : ActorMethod<[string, string, string, [] | [string]], undefined>,
+  'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string]], undefined>,
+  'updateRetailerProduct' : ActorMethod<[string, string, string, string, string, number, string, [] | [string]], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

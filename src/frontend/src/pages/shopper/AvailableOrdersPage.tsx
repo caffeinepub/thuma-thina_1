@@ -20,18 +20,18 @@ export function ShopperAvailableOrdersPage() {
     orders,
     updateOrderStatus,
     currentUser,
-    staffUsers,
     businessAreas,
     retailers,
+    shopperOwnAreaId,
+    shopperAssignedRetailerIds,
   } = useApp();
 
-  // Get this shopper's staff record
-  const staffUser = staffUsers.find((u) => u.id === currentUser?.id);
-  const shopperAreaId = staffUser?.businessAreaId;
+  // Use the shopper's own area and assignments from context
+  const shopperAreaId = shopperOwnAreaId;
   const shopperArea = businessAreas.find((ba) => ba.id === shopperAreaId);
 
   // Determine if this shopper is a dedicated shopper
-  const shopperRetailerIds = staffUser?.assignedRetailerIds ?? [];
+  const shopperRetailerIds = shopperAssignedRetailerIds;
   const isDedicatedShopper = shopperRetailerIds.length > 0;
 
   // Filter available orders using the closed-lane rule:

@@ -126,9 +126,14 @@ interface AppContextValue {
   // Shopper assignments (principal text → retailer IDs)
   shopperAssignments: Map<string, string[]>;
 
+  // Shopper own area + assignments (for non-admin shoppers)
+  shopperOwnAreaId: string | undefined;
+  shopperAssignedRetailerIds: string[];
+
   // Nomayini Wallet
   nomayiniWallet: NomayiniWallet;
   setNomayiniWallet: React.Dispatch<React.SetStateAction<NomayiniWallet>>;
+  sendNomayiniTokens: (recipientPhone: string, amount: number) => Promise<void>;
 
   // Notifications
   notifications: AppNotification[];
@@ -217,7 +222,8 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { actor, isFetching: actorFetching } = useActor();
-  const { isAuthenticated, isAdmin, userRole, principalText } = useAuth();
+  const { isAuthenticated, isAdmin, userRole, principalText, userProfile } =
+    useAuth();
 
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -251,6 +257,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shopperAssignments, setShopperAssignments] = useState<
     Map<string, string[]>
   >(new Map());
+  // Shopper's own area (from their UserProfile) and their assigned retailer IDs
+  const [shopperOwnAreaId, setShopperOwnAreaId] = useState<string | undefined>(
+    undefined,
+  );
+  const [shopperAssignedRetailerIds, setShopperAssignedRetailerIds] = useState<
+    string[]
+  >([]);
+
   const [nomayiniWallet, setNomayiniWallet] = useState<NomayiniWallet>({
     totalEarned: 0,
     unlockedBalance: 0,
@@ -260,6 +274,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  // Set shopperOwnAreaId from user profile when role/profile changes
+  useEffect(() => {
+    if (userRole === AppUserRole.shopper && userProfile?.businessAreaId) {
+      setShopperOwnAreaId(userProfile.businessAreaId);
+    } else {
+      setShopperOwnAreaId(undefined);
+    }
+  }, [userRole, userProfile]);
 
   // Persist cart
   useEffect(() => {
@@ -344,6 +367,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Don't toast here — it's called silently and orders are optional
     }
   }, [actor, actorFetching, isAdmin, userRole, principalText]);
+
+  // ─── Load Nomayini wallet from backend ────────────────────────────────────────
+  const loadWalletFromBackend = useCallback(async () => {
+    if (!actor || actorFetching || !principalText) return;
+    try {
+      const [balance, txs] = await Promise.all([
+        actor.getNomayiniBalance(),
+        actor.getNomayiniTransactions(),
+      ]);
+      setNomayiniWallet({
+        totalEarned: balance.totalEarned,
+        unlockedBalance: balance.unlockedBalance,
+        lockedShortTerm: balance.lockedShortTerm,
+        lockedLongTerm: balance.lockedLongTerm,
+        transactions: txs.map((tx) => ({
+          id: tx.id,
+          type: tx.txType as "earned" | "spent" | "sent" | "received",
+          amount: tx.amount,
+          description: tx.description,
+          date: tx.date,
+          unlockDate: tx.unlockDate,
+        })),
+      });
+    } catch {
+      // Wallet load failures are non-critical
+    }
+  }, [actor, actorFetching, principalText]);
+
+  // ─── Load shopper's own assignments ──────────────────────────────────────────
+  const loadShopperAssignments = useCallback(async () => {
+    if (!actor || actorFetching || !principalText) return;
+    if (userRole !== AppUserRole.shopper) return;
+    try {
+      const { principal } = await import("@icp-sdk/core/principal").then(
+        (m) => ({ principal: m.Principal.fromText(principalText) }),
+      );
+      const retailerIds = await actor.getShopperRetailerIds(principal);
+      setShopperAssignedRetailerIds(retailerIds);
+    } catch {
+      // Non-critical
+    }
+  }, [actor, actorFetching, principalText, userRole]);
 
   // ─── Load all backend data ────────────────────────────────────────────────────
 
@@ -528,23 +593,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to load orders:", err);
       // Don't show a toast — orders failing silently is acceptable
-    } finally {
-      setDataLoading(false);
     }
-  }, [actor, actorFetching, isAdmin, loadOrdersFromBackend]);
+
+    // ── Step 4: Per-user optional data ───────────────────────────────────────
+    if (principalText) {
+      // Load wallet for authenticated users
+      try {
+        await loadWalletFromBackend();
+      } catch {
+        /* non-critical */
+      }
+      // Load shopper's own retailer assignments
+      try {
+        await loadShopperAssignments();
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    setDataLoading(false);
+  }, [
+    actor,
+    actorFetching,
+    isAdmin,
+    loadOrdersFromBackend,
+    loadWalletFromBackend,
+    loadShopperAssignments,
+    principalText,
+  ]);
 
   // Load data when actor becomes available
   useEffect(() => {
     if (actor && !actorFetching) {
       const actorKey = isAuthenticated
-        ? `auth_${principalText ?? "unknown"}`
+        ? `auth_${principalText ?? "unknown"}_${userRole ?? "norole"}`
         : "anon";
       if (lastLoadedPrincipal.current !== actorKey) {
         lastLoadedPrincipal.current = actorKey;
         loadAllData();
       }
     }
-  }, [actor, actorFetching, isAuthenticated, principalText, loadAllData]);
+  }, [
+    actor,
+    actorFetching,
+    isAuthenticated,
+    principalText,
+    userRole,
+    loadAllData,
+  ]);
 
   // ─── Cart ─────────────────────────────────────────────────────────────────────
 
@@ -963,12 +1059,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ),
             ...prev,
           ]);
+          // Reload wallet so customer sees their new token balance
+          try {
+            await loadWalletFromBackend();
+          } catch {
+            /* non-critical */
+          }
           break;
         default:
           break;
       }
     },
-    [actor, actorFetching, loadOrdersFromBackend],
+    [actor, actorFetching, loadOrdersFromBackend, loadWalletFromBackend],
+  );
+
+  // ─── sendNomayiniTokens ──────────────────────────────────────────────────────
+  const sendNomayiniTokens = useCallback(
+    async (recipientPhone: string, amount: number) => {
+      if (!actor || actorFetching) throw new Error("Not connected");
+      const now = new Date().toISOString();
+      await actor.sendNomayiniTokens(recipientPhone, amount, now);
+      await loadWalletFromBackend();
+    },
+    [actor, actorFetching, loadWalletFromBackend],
   );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -1008,8 +1121,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         staffUsers,
         setStaffUsers,
         shopperAssignments,
+        shopperOwnAreaId,
+        shopperAssignedRetailerIds,
         nomayiniWallet,
         setNomayiniWallet,
+        sendNomayiniTokens,
         notifications,
         addNotification,
         markNotificationRead,

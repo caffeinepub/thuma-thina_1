@@ -41,6 +41,7 @@ import {
   Loader2,
   MapPin,
   Package,
+  Pencil,
   Plus,
   Settings,
   Store,
@@ -149,6 +150,23 @@ export function AdminLocationsPage() {
   const [hoursForm, setHoursForm] = useState<OperatingHours>(
     DEFAULT_OPERATING_HOURS,
   );
+  const [editPPDialog, setEditPPDialog] = useState(false);
+  const [editPP, setEditPP] = useState<PickupPoint | null>(null);
+  const [editPPForm, setEditPPForm] = useState({
+    name: "",
+    address: "",
+    images: [] as string[],
+  });
+  const [editRPDialog, setEditRPDialog] = useState(false);
+  const [editRP, setEditRP] = useState<RetailerProduct | null>(null);
+  const [editRPForm, setEditRPForm] = useState({
+    name: "",
+    description: "",
+    category: "",
+    price: "",
+    imageEmoji: "📦",
+    images: [] as string[],
+  });
 
   const openManageRetailer = (retailer: Retailer) => {
     setManageRetailer(retailer);
@@ -697,6 +715,25 @@ export function AdminLocationsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => {
+                            setEditPP(pp);
+                            setEditPPForm({
+                              name: pp.name,
+                              address: pp.address,
+                              images: pp.profileImageUrl
+                                ? [pp.profileImageUrl]
+                                : [],
+                            });
+                            setEditPPDialog(true);
+                          }}
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          data-ocid={`admin.pickup.edit_button.${i + 1}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => deletePP(pp.id)}
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           data-ocid={`admin.pickup.delete_button.${i + 1}`}
@@ -900,7 +937,7 @@ export function AdminLocationsPage() {
                               <img
                                 src={product.images[0]}
                                 alt={product.name}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain bg-white/50"
                               />
                             ) : (
                               product.imageEmoji
@@ -943,6 +980,26 @@ export function AdminLocationsPage() {
                             data-ocid={`admin.retailer_product.toggle.${idx + 1}`}
                           >
                             {product.inStock ? "Mark OOS" : "Mark In Stock"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditRP(product);
+                              setEditRPForm({
+                                name: product.name,
+                                description: product.description || "",
+                                category: product.category,
+                                price: String(product.price),
+                                imageEmoji: product.imageEmoji,
+                                images: product.images || [],
+                              });
+                              setEditRPDialog(true);
+                            }}
+                            className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
+                            data-ocid={`admin.retailer_product.edit_button.${idx + 1}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1577,6 +1634,228 @@ export function AdminLocationsPage() {
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : null}
               Add Retailer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Pickup Point Dialog */}
+      <Dialog open={editPPDialog} onOpenChange={setEditPPDialog}>
+        <DialogContent
+          className="max-w-md"
+          data-ocid="admin.edit_pickup.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Pick-up Point</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input
+                value={editPPForm.name}
+                onChange={(e) =>
+                  setEditPPForm((f) => ({ ...f, name: e.target.value }))
+                }
+                data-ocid="admin.edit_pickup_name.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Address</Label>
+              <Input
+                value={editPPForm.address}
+                onChange={(e) =>
+                  setEditPPForm((f) => ({ ...f, address: e.target.value }))
+                }
+                data-ocid="admin.edit_pickup_address.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Photo</Label>
+              <ImageUpload
+                value={editPPForm.images}
+                onChange={(imgs) =>
+                  setEditPPForm((f) => ({ ...f, images: imgs }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditPPDialog(false)}
+              data-ocid="admin.edit_pickup.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editPP) return;
+                setSaving(true);
+                try {
+                  const profileImageUrl =
+                    editPPForm.images.length > 0 ? editPPForm.images[0] : null;
+                  if (actor)
+                    await actor.updatePickupPoint(
+                      editPP.id,
+                      editPPForm.name,
+                      editPPForm.address,
+                      profileImageUrl,
+                    );
+                  setPickupPoints((prev) =>
+                    prev.map((pp) =>
+                      pp.id === editPP.id
+                        ? {
+                            ...pp,
+                            name: editPPForm.name,
+                            address: editPPForm.address,
+                            profileImageUrl: profileImageUrl || undefined,
+                          }
+                        : pp,
+                    ),
+                  );
+                  toast.success("Pick-up point updated");
+                  setEditPPDialog(false);
+                } catch {
+                  toast.error("Failed to update pick-up point");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              data-ocid="admin.edit_pickup.save_button"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Retailer Product Dialog */}
+      <Dialog open={editRPDialog} onOpenChange={setEditRPDialog}>
+        <DialogContent
+          className="max-w-md"
+          data-ocid="admin.edit_retailer_product.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Exclusive Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input
+                value={editRPForm.name}
+                onChange={(e) =>
+                  setEditRPForm((f) => ({ ...f, name: e.target.value }))
+                }
+                data-ocid="admin.edit_rp_name.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                value={editRPForm.description}
+                onChange={(e) =>
+                  setEditRPForm((f) => ({ ...f, description: e.target.value }))
+                }
+                rows={2}
+                data-ocid="admin.edit_rp_desc.textarea"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Input
+                value={editRPForm.category}
+                onChange={(e) =>
+                  setEditRPForm((f) => ({ ...f, category: e.target.value }))
+                }
+                data-ocid="admin.edit_rp_cat.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Price (ZAR)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editRPForm.price}
+                onChange={(e) =>
+                  setEditRPForm((f) => ({ ...f, price: e.target.value }))
+                }
+                data-ocid="admin.edit_rp_price.input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Photo</Label>
+              <ImageUpload
+                value={editRPForm.images}
+                onChange={(imgs) =>
+                  setEditRPForm((f) => ({ ...f, images: imgs }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditRPDialog(false)}
+              data-ocid="admin.edit_retailer_product.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editRP) return;
+                const price = Number.parseFloat(editRPForm.price);
+                if (Number.isNaN(price)) {
+                  toast.error("Invalid price");
+                  return;
+                }
+                setSaving(true);
+                try {
+                  const imagesJson =
+                    editRPForm.images.length > 0
+                      ? JSON.stringify(editRPForm.images)
+                      : null;
+                  if (actor)
+                    await actor.updateRetailerProduct(
+                      editRP.id,
+                      editRPForm.name,
+                      editRPForm.description,
+                      editRPForm.category,
+                      price,
+                      editRPForm.imageEmoji,
+                      imagesJson,
+                    );
+                  setRetailerProducts((prev) =>
+                    prev.map((p) =>
+                      p.id === editRP.id
+                        ? {
+                            ...p,
+                            name: editRPForm.name,
+                            description: editRPForm.description,
+                            category:
+                              editRPForm.category as RetailerProduct["category"],
+                            price,
+                            images:
+                              editRPForm.images.length > 0
+                                ? editRPForm.images
+                                : undefined,
+                          }
+                        : p,
+                    ),
+                  );
+                  toast.success("Exclusive product updated");
+                  setEditRPDialog(false);
+                } catch {
+                  toast.error("Failed to update product");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              data-ocid="admin.edit_retailer_product.save_button"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>

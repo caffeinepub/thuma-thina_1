@@ -285,7 +285,14 @@ export interface backendInterface {
     suggestProduct(id: string, name: string, description: string, category: string, imageEmoji: string, suggestedBy: string): Promise<void>;
     unassignShopperFromRetailer(shopperPrincipal: Principal, retailerId: string): Promise<void>;
     updateOrderStatus(id: string, statusText: string, shopperId: string | null, shopperName: string | null, driverId: string | null, driverName: string | null, updatedAt: string): Promise<void>;
+    updateListingPrice(id: string, price: number): Promise<void>;
+    updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
+    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
+    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }>;
+    getNomayiniTransactions(): Promise<Array<{ id: string; txType: string; amount: number; description: string; date: string; unlockDate?: string }>>;
+    sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void>;
 }
 import type { AppUserRole as _AppUserRole, ApprovalStatus as _ApprovalStatus, Order as _Order, PickupPoint as _PickupPoint, Product as _Product, Retailer as _Retailer, RetailerProduct as _RetailerProduct, UserApprovalInfo as _UserApprovalInfo, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -1171,6 +1178,86 @@ export class Backend implements backendInterface {
             const result = await this.actor.updateRetailerHours(arg0, arg1);
             return result;
         }
+    }
+    async updateListingPrice(arg0: string, arg1: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateListingPrice(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateListingPrice(arg0, arg1);
+            return result;
+        }
+    }
+    async updatePickupPoint(arg0: string, arg1: string, arg2: string, arg3: string | null): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updatePickupPoint(arg0, arg1, arg2, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updatePickupPoint(arg0, arg1, arg2, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg3));
+            return result;
+        }
+    }
+    async updateProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string | null): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+            return result;
+        }
+    }
+    async updateRetailerProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: number, arg5: string, arg6: string | null): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6));
+            return result;
+        }
+    }
+    async getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        const result = await actor.getNomayiniBalance();
+        return { totalEarned: Number(result.totalEarned), unlockedBalance: Number(result.unlockedBalance), lockedShortTerm: Number(result.lockedShortTerm), lockedLongTerm: Number(result.lockedLongTerm) };
+    }
+    async getNomayiniTransactions(): Promise<Array<{ id: string; txType: string; amount: number; description: string; date: string; unlockDate?: string }>> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        const result = await actor.getNomayiniTransactions();
+        return (result as any[]).map((tx: any) => ({
+            id: String(tx.id),
+            txType: String(tx.txType),
+            amount: Number(tx.amount),
+            description: String(tx.description),
+            date: String(tx.date),
+            unlockDate: tx.unlockDate?.[0] ? String(tx.unlockDate[0]) : undefined,
+        }));
+    }
+    async sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        await actor.sendNomayiniTokens(recipientPhone, amount, now);
     }
 }
 function from_candid_AppUserRole_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {

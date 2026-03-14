@@ -72,11 +72,12 @@ function amountPrefix(type: WalletTransaction["type"]) {
 }
 
 export function NomayiniWalletPage() {
-  const { nomayiniWallet } = useApp();
+  const { nomayiniWallet, sendNomayiniTokens } = useApp();
   const [sendDialog, setSendDialog] = useState(false);
   const [sendForm, setSendForm] = useState({ recipient: "", amount: "" });
+  const [sendLoading, setSendLoading] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!sendForm.recipient.trim() || !sendForm.amount) {
       toast.error("Please fill in all fields");
       return;
@@ -86,11 +87,19 @@ export function NomayiniWalletPage() {
       toast.error("Invalid amount or insufficient unlocked balance");
       return;
     }
-    toast.success(
-      `${amount} Nomayini tokens sent to ${sendForm.recipient}! 🪙`,
-    );
-    setSendDialog(false);
-    setSendForm({ recipient: "", amount: "" });
+    setSendLoading(true);
+    try {
+      await sendNomayiniTokens(sendForm.recipient.trim(), amount);
+      toast.success(
+        `${amount} Nomayini tokens sent to ${sendForm.recipient}! 🪙`,
+      );
+      setSendDialog(false);
+      setSendForm({ recipient: "", amount: "" });
+    } catch {
+      toast.error("Failed to send tokens. Please try again.");
+    } finally {
+      setSendLoading(false);
+    }
   };
 
   const balanceCards = [
@@ -358,11 +367,12 @@ export function NomayiniWalletPage() {
             </Button>
             <Button
               onClick={handleSend}
+              disabled={sendLoading}
               className="bg-amber-500 hover:bg-amber-600 text-white"
               data-ocid="wallet.send.confirm_button"
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Send Tokens
+              {sendLoading ? "Sending…" : "Send Tokens"}
             </Button>
           </DialogFooter>
         </DialogContent>

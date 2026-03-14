@@ -311,6 +311,14 @@ export const idlService = IDL.Service({
       [],
     ),
   'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+  'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+  'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
 });
 
 export const idlInitArgs = [];

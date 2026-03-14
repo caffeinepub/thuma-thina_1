@@ -144,11 +144,7 @@ const pendingApprovalRoute = createRoute({
 const catalogueRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/catalogue",
-  component: () => (
-    <ProtectedPage>
-      <CataloguePage />
-    </ProtectedPage>
-  ),
+  component: CataloguePage,
 });
 
 const cartRoute = createRoute({
