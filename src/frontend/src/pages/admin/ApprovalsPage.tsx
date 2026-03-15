@@ -304,14 +304,13 @@ export function AdminApprovalsPage() {
         // non-critical — approvals can still show without full user list
       }
 
-      // Fetch profiles for approval items
-      const profiles = await Promise.all(
-        approvalList.map((a) => actor.getUserProfile(a.principal)),
-      );
-
-      const items: ApprovalUserInfo[] = approvalList.map((a, i) => ({
+      // Match profiles from already-fetched userList to avoid individual getUserProfile failures
+      const items: ApprovalUserInfo[] = approvalList.map((a) => ({
         approvalInfo: a,
-        profile: profiles[i] ?? null,
+        profile:
+          userList.find(
+            (u) => u.principal.toString() === a.principal.toString(),
+          ) ?? null,
       }));
 
       setApprovals(items);

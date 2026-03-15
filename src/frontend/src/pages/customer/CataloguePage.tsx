@@ -43,6 +43,7 @@ export function CataloguePage() {
     retailers,
     businessAreas,
     retailerProducts,
+    towns,
   } = useApp();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ProductCategory | "All">("All");
@@ -51,11 +52,21 @@ export function CataloguePage() {
   const [selectedListings, setSelectedListings] = useState<
     Record<string, string>
   >({});
+  // Town filter — default to Osizweni (or first town)
+  const [selectedTownId, setSelectedTownId] = useState<string>("_all");
 
   const available = products.filter((p) => !p.isSuggestion || p.approved);
 
   // Filtered universal products
   const filteredUniversal = useMemo(() => {
+    const townRetailerIds =
+      selectedTownId !== "_all"
+        ? new Set(
+            retailers
+              .filter((r) => r.townId === selectedTownId)
+              .map((r) => r.id),
+          )
+        : null;
     return available.filter((p) => {
       const matchCat = category === "All" || p.category === category;
       const matchSearch =
@@ -63,6 +74,15 @@ export function CataloguePage() {
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.description.toLowerCase().includes(search.toLowerCase());
       if (!matchCat || !matchSearch) return false;
+      // Town filter: product must have a listing in this town
+      if (townRetailerIds) {
+        if (
+          !listings.some(
+            (l) => l.productId === p.id && townRetailerIds.has(l.retailerId),
+          )
+        )
+          return false;
+      }
       // Retailer filter
       if (selectedRetailerId !== "all") {
         return listings.some(
@@ -71,10 +91,26 @@ export function CataloguePage() {
       }
       return true;
     });
-  }, [available, search, category, selectedRetailerId, listings]);
+  }, [
+    available,
+    search,
+    category,
+    selectedRetailerId,
+    listings,
+    selectedTownId,
+    retailers,
+  ]);
 
   // Filtered retailer exclusive products
   const filteredRetailerProducts = useMemo(() => {
+    const townRetailerIds =
+      selectedTownId !== "_all"
+        ? new Set(
+            retailers
+              .filter((r) => r.townId === selectedTownId)
+              .map((r) => r.id),
+          )
+        : null;
     return retailerProducts.filter((p) => {
       const matchCat = category === "All" || p.category === category;
       const matchSearch =
@@ -82,20 +118,32 @@ export function CataloguePage() {
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.description.toLowerCase().includes(search.toLowerCase());
       if (!matchCat || !matchSearch) return false;
+      if (townRetailerIds && !townRetailerIds.has(p.retailerId)) return false;
       if (selectedRetailerId !== "all") {
         return p.retailerId === selectedRetailerId;
       }
       return true;
     });
-  }, [retailerProducts, search, category, selectedRetailerId]);
+  }, [
+    retailerProducts,
+    search,
+    category,
+    selectedRetailerId,
+    selectedTownId,
+    retailers,
+  ]);
 
-  // Retailers that have listings or exclusive products (for the filter chips)
+  // Retailers that have listings or exclusive products, filtered by selected town
   const activeRetailers = useMemo(() => {
     const listingRetailerIds = listings.map((l) => l.retailerId);
     const rpRetailerIds = retailerProducts.map((p) => p.retailerId);
     const ids = new Set([...listingRetailerIds, ...rpRetailerIds]);
-    return retailers.filter((r) => ids.has(r.id));
-  }, [listings, retailerProducts, retailers]);
+    return retailers.filter((r) => {
+      if (!ids.has(r.id)) return false;
+      if (selectedTownId !== "_all") return r.townId === selectedTownId;
+      return true;
+    });
+  }, [listings, retailerProducts, retailers, selectedTownId]);
 
   const getCartQty = (productId: string) =>
     cart.find((i) => i.productId === productId)?.quantity || 0;
@@ -197,6 +245,39 @@ export function CataloguePage() {
           items available from local stores and markets
         </p>
       </div>
+
+      {/* Town toggle */}
+      {towns.length > 0 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <button
+            type="button"
+            onClick={() => setSelectedTownId("_all")}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+              selectedTownId === "_all"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card border-border/60 text-muted-foreground hover:text-foreground"
+            }`}
+            data-ocid="catalogue.town.all_tab"
+          >
+            All Towns
+          </button>
+          {towns.map((t) => (
+            <button
+              type="button"
+              key={t.id}
+              onClick={() => setSelectedTownId(t.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                selectedTownId === t.id
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border/60 text-muted-foreground hover:text-foreground"
+              }`}
+              data-ocid="catalogue.town.tab"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative mb-4">

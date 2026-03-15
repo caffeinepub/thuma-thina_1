@@ -117,6 +117,13 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = (userRole ? NAV_LINKS[userRole] : null) || [];
+  // While pending approval, customers keep their shopping nav + a pending badge
+  const isPendingApproval =
+    userProfile?.registrationStatus === "pending" &&
+    userRole !== AppUserRole.customer;
+  const effectiveNavLinks = isPendingApproval
+    ? (NAV_LINKS[AppUserRole.customer] ?? [])
+    : navLinks;
   const displayName =
     userProfile?.displayName ||
     (principalText ? `${principalText.slice(0, 8)}…` : null);
@@ -152,7 +159,7 @@ export function AppHeader() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
+            {effectiveNavLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -186,6 +193,11 @@ export function AppHeader() {
                   >
                     {roleLabel}
                   </span>
+                  {isPendingApproval && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-yellow-100 text-yellow-800">
+                      Pending Approval
+                    </span>
+                  )}
                 </div>
 
                 {/* Notifications bell */}
@@ -249,7 +261,7 @@ export function AppHeader() {
         {/* Mobile nav */}
         {mobileOpen && navLinks.length > 0 && (
           <nav className="md:hidden border-t border-border/60 py-3 space-y-1">
-            {navLinks.map((link) => (
+            {effectiveNavLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}

@@ -875,8 +875,14 @@ export function AdminProductsPage() {
                   );
                   toast.success("Product updated");
                   setEditProductDialog(false);
-                } catch {
-                  toast.error("Failed to update product");
+                } catch (err) {
+                  console.error("Failed to update product:", err);
+                  const msg = err instanceof Error ? err.message : String(err);
+                  toast.error(
+                    msg.includes("not found")
+                      ? "Product not found in backend - please delete and re-add"
+                      : "Failed to update product",
+                  );
                 } finally {
                   setSaving(false);
                 }

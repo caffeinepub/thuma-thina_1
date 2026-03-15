@@ -230,10 +230,25 @@ actor {
       Runtime.trap("Unauthorized: Anonymous users cannot register");
     };
 
-    // Prevent duplicate registration
+    // Prevent duplicate registration — but allow customers to upgrade to a staff role
     switch (users.get(caller)) {
-      case (?_existingProfile) {
-        Runtime.trap("You are already registered!");
+      case (?existingProfile) {
+        // A customer may apply for a staff role — update to pending
+        if (existingProfile.role == #customer and (role == #shopper or role == #driver or role == #operator)) {
+          let updatedProfile : UserProfile = {
+            existingProfile with
+            role = role;
+            displayName = displayName;
+            phone = phone;
+            businessAreaId = businessAreaId;
+            registrationStatus = #pending;
+          };
+          users.add(caller, updatedProfile);
+          UserApproval.requestApproval(approvalState, caller);
+          return ();
+        } else {
+          Runtime.trap("You are already registered!");
+        };
       };
       case (null) {};
     };

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "@tanstack/react-router";
-import { CheckCircle, Clock, LogOut, Phone } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { CheckCircle, Clock, LogOut, Phone, ShoppingCart } from "lucide-react";
 import { useEffect } from "react";
 import {
   AppUserRole,
@@ -100,15 +100,27 @@ export function PendingApprovalPage() {
           Checking approval status automatically…
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={logout}
-          data-ocid="auth.logout.button"
-        >
-          <LogOut className="h-4 w-4" />
-          Log Out
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Link to="/catalogue">
+            <Button
+              variant="default"
+              className="w-full gap-2"
+              data-ocid="auth.continue_shopping.button"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Continue Shopping
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={logout}
+            data-ocid="auth.logout.button"
+          >
+            <LogOut className="h-4 w-4" />
+            Log Out
+          </Button>
+        </div>
       </div>
     </div>
   );
