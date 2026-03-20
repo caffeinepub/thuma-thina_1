@@ -1,10 +1,13 @@
 import type {
   BusinessArea,
   CartItem,
+  Product,
   ProductListing,
   RetailerProduct,
   StaffUser,
 } from "../data/mockData";
+
+export const SPECIAL_SHOPPER_MARKER = "__SPECIAL_PRODUCTS_SHOPPER__";
 
 export interface SubOrderGroup {
   dedicatedRetailerId?: string; // undefined = general pool
@@ -32,7 +35,21 @@ export function splitCartIntoSubOrders(
   staffUsers: StaffUser[],
   businessAreas: BusinessArea[],
   _listings: ProductListing[],
+  _products?: Product[],
 ): SubOrderGroup[] {
+  // Handle special product cart — route entirely to SPECIAL_SHOPPER_MARKER bucket
+  const firstItem = cart[0];
+  if (firstItem?.meterInputs !== undefined) {
+    const retailer = retailers.find((r) => r.id === firstItem.chosenRetailerId);
+    return [
+      {
+        dedicatedRetailerId: SPECIAL_SHOPPER_MARKER,
+        retailerName: "Special Services",
+        items: cart,
+        businessAreaId: retailer?.businessAreaId ?? businessAreas[0]?.id ?? "",
+      },
+    ];
+  }
   // Build set of retailer IDs that have at least one approved dedicated shopper
   const dedicatedRetailerIds = new Set<string>();
   for (const staff of staffUsers) {
@@ -87,26 +104,28 @@ export function splitCartIntoSubOrders(
     });
   }
 
-  // Add general bucket if it has items
+  // Group general items by businessAreaId — one sub-order per area
   if (generalItems.length > 0) {
-    // Determine primary business area: first item's retailer's area
-    let generalAreaId = businessAreas[0]?.id ?? "";
+    const areaBuckets = new Map<string, CartItem[]>();
     for (const ci of generalItems) {
       const retailerId = getRetailerId(ci);
+      let areaId = businessAreas[0]?.id ?? "";
       if (retailerId) {
         const retailer = retailers.find((r) => r.id === retailerId);
-        if (retailer?.businessAreaId) {
-          generalAreaId = retailer.businessAreaId;
-          break;
-        }
+        if (retailer?.businessAreaId) areaId = retailer.businessAreaId;
       }
+      const bucket = areaBuckets.get(areaId) ?? [];
+      bucket.push(ci);
+      areaBuckets.set(areaId, bucket);
     }
-    result.push({
-      dedicatedRetailerId: undefined,
-      retailerName: undefined,
-      items: generalItems,
-      businessAreaId: generalAreaId,
-    });
+    for (const [areaId, items] of areaBuckets.entries()) {
+      result.push({
+        dedicatedRetailerId: undefined,
+        retailerName: undefined,
+        items,
+        businessAreaId: areaId,
+      });
+    }
   }
 
   return result;

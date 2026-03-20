@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LogOut, Menu, ShoppingCart, X } from "lucide-react";
 import { useState } from "react";
 import { AppUserRole } from "../backend.d";
@@ -116,6 +116,7 @@ export function AppHeader() {
   const { cartCount } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const navigate = useNavigate();
   const navLinks = (userRole ? NAV_LINKS[userRole] : null) || [];
   // While pending approval, customers keep their shopping nav + a pending badge
   const isPendingApproval =
@@ -226,7 +227,10 @@ export function AppHeader() {
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                  onClick={logout}
+                  onClick={() => {
+                    navigate({ to: "/" });
+                    logout();
+                  }}
                   title="Log out"
                   data-ocid="nav.logout.button"
                 >

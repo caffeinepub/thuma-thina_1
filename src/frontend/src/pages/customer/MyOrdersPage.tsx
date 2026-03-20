@@ -1,24 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  ChevronRight,
-  MapPin,
-  ShoppingBag,
-  Star,
-} from "lucide-react";
+import { MapPin, ShoppingBag, Star, Zap } from "lucide-react";
 import { useState } from "react";
 import { OrderCard } from "../../components/OrderCard";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useApp } from "../../context/AppContext";
 import type { OrderStatus } from "../../data/mockData";
+import { SPECIAL_SHOPPER_MARKER } from "../../utils/orderSplit";
 
 const FILTERS: { value: "all" | OrderStatus; label: string }[] = [
   { value: "all", label: "All" },
@@ -50,7 +40,6 @@ export function MyOrdersPage() {
   const { orders, currentUser, retailers } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const myOrders = orders.filter((o) => o.customerId === currentUser?.id);
 
@@ -87,15 +76,6 @@ export function MyOrdersPage() {
   const allGroupParentIds = filteredGroups.map(([parentId]) => parentId);
 
   const totalCount = filteredStandalone.length + filteredGroups.length;
-
-  const toggleGroup = (parentId: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(parentId)) next.delete(parentId);
-      else next.add(parentId);
-      return next;
-    });
-  };
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -141,7 +121,6 @@ export function MyOrdersPage() {
           {/* Grouped (split) orders */}
           {allGroupParentIds.map((parentId, groupIdx) => {
             const subOrders = groupMap.get(parentId)!;
-            const isOpen = expandedGroups.has(parentId);
             const groupTotal = subOrders.reduce((s, o) => s + o.total, 0);
             const statuses = subOrders.map((o) => o.status as OrderStatus);
             const overallStatus = groupStatus(statuses);
@@ -155,152 +134,180 @@ export function MyOrdersPage() {
                 className="card-glow border-primary/20 bg-primary/5"
                 data-ocid={`order.item.${groupIdx + 1}`}
               >
-                <Collapsible
-                  open={isOpen}
-                  onOpenChange={() => toggleGroup(parentId)}
-                >
-                  <CollapsibleTrigger asChild>
-                    <CardContent className="p-4 cursor-pointer hover:bg-primary/5 rounded-xl transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <ShoppingBag className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-semibold text-sm font-display">
-                              #{parentId}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="text-xs border-primary/40 text-primary bg-primary/10"
-                            >
-                              {subOrders.length} sub-orders
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(mostRecent.createdAt).toLocaleDateString(
-                              "en-ZA",
-                              {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Overall:{" "}
-                            <span className="font-medium text-foreground/80">
-                              {overallStatus}
-                            </span>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="font-display font-bold text-primary text-sm">
-                            R{groupTotal.toFixed(2)}
+                <div>
+                  <CardContent className="p-4 rounded-xl">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <ShoppingBag className="h-4 w-4 text-primary shrink-0" />
+                          <span className="font-semibold text-sm font-display">
+                            #{parentId}
                           </span>
-                          {isOpen ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleTrigger>
-
-                  <CollapsibleContent>
-                    <div className="px-4 pb-4 space-y-2 border-t border-border/40 pt-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">
-                        Sub-orders breakdown:
-                      </p>
-                      {subOrders.map((subOrder, subIdx) => {
-                        const dedicatedRetailer = subOrder.dedicatedRetailerId
-                          ? retailers.find(
-                              (r) => r.id === subOrder.dedicatedRetailerId,
-                            )
-                          : null;
-                        return (
-                          <div
-                            key={subOrder.id}
-                            className="flex items-center justify-between gap-3 rounded-lg bg-background/60 border border-border/50 px-3 py-2.5"
-                            data-ocid={`order.sub.item.${groupIdx + 1}.${subIdx + 1}`}
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-primary/40 text-primary bg-primary/10"
                           >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-mono font-medium text-muted-foreground">
-                                  #{subOrder.id}
-                                </span>
-                                {dedicatedRetailer && (
-                                  <Badge
-                                    variant="outline"
-                                    className="border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 text-xs gap-1 py-0"
-                                    data-ocid={`order.dedicated_retailer.toggle.${groupIdx + 1}.${subIdx + 1}`}
-                                  >
-                                    <Star className="h-2.5 w-2.5 fill-current" />
-                                    {dedicatedRetailer.name}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <StatusBadge status={subOrder.status} />
-                                <span className="text-xs text-muted-foreground">
-                                  {subOrder.items.length} item
-                                  {subOrder.items.length !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="font-display font-bold text-xs text-primary">
-                                R{subOrder.total.toFixed(2)}
+                            {subOrders.length} sub-orders
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(mostRecent.createdAt).toLocaleDateString(
+                            "en-ZA",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Overall:{" "}
+                          <span className="font-medium text-foreground/80">
+                            {overallStatus}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-display font-bold text-primary text-sm">
+                          R{groupTotal.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  <div className="px-4 pb-4 space-y-2 border-t border-border/40 pt-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Sub-orders breakdown:
+                    </p>
+                    {subOrders.map((subOrder, subIdx) => {
+                      const dedicatedRetailer = subOrder.dedicatedRetailerId
+                        ? retailers.find(
+                            (r) => r.id === subOrder.dedicatedRetailerId,
+                          )
+                        : null;
+                      return (
+                        <div
+                          key={subOrder.id}
+                          className="flex items-center justify-between gap-3 rounded-lg bg-background/60 border border-border/50 px-3 py-2.5"
+                          data-ocid={`order.sub.item.${groupIdx + 1}.${subIdx + 1}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-mono font-medium text-muted-foreground">
+                                #{subOrder.id}
                               </span>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="text-xs gap-1 h-7 px-2"
-                                data-ocid={`order.sub.track.button.${groupIdx + 1}.${subIdx + 1}`}
-                                onClick={() =>
-                                  navigate({
-                                    to: "/orders/$orderId",
-                                    params: { orderId: subOrder.id },
-                                  })
-                                }
-                              >
-                                <MapPin className="h-3 w-3" />
-                                Track
-                              </Button>
+                              {dedicatedRetailer && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 text-xs gap-1 py-0"
+                                  data-ocid={`order.dedicated_retailer.toggle.${groupIdx + 1}.${subIdx + 1}`}
+                                >
+                                  <Star className="h-2.5 w-2.5 fill-current" />
+                                  {dedicatedRetailer.name}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <StatusBadge status={subOrder.status} />
+                            </div>
+                            {subOrder.businessAreaId && (
+                              <span className="text-xs text-muted-foreground">
+                                📍 {subOrder.businessAreaId}
+                              </span>
+                            )}
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {subOrder.items.map((item) => (
+                                <span key={item.productId} className="block">
+                                  × {item.quantity} {item.productName}
+                                </span>
+                              ))}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-display font-bold text-xs text-primary">
+                              R{subOrder.total.toFixed(2)}
+                            </span>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs gap-1 h-7 px-2"
+                              data-ocid={`order.sub.track.button.${groupIdx + 1}.${subIdx + 1}`}
+                              onClick={() =>
+                                navigate({
+                                  to: "/orders/$orderId",
+                                  params: { orderId: subOrder.id },
+                                })
+                              }
+                            >
+                              <MapPin className="h-3 w-3" />
+                              Track
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </Card>
             );
           })}
 
           {/* Standalone orders */}
           {filteredStandalone.map((order, i) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              index={allGroupParentIds.length + i + 1}
-              actions={
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs gap-1.5"
-                  data-ocid={`order.track.button.${allGroupParentIds.length + i + 1}`}
-                  onClick={() =>
-                    navigate({
-                      to: "/orders/$orderId",
-                      params: { orderId: order.id },
-                    })
-                  }
-                >
-                  <MapPin className="h-3 w-3" />
-                  Track
-                </Button>
-              }
-            />
+            <div key={order.id} className="space-y-2">
+              <OrderCard
+                order={order}
+                index={allGroupParentIds.length + i + 1}
+                actions={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-xs gap-1.5"
+                    data-ocid={`order.track.button.${allGroupParentIds.length + i + 1}`}
+                    onClick={() =>
+                      navigate({
+                        to: "/orders/$orderId",
+                        params: { orderId: order.id },
+                      })
+                    }
+                  >
+                    <MapPin className="h-3 w-3" />
+                    Track
+                  </Button>
+                }
+              />
+              {/* Electricity token proof from shopper */}
+              {(order.dedicatedRetailerId === SPECIAL_SHOPPER_MARKER ||
+                (order.shopperProofImages &&
+                  order.shopperProofImages.length > 0)) &&
+                order.shopperProofImages &&
+                order.shopperProofImages.length > 0 && (
+                  <div
+                    className="rounded-lg border border-yellow-300/60 bg-yellow-50/40 dark:bg-yellow-950/10 p-3 space-y-2"
+                    data-ocid={`order.electricity_token.panel.${allGroupParentIds.length + i + 1}`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                        Electricity Token
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Token/Receipt from Shopper:
+                    </p>
+                    <div className="space-y-2">
+                      {order.shopperProofImages.map((img, pi) => (
+                        <img
+                          key={img.slice(-20)}
+                          src={img}
+                          alt={`Token receipt ${pi + 1}`}
+                          className="w-full rounded-lg border border-border object-contain max-h-64 bg-white"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </div>
           ))}
         </div>
       )}

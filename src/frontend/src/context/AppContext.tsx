@@ -31,7 +31,11 @@ import type {
 } from "../data/mockData";
 import { useActor } from "../hooks/useActor";
 import { splitCartIntoSubOrders } from "../utils/orderSplit";
+import { getSecretParameter } from "../utils/urlParams";
 import { useAuth } from "./AuthContext";
+
+// Special shopper marker — used as a sentinel retailer ID to designate special product shoppers
+export const SPECIAL_SHOPPER_MARKER = "__SPECIAL_PRODUCTS_SHOPPER__";
 
 // ─── Notification Types ───────────────────────────────────────────────────────
 
@@ -143,6 +147,27 @@ interface AppContextValue {
   markNotificationRead: (id: string) => void;
   markAllRead: () => void;
   unreadCount: number;
+
+  // Custom categories (persisted to backend)
+  customCategories: string[];
+  addCustomCategory: (name: string) => Promise<void>;
+
+  // Special product helpers
+  addSpecialToCart: (
+    productId: string,
+    listingId: string,
+    retailerId: string,
+    price: number,
+    entryId: string,
+  ) => void;
+  updateMeterInput: (
+    productId: string,
+    entryId: string,
+    field: "meterNumber" | "slipImage",
+    value: string,
+  ) => void;
+  removeMeterEntry: (productId: string, entryId: string) => void;
+  addShopperProof: (orderId: string, proofImages: string[]) => Promise<void>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -213,6 +238,15 @@ function mapBackendOrder(backendOrder: BackendOrder): Order {
     isWalkIn: backendOrder.isWalkIn,
     parentOrderId: backendOrder.parentOrderId,
     dedicatedRetailerId: backendOrder.dedicatedRetailerId,
+    shopperProofImages: (() => {
+      try {
+        const raw = (backendOrder as any).shopperProofImagesJson;
+        if (!raw) return undefined;
+        return JSON.parse(raw);
+      } catch {
+        return undefined;
+      }
+    })(),
   };
 }
 
@@ -272,6 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     lockedLongTerm: 0,
     transactions: [],
   });
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -308,7 +343,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Customer sees their own orders
         rawOrders = await actor.getMyOrders(principalText);
       } else if (userRole === AppUserRole.shopper) {
-        // Shopper sees pending orders + their accepted orders
+        // Shopper sees pending orders + their accepted orders + completed history
         const [pendingOrders, acceptedOrders] = await Promise.all([
           actor.getOrdersByStatus("pending"),
           actor.getOrdersByStatus("accepted_by_shopper"),
@@ -319,37 +354,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const readyOrders = await actor.getOrdersByStatus(
           "ready_for_collection",
         );
+        // Fetch all post-ready statuses so shopper completed history stays visible
+        const [
+          deliveredOrders,
+          acceptedByDriverOrders,
+          outForDeliveryOrders,
+          collectedOrders,
+        ] = await Promise.all([
+          actor
+            .getOrdersByStatus("delivered")
+            .catch(() => [] as typeof pendingOrders),
+          actor
+            .getOrdersByStatus("accepted_by_driver")
+            .catch(() => [] as typeof pendingOrders),
+          actor
+            .getOrdersByStatus("out_for_delivery")
+            .catch(() => [] as typeof pendingOrders),
+          actor
+            .getOrdersByStatus("collected")
+            .catch(() => [] as typeof pendingOrders),
+        ]);
 
-        // Filter accepted/shopping/ready orders to only ones belonging to this shopper
+        const unwrapShopperId = (o: (typeof pendingOrders)[0]) => {
+          const sid = o.shopperId;
+          return Array.isArray(sid) ? (sid[0] ?? null) : (sid ?? null);
+        };
+
         const myAccepted = [
           ...acceptedOrders,
           ...shoppingOrders,
           ...readyOrders,
-        ].filter((o) => o.shopperId === principalText);
+        ].filter((o) => unwrapShopperId(o) === principalText);
+        const myCompleted = [
+          ...deliveredOrders,
+          ...acceptedByDriverOrders,
+          ...outForDeliveryOrders,
+          ...collectedOrders,
+        ].filter((o) => unwrapShopperId(o) === principalText);
 
-        // Deduplicate
         const seen = new Set<string>();
-        for (const o of [...pendingOrders, ...myAccepted]) {
+        for (const o of [...pendingOrders, ...myAccepted, ...myCompleted]) {
           if (!seen.has(o.id)) {
             seen.add(o.id);
             rawOrders.push(o);
           }
         }
       } else if (userRole === AppUserRole.driver) {
-        // Driver sees ready-for-collection orders + their accepted deliveries
+        // Driver sees ready-for-collection orders + their accepted/completed deliveries
         const [readyOrders, acceptedByDriver] = await Promise.all([
           actor.getOrdersByStatus("ready_for_collection"),
           actor.getOrdersByStatus("accepted_by_driver"),
         ]);
         const outForDelivery =
           await actor.getOrdersByStatus("out_for_delivery");
+        const deliveredOrders = await actor
+          .getOrdersByStatus("delivered")
+          .catch(() => [] as typeof readyOrders);
+        const collectedOrders = await actor
+          .getOrdersByStatus("collected")
+          .catch(() => [] as typeof readyOrders);
 
         const myDeliveries = [...acceptedByDriver, ...outForDelivery].filter(
           (o) => o.driverId === principalText,
         );
+        const myCompleted = [...deliveredOrders, ...collectedOrders].filter(
+          (o) => o.driverId === principalText,
+        );
 
         const seen = new Set<string>();
-        for (const o of [...readyOrders, ...myDeliveries]) {
+        for (const o of [...readyOrders, ...myDeliveries, ...myCompleted]) {
           if (!seen.has(o.id)) {
             seen.add(o.id);
             rawOrders.push(o);
@@ -511,6 +584,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             isSuggestion: p.isSuggestion,
             suggestedBy: p.suggestedBy,
             approved: p.approved,
+            isSpecial: (p as any).isSpecial,
+            serviceFee: (p as any).serviceFee,
           })),
       );
 
@@ -611,6 +686,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Load custom categories (available to all users)
+    try {
+      const cats = await actor.getCategories();
+      if (cats && cats.length > 0) setCustomCategories(cats);
+    } catch {
+      /* ignore */
+    }
+
     setDataLoading(false);
   }, [
     actor,
@@ -642,6 +725,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadAllData,
   ]);
 
+  // Re-register admin in access control after every deployment
+  useEffect(() => {
+    if (actor && isAdmin) {
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      actor._initializeAccessControlWithSecret(adminToken).catch(console.error);
+    }
+  }, [actor, isAdmin]);
+
   // ─── Cart ─────────────────────────────────────────────────────────────────────
 
   const addToCart = useCallback((productId: string) => {
@@ -663,7 +754,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       retailerId: string,
       price: number,
     ) => {
+      // Block adding regular products if cart already has special products (and vice versa)
       setCart((prev) => {
+        const hasSpecial = prev.some((i) => i.meterInputs !== undefined);
+        if (hasSpecial) return prev; // silently block — caller shows toast
         const existing = prev.find((i) => i.productId === productId);
         if (existing) {
           return prev.map((i) =>
@@ -701,6 +795,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       _productName: string,
     ) => {
       setCart((prev) => {
+        const hasSpecial = prev.some((i) => i.meterInputs !== undefined);
+        if (hasSpecial) return prev; // silently block — caller shows toast
         const existing = prev.find(
           (i) => i.retailerProductId === retailerProductId,
         );
@@ -744,6 +840,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => setCart([]), []);
 
+  // ─── Special product cart helpers ────────────────────────────────────────────
+
+  const addSpecialToCart = useCallback(
+    (
+      productId: string,
+      listingId: string,
+      retailerId: string,
+      price: number,
+      entryId: string,
+    ) => {
+      setCart((prev) => {
+        const hasRegular = prev.some((i) => i.meterInputs === undefined);
+        if (hasRegular) return prev; // block mixing
+        const existing = prev.find((i) => i.productId === productId);
+        const newEntry = {
+          entryId,
+          meterNumber: undefined,
+          slipImage: undefined,
+        };
+        if (existing) {
+          return prev.map((i) =>
+            i.productId === productId
+              ? { ...i, meterInputs: [...(i.meterInputs ?? []), newEntry] }
+              : i,
+          );
+        }
+        return [
+          ...prev,
+          {
+            productId,
+            quantity: 1,
+            listingId,
+            chosenRetailerId: retailerId,
+            chosenPrice: price,
+            meterInputs: [newEntry],
+          },
+        ];
+      });
+    },
+    [],
+  );
+
+  const updateMeterInput = useCallback(
+    (
+      productId: string,
+      entryId: string,
+      field: "meterNumber" | "slipImage",
+      value: string,
+    ) => {
+      setCart((prev) =>
+        prev.map((i) =>
+          i.productId === productId
+            ? {
+                ...i,
+                meterInputs: (i.meterInputs ?? []).map((m) =>
+                  m.entryId === entryId ? { ...m, [field]: value } : m,
+                ),
+              }
+            : i,
+        ),
+      );
+    },
+    [],
+  );
+
+  const removeMeterEntry = useCallback((productId: string, entryId: string) => {
+    setCart((prev) =>
+      prev
+        .map((i) => {
+          if (i.productId !== productId) return i;
+          const remaining = (i.meterInputs ?? []).filter(
+            (m) => m.entryId !== entryId,
+          );
+          if (remaining.length === 0) return null;
+          return { ...i, meterInputs: remaining, quantity: remaining.length };
+        })
+        .filter((i): i is NonNullable<typeof i> => i !== null),
+    );
+  }, []);
+
+  // ─── addShopperProof ─────────────────────────────────────────────────────────
+
+  const addShopperProof = useCallback(
+    async (orderId: string, proofImages: string[]) => {
+      if (!actor || actorFetching) throw new Error("Not connected");
+      await (actor as any).addShopperProof(
+        orderId,
+        JSON.stringify(proofImages),
+      );
+      await loadOrdersFromBackend();
+    },
+    [actor, actorFetching, loadOrdersFromBackend],
+  );
+
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
   // ─── Notifications ──────────────────────────────────────────────────────────
@@ -770,6 +960,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
+
+  // ─── Custom Categories ──────────────────────────────────────────────────────
+  const addCustomCategory = useCallback(
+    async (name: string) => {
+      if (!name.trim()) return;
+      try {
+        if (actor) await actor.addCategory(name.trim());
+        setCustomCategories((prev) =>
+          prev.includes(name.trim()) ? prev : [...prev, name.trim()],
+        );
+      } catch (e) {
+        console.error("Failed to save category:", e);
+        // Still add locally even if backend fails
+        setCustomCategories((prev) =>
+          prev.includes(name.trim()) ? prev : [...prev, name.trim()],
+        );
+      }
+    },
+    [actor],
+  );
 
   // ─── placeOrder ──────────────────────────────────────────────────────────────
 
@@ -834,6 +1044,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             productName: matchedItem?.productName ?? ci.productId,
             price: ci.chosenPrice ?? 0,
             quantity: ci.quantity,
+            meterInputs: ci.meterInputs,
           };
         });
 
@@ -896,8 +1107,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setOrders((prev) => [...newOrders, ...prev]);
       }
 
-      // Update Nomayini wallet (in-memory for now)
+      // Update Nomayini wallet — 50% short-term (3 months), 50% long-term (4 years)
       const earnedTokens = Math.round(grandTotal * 0.1 * 100) / 100;
+      const halfTokens = Math.round(earnedTokens * 0.5 * 100) / 100;
       const threeMonthsFromNow = new Date();
       threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
       const newTx = {
@@ -912,7 +1124,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...prev,
         totalEarned: Math.round((prev.totalEarned + earnedTokens) * 100) / 100,
         lockedShortTerm:
-          Math.round((prev.lockedShortTerm + earnedTokens) * 100) / 100,
+          Math.round((prev.lockedShortTerm + halfTokens) * 100) / 100,
+        lockedLongTerm:
+          Math.round(((prev.lockedLongTerm ?? 0) + halfTokens) * 100) / 100,
         transactions: [newTx, ...prev.transactions],
       }));
 
@@ -1131,6 +1345,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         markNotificationRead,
         markAllRead,
         unreadCount,
+        customCategories,
+        addCustomCategory,
+        addSpecialToCart,
+        updateMeterInput,
+        removeMeterEntry,
+        addShopperProof,
       }}
     >
       {children}

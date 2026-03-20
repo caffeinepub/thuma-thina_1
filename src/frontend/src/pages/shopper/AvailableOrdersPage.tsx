@@ -5,6 +5,7 @@ import { Clock, MapPin, ShoppingBag, Star } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useApp } from "../../context/AppContext";
+import { SPECIAL_SHOPPER_MARKER } from "../../utils/orderSplit";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-ZA", {
@@ -37,16 +38,23 @@ export function ShopperAvailableOrdersPage() {
   // Filter available orders using the closed-lane rule:
   // - Dedicated shoppers only see sub-orders for their assigned retailers
   // - General shoppers see all general (non-dedicated) orders in their area
+  const isSpecialShopper = shopperRetailerIds.includes(SPECIAL_SHOPPER_MARKER);
+
   const available = orders.filter((o) => {
     if (o.status !== "pending") return false;
+    if (isSpecialShopper) {
+      // Special shoppers only see special service orders
+      return o.dedicatedRetailerId === SPECIAL_SHOPPER_MARKER;
+    }
     if (isDedicatedShopper) {
-      // Only see sub-orders for their assigned retailers
+      // Dedicated retailer shoppers only see their retailer's orders, never special orders
       return (
         o.dedicatedRetailerId != null &&
+        o.dedicatedRetailerId !== SPECIAL_SHOPPER_MARKER &&
         shopperRetailerIds.includes(o.dedicatedRetailerId)
       );
     }
-    // General shopper: only see general sub-orders in their area, never dedicated ones
+    // General shopper: only see general sub-orders in their area, never dedicated or special orders
     return (
       o.dedicatedRetailerId == null &&
       (!shopperAreaId || o.businessAreaId === shopperAreaId)
@@ -96,7 +104,16 @@ export function ShopperAvailableOrdersPage() {
               Orders waiting for a personal shopper
             </p>
           )}
-          {isDedicatedShopper && (
+          {isSpecialShopper && (
+            <Badge
+              variant="outline"
+              className="border-yellow-400/60 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 text-xs gap-1"
+              data-ocid="shopper.dedicated.toggle"
+            >
+              ⚡ Special Shopper
+            </Badge>
+          )}
+          {isDedicatedShopper && !isSpecialShopper && (
             <Badge
               variant="outline"
               className="border-amber-400/60 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 text-xs gap-1"

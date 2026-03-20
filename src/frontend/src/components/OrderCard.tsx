@@ -65,10 +65,14 @@ export function OrderCard({ order, actions, index = 1 }: OrderCardProps) {
 
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">
-              {order.items.length} item{order.items.length !== 1 ? "s" : ""}
-            </span>
-            <span className="ml-2 font-bold text-primary font-display">
+            <div className="text-xs text-muted-foreground mb-0.5">
+              {order.items.map((item) => (
+                <span key={item.productId} className="block">
+                  × {item.quantity} {item.productName}
+                </span>
+              ))}
+            </div>
+            <span className="font-bold text-primary font-display">
               R{order.total.toFixed(2)}
             </span>
           </div>

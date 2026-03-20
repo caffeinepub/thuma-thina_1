@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -27,11 +28,13 @@ import {
   Pencil,
   Plus,
   Search,
+  Star,
   Store,
   Trash2,
   XCircle,
+  Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ImageUpload } from "../../components/ImageUpload";
 import { useApp } from "../../context/AppContext";
@@ -41,6 +44,8 @@ import type {
   ProductListing,
 } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
+import { SPECIAL_SHOPPER_MARKER } from "../../utils/orderSplit";
+import { getSecretParameter } from "../../utils/urlParams";
 
 const CATEGORIES: ProductCategory[] = [
   "Groceries",
@@ -61,18 +66,32 @@ const EMOJIS: Record<ProductCategory, string> = {
 };
 
 export function AdminProductsPage() {
-  const { products, setProducts, listings, setListings, retailers } = useApp();
+  const {
+    products,
+    setProducts,
+    listings,
+    setListings,
+    retailers,
+    staffUsers,
+    shopperAssignments,
+    customCategories,
+    addCustomCategory,
+  } = useApp();
   const { actor } = useActor();
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [addDialog, setAddDialog] = useState(false);
   const [listingDialog, setListingDialog] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [retailerSearch, setRetailerSearch] = useState("");
   const [form, setForm] = useState({
     name: "",
     description: "",
     category: "" as ProductCategory | "",
     imageEmoji: "📦",
     images: [] as string[],
+    isSpecial: false,
+    serviceFee: 20,
   });
   const [listingForm, setListingForm] = useState({
     productId: "",
@@ -88,10 +107,20 @@ export function AdminProductsPage() {
     category: "",
     imageEmoji: "📦",
     images: [] as string[],
+    isSpecial: false,
+    serviceFee: 20,
   });
   const [editListingDialog, setEditListingDialog] = useState(false);
   const [editListing, setEditListing] = useState<ProductListing | null>(null);
   const [editListingPrice, setEditListingPrice] = useState("");
+
+  // Re-register admin in access control after each deployment (accessControlState resets on canister upgrade)
+  useEffect(() => {
+    if (actor) {
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      actor._initializeAccessControlWithSecret(adminToken).catch(console.error);
+    }
+  }, [actor]);
 
   const official = products.filter((p) => !p.isSuggestion);
   const suggestions = products.filter((p) => p.isSuggestion && !p.approved);
@@ -117,13 +146,20 @@ export function AdminProductsPage() {
     setSaving(true);
     try {
       if (actor) {
-        await actor.addProduct(
+        // Re-register admin before write in case accessControlState reset after deploy
+        const adminTok = getSecretParameter("caffeineAdminToken") || "";
+        await actor
+          ._initializeAccessControlWithSecret(adminTok)
+          .catch(() => {});
+        await (actor as any).addProduct(
           id,
           form.name,
           form.description,
           form.category,
           imageEmoji,
           imagesJson,
+          form.isSpecial,
+          form.isSpecial ? form.serviceFee : 0,
         );
       }
       const newProduct: Product = {
@@ -134,16 +170,28 @@ export function AdminProductsPage() {
         imageEmoji,
         images: form.images.length > 0 ? form.images : undefined,
         inStock: true,
+        isSpecial: form.isSpecial || undefined,
+        serviceFee: form.isSpecial ? form.serviceFee : undefined,
       };
       setProducts((prev) => [newProduct, ...prev]);
       toast.success("Product added to catalogue");
       setAddDialog(false);
+      if (
+        form.category &&
+        !CATEGORIES.includes(form.category as ProductCategory) &&
+        !customCategories.includes(form.category)
+      ) {
+        addCustomCategory(form.category);
+      }
+      setCustomCategory("");
       setForm({
         name: "",
         description: "",
         category: "",
         imageEmoji: "📦",
         images: [],
+        isSpecial: false,
+        serviceFee: 20,
       });
     } catch (err) {
       console.error(err);
@@ -296,6 +344,13 @@ export function AdminProductsPage() {
             <List className="h-3.5 w-3.5 mr-1.5" />
             Listings ({listings.length})
           </TabsTrigger>
+          <TabsTrigger
+            value="special_shoppers"
+            data-ocid="admin.special_shoppers.tab"
+          >
+            <Zap className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
+            Special Shoppers
+          </TabsTrigger>
         </TabsList>
 
         {/* Catalogue Tab */}
@@ -346,6 +401,12 @@ export function AdminProductsPage() {
                           <p className="font-semibold text-sm truncate">
                             {product.name}
                           </p>
+                          {product.isSpecial && (
+                            <Badge className="text-[10px] gap-0.5 bg-yellow-500/90 text-yellow-950 border-0">
+                              <Zap className="h-2.5 w-2.5" />
+                              Special
+                            </Badge>
+                          )}
                           {!product.inStock && (
                             <Badge variant="secondary" className="text-[10px]">
                               Out of stock
@@ -376,6 +437,8 @@ export function AdminProductsPage() {
                             category: product.category,
                             imageEmoji: product.imageEmoji,
                             images: product.images || [],
+                            isSpecial: product.isSpecial ?? false,
+                            serviceFee: product.serviceFee ?? 20,
                           });
                           setEditProductDialog(true);
                         }}
@@ -574,18 +637,106 @@ export function AdminProductsPage() {
             </div>
           )}
         </TabsContent>
+        {/* Special Shoppers Tab */}
+        <TabsContent value="special_shoppers">
+          <p className="text-sm text-muted-foreground mb-4">
+            Toggle which approved shoppers handle special service orders (e.g.
+            prepaid electricity). Special shoppers only see special orders;
+            regular shoppers never see them.
+          </p>
+          {staffUsers.filter(
+            (u) => u.role === "shopper" && u.status === "approved",
+          ).length === 0 ? (
+            <div
+              className="text-center py-12"
+              data-ocid="admin.special_shoppers.empty_state"
+            >
+              <Star className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+              <p className="font-display font-semibold">
+                No approved shoppers yet
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {staffUsers
+                .filter((u) => u.role === "shopper" && u.status === "approved")
+                .map((shopper, i) => {
+                  const isSpecialShopper = (
+                    shopperAssignments.get(shopper.id) ?? []
+                  ).includes(SPECIAL_SHOPPER_MARKER);
+                  return (
+                    <div
+                      key={shopper.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3"
+                      data-ocid={`admin.special_shopper.item.${i + 1}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">
+                            {shopper.name}
+                          </p>
+                          {isSpecialShopper && (
+                            <Badge className="text-[10px] gap-0.5 bg-yellow-500/90 text-yellow-950 border-0">
+                              <Zap className="h-2.5 w-2.5" />
+                              Special
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {shopper.phone}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={isSpecialShopper}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            const { Principal } = await import(
+                              "@icp-sdk/core/principal"
+                            );
+                            const principal = Principal.fromText(shopper.id);
+                            if (checked) {
+                              if (actor)
+                                await actor.assignShopperToRetailer(
+                                  principal,
+                                  SPECIAL_SHOPPER_MARKER,
+                                );
+                            } else {
+                              if (actor)
+                                await actor.unassignShopperFromRetailer(
+                                  principal,
+                                  SPECIAL_SHOPPER_MARKER,
+                                );
+                            }
+                            // Update local shopperAssignments map via toast for now
+                            toast.success(
+                              checked
+                                ? `${shopper.name} is now a special shopper`
+                                : `${shopper.name} is no longer a special shopper`,
+                            );
+                          } catch {
+                            toast.error("Failed to update shopper assignment");
+                          }
+                        }}
+                        data-ocid={`admin.special_shopper.toggle.${i + 1}`}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Add Product Dialog */}
       <Dialog open={addDialog} onOpenChange={setAddDialog}>
         <DialogContent
-          className="max-w-md"
+          className="max-w-md max-h-[85vh] flex flex-col"
           data-ocid="admin.add_product.dialog"
         >
           <DialogHeader>
             <DialogTitle>Add Product to Catalogue</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="space-y-3 py-2 overflow-y-auto flex-1 pr-1">
             <div className="space-y-1.5">
               <Label>Product Name</Label>
               <Input
@@ -626,8 +777,12 @@ export function AdminProductsPage() {
                 <SelectContent>
                   {[
                     ...CATEGORIES,
+                    ...customCategories.filter(
+                      (c) => !CATEGORIES.includes(c as ProductCategory),
+                    ),
                     ...(customCategory &&
-                    !CATEGORIES.includes(customCategory as ProductCategory)
+                    !CATEGORIES.includes(customCategory as ProductCategory) &&
+                    !customCategories.includes(customCategory)
                       ? [customCategory as ProductCategory]
                       : []),
                   ].map((c) => (
@@ -662,6 +817,47 @@ export function AdminProductsPage() {
                 label=""
               />
             </div>
+            {/* Special Service Product toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  Special Service Product
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  e.g. prepaid electricity — requires meter input from buyer
+                </p>
+              </div>
+              <Switch
+                checked={form.isSpecial}
+                onCheckedChange={(v) =>
+                  setForm((f) => ({ ...f, isSpecial: v }))
+                }
+                data-ocid="admin.product_special.switch"
+              />
+            </div>
+            {form.isSpecial && (
+              <div className="space-y-1.5">
+                <Label>Service Fee (R)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.serviceFee}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      serviceFee: Number(e.target.value),
+                    }))
+                  }
+                  placeholder="20"
+                  data-ocid="admin.product_service_fee.input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Flat fee charged per meter entry
+                </p>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
               💡 After adding the product, create listings in the Listings tab
               to link it to retailers with prices.
@@ -698,19 +894,35 @@ export function AdminProductsPage() {
               <Label>Product</Label>
               <Select
                 value={listingForm.productId}
-                onValueChange={(v) =>
-                  setListingForm((f) => ({ ...f, productId: v }))
-                }
+                onValueChange={(v) => {
+                  setListingForm((f) => ({ ...f, productId: v }));
+                  setProductSearch("");
+                }}
               >
                 <SelectTrigger data-ocid="admin.listing_product.select">
                   <SelectValue placeholder="Select product" />
                 </SelectTrigger>
-                <SelectContent>
-                  {official.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="max-h-60">
+                  <div className="px-2 pb-1">
+                    <input
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-xs outline-none"
+                      placeholder="Search product..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {official
+                    .filter((p) =>
+                      p.name
+                        .toLowerCase()
+                        .includes(productSearch.toLowerCase()),
+                    )
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -718,19 +930,35 @@ export function AdminProductsPage() {
               <Label>Retailer</Label>
               <Select
                 value={listingForm.retailerId}
-                onValueChange={(v) =>
-                  setListingForm((f) => ({ ...f, retailerId: v }))
-                }
+                onValueChange={(v) => {
+                  setListingForm((f) => ({ ...f, retailerId: v }));
+                  setRetailerSearch("");
+                }}
               >
                 <SelectTrigger data-ocid="admin.listing_retailer.select">
                   <SelectValue placeholder="Select retailer" />
                 </SelectTrigger>
-                <SelectContent>
-                  {retailers.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="max-h-60">
+                  <div className="px-2 pb-1">
+                    <input
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-xs outline-none"
+                      placeholder="Search retailer..."
+                      value={retailerSearch}
+                      onChange={(e) => setRetailerSearch(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {retailers
+                    .filter((r) =>
+                      r.name
+                        .toLowerCase()
+                        .includes(retailerSearch.toLowerCase()),
+                    )
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -825,6 +1053,40 @@ export function AdminProductsPage() {
                 }
               />
             </div>
+            <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  Special Service Product
+                </p>
+              </div>
+              <Switch
+                checked={editProductForm.isSpecial}
+                onCheckedChange={(v) =>
+                  setEditProductForm((f) => ({ ...f, isSpecial: v }))
+                }
+                data-ocid="admin.edit_product_special.switch"
+              />
+            </div>
+            {editProductForm.isSpecial && (
+              <div className="space-y-1.5">
+                <Label>Service Fee (R)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editProductForm.serviceFee}
+                  onChange={(e) =>
+                    setEditProductForm((f) => ({
+                      ...f,
+                      serviceFee: Number(e.target.value),
+                    }))
+                  }
+                  placeholder="20"
+                  data-ocid="admin.edit_product_service_fee.input"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -846,15 +1108,26 @@ export function AdminProductsPage() {
                     editProductForm.images.length > 0
                       ? JSON.stringify(editProductForm.images)
                       : null;
-                  if (actor)
-                    await actor.updateProduct(
+                  if (actor) {
+                    // Re-register admin before update in case accessControlState reset after deploy
+                    const adminTok =
+                      getSecretParameter("caffeineAdminToken") || "";
+                    await actor
+                      ._initializeAccessControlWithSecret(adminTok)
+                      .catch(() => {});
+                    await (actor as any).updateProduct(
                       editProduct.id,
                       editProductForm.name,
                       editProductForm.description,
                       editProductForm.category,
                       imageEmoji,
                       imagesJson,
+                      editProductForm.isSpecial,
+                      editProductForm.isSpecial
+                        ? editProductForm.serviceFee
+                        : 0,
                     );
+                  }
                   setProducts((prev) =>
                     prev.map((p) =>
                       p.id === editProduct.id
@@ -869,6 +1142,10 @@ export function AdminProductsPage() {
                               editProductForm.images.length > 0
                                 ? editProductForm.images
                                 : undefined,
+                            isSpecial: editProductForm.isSpecial || undefined,
+                            serviceFee: editProductForm.isSpecial
+                              ? editProductForm.serviceFee
+                              : undefined,
                           }
                         : p,
                     ),

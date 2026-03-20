@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Fonts ─────────────────────────────────────────── */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque[opsz,wdth,wght].woff2")
+    format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "General Sans";
+  src: url("/assets/fonts/GeneralSans-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── Design Tokens ─────────────────────────────────── */
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Warm terracotta + deep earth palette */
+    --background: 0.97 0.01 60;
+    --foreground: 0.18 0.04 45;
+
+    --card: 0.99 0.005 60;
+    --card-foreground: 0.18 0.04 45;
+
+    --popover: 0.99 0.005 60;
+    --popover-foreground: 0.18 0.04 45;
+
+    /* Terracotta primary */
+    --primary: 0.55 0.17 42;
+    --primary-foreground: 0.99 0 0;
+
+    /* Warm sand secondary */
+    --secondary: 0.93 0.025 60;
+    --secondary-foreground: 0.3 0.06 45;
+
+    /* Muted warm */
+    --muted: 0.94 0.015 65;
+    --muted-foreground: 0.5 0.04 55;
+
+    /* Golden accent */
+    --accent: 0.78 0.12 75;
+    --accent-foreground: 0.18 0.04 45;
+
+    /* Destructive */
+    --destructive: 0.58 0.22 25;
+    --destructive-foreground: 0.99 0 0;
+
+    /* Success */
+    --success: 0.58 0.14 150;
+    --success-foreground: 0.99 0 0;
+
+    /* Warning */
+    --warning: 0.75 0.16 75;
+    --warning-foreground: 0.18 0.04 45;
+
+    --border: 0.88 0.025 60;
+    --input: 0.88 0.025 60;
+    --ring: 0.55 0.17 42;
+
+    /* Chart colors */
+    --chart-1: 0.55 0.17 42;
+    --chart-2: 0.65 0.14 150;
+    --chart-3: 0.7 0.15 240;
+    --chart-4: 0.78 0.12 75;
+    --chart-5: 0.58 0.22 25;
+
+    /* Sidebar */
+    --sidebar: 0.22 0.05 45;
+    --sidebar-foreground: 0.95 0.01 55;
+    --sidebar-primary: 0.78 0.12 75;
+    --sidebar-primary-foreground: 0.18 0.04 45;
+    --sidebar-accent: 0.3 0.06 45;
+    --sidebar-accent-foreground: 0.95 0.01 55;
+    --sidebar-border: 0.3 0.06 45;
+    --sidebar-ring: 0.55 0.17 42;
+
+    /* Status badge colors */
+    --status-pending: 0.78 0.12 75;
+    --status-accepted: 0.7 0.15 240;
+    --status-shopping: 0.68 0.17 42;
+    --status-ready: 0.65 0.14 150;
+    --status-out: 0.6 0.18 260;
+    --status-delivered: 0.55 0.14 150;
+    --status-collected: 0.55 0.14 150;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "General Sans", system-ui, sans-serif;
+    font-feature-settings: "ss01" 1, "ss02" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 700;
+  }
+}
+
+/* ─── Utilities ─────────────────────────────────────── */
+@layer utilities {
+  .font-display {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  }
+
+  .font-body {
+    font-family: "General Sans", system-ui, sans-serif;
+  }
+
+  /* African kente-inspired subtle pattern overlay */
+  .kente-bg {
+    background-image: repeating-linear-gradient(
+        45deg,
+        oklch(var(--primary) / 0.04) 0px,
+        oklch(var(--primary) / 0.04) 2px,
+        transparent 2px,
+        transparent 12px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        oklch(var(--accent) / 0.04) 0px,
+        oklch(var(--accent) / 0.04) 2px,
+        transparent 2px,
+        transparent 12px
+      );
+  }
+
+  .hero-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.22 0.06 42) 0%,
+      oklch(0.3 0.08 45) 40%,
+      oklch(0.38 0.1 50) 100%
+    );
+  }
+
+  .card-glow {
+    box-shadow: 0 1px 3px oklch(var(--primary) / 0.1), 0 4px 12px
+      oklch(var(--primary) / 0.06);
+  }
+
+  .status-pending {
+    background: oklch(0.95 0.06 75);
+    color: oklch(0.4 0.1 65);
+    border: 1px solid oklch(0.85 0.08 75);
+  }
+
+  .status-accepted_by_shopper {
+    background: oklch(0.93 0.06 230);
+    color: oklch(0.35 0.1 240);
+    border: 1px solid oklch(0.82 0.08 240);
+  }
+
+  .status-shopping_in_progress {
+    background: oklch(0.95 0.08 42);
+    color: oklch(0.38 0.1 42);
+    border: 1px solid oklch(0.82 0.1 42);
+  }
+
+  .status-ready_for_collection {
+    background: oklch(0.93 0.07 150);
+    color: oklch(0.35 0.12 150);
+    border: 1px solid oklch(0.8 0.09 150);
+  }
+
+  .status-accepted_by_driver {
+    background: oklch(0.93 0.06 270);
+    color: oklch(0.35 0.1 270);
+    border: 1px solid oklch(0.82 0.08 270);
+  }
+
+  .status-out_for_delivery {
+    background: oklch(0.93 0.07 255);
+    color: oklch(0.35 0.12 255);
+    border: 1px solid oklch(0.8 0.1 255);
+  }
+
+  .status-delivered,
+  .status-collected {
+    background: oklch(0.93 0.07 145);
+    color: oklch(0.32 0.12 145);
+    border: 1px solid oklch(0.78 0.1 145);
+  }
+}

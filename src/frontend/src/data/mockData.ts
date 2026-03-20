@@ -86,6 +86,8 @@ export interface Product {
   isSuggestion?: boolean;
   suggestedBy?: string;
   approved?: boolean;
+  isSpecial?: boolean;
+  serviceFee?: number;
 }
 
 export interface ProductListing {
@@ -115,6 +117,11 @@ export interface CartItem {
   chosenRetailerId?: string;
   chosenPrice?: number;
   retailerProductId?: string;
+  meterInputs?: Array<{
+    entryId: string;
+    meterNumber?: string;
+    slipImage?: string;
+  }>;
 }
 
 export interface OrderItem {
@@ -122,6 +129,11 @@ export interface OrderItem {
   productName: string;
   price: number;
   quantity: number;
+  meterInputs?: Array<{
+    entryId: string;
+    meterNumber?: string;
+    slipImage?: string;
+  }>;
 }
 
 export interface Order {
@@ -148,6 +160,7 @@ export interface Order {
   isWalkIn?: boolean;
   parentOrderId?: string; // shared across all sub-orders from the same checkout
   dedicatedRetailerId?: string; // if set, this sub-order is for a dedicated-shopper retailer
+  shopperProofImages?: string[];
 }
 
 export interface StaffUser {

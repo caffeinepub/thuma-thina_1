@@ -384,6 +384,22 @@ actor {
     approved : Bool;
   };
 
+  // Extended product type returned by queries (merges extras from productExtras map)
+  type ProductExtended = {
+    id : Text;
+    name : Text;
+    description : Text;
+    category : Text;
+    imageEmoji : Text;
+    imagesJson : ?Text;
+    inStock : Bool;
+    isSuggestion : Bool;
+    suggestedBy : ?Text;
+    approved : Bool;
+    isSpecial : Bool;
+    serviceFee : Float;
+  };
+
   type ProductListing = {
     id : Text;
     productId : Text;
@@ -435,6 +451,34 @@ actor {
     dedicatedRetailerId : ?Text;
   };
 
+  // Extended order type returned by queries (merges proof images from orderProofImages map)
+  type OrderExtended = {
+    id : Text;
+    customerId : Text;
+    customerName : Text;
+    customerPhone : Text;
+    itemsJson : Text;
+    total : Float;
+    status : Text;
+    deliveryType : Text;
+    pickupPointId : Text;
+    pickupPointName : Text;
+    homeAddress : ?Text;
+    townId : Text;
+    businessAreaId : Text;
+    deliveryAreasJson : ?Text;
+    shopperId : ?Text;
+    shopperName : ?Text;
+    driverId : ?Text;
+    driverName : ?Text;
+    createdAt : Text;
+    updatedAt : Text;
+    isWalkIn : Bool;
+    parentOrderId : ?Text;
+    dedicatedRetailerId : ?Text;
+    shopperProofImagesJson : ?Text;
+  };
+
   // ─── Nomayini Wallet Types ────────────────────────────────────────────────────
   type NomayiniTransaction = {
     id : Text;
@@ -464,6 +508,13 @@ actor {
   // Nomayini wallet storage (keyed by customerId = principal text)
   let nomayiniBalances = Map.empty<Text, NomayiniBalance>();
   let nomayiniTransactions = Map.empty<Text, [NomayiniTransaction]>();
+
+  let categoriesList = Map.empty<Text, Bool>(); // using map as a set for O(1) lookups
+  // Separate stable maps for special product fields (avoids breaking stable Product type)
+  let productIsSpecial = Map.empty<Text, Bool>();
+  let productServiceFee = Map.empty<Text, Float>();
+  // Separate stable map for order proof images (avoids breaking stable Order type)
+  let orderProofImages = Map.empty<Text, Text>();
 
 
 
@@ -590,7 +641,7 @@ actor {
   };
 
   // Products
-  public shared ({ caller }) func addProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, imagesJson : ?Text) : async () {
+  public shared ({ caller }) func addProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, imagesJson : ?Text, isSpecial : Bool, serviceFee : Float) : async () {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -607,6 +658,8 @@ actor {
       approved = true;
     };
     products.add(id, product);
+    productIsSpecial.add(id, isSpecial);
+    productServiceFee.add(id, serviceFee);
   };
 
   public shared ({ caller }) func deleteProduct(id : Text) : async () {
@@ -616,7 +669,7 @@ actor {
     products.remove(id);
   };
 
-  public shared ({ caller }) func updateProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, imagesJson : ?Text) : async () {
+  public shared ({ caller }) func updateProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, imagesJson : ?Text, isSpecial : Bool, serviceFee : Float) : async () {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -625,12 +678,18 @@ actor {
       case (?product) {
         let updated = { product with name; description; category; imageEmoji; imagesJson };
         products.add(id, updated);
+        productIsSpecial.add(id, isSpecial);
+        productServiceFee.add(id, serviceFee);
       };
     };
   };
 
-  public query ({ caller }) func getProducts() : async [Product] {
-    products.values().toArray();
+  public query ({ caller }) func getProducts() : async [ProductExtended] {
+    products.values().toArray().map(func(p : Product) : ProductExtended {
+      let special = switch (productIsSpecial.get(p.id)) { case (?v) v; case (null) false };
+      let fee = switch (productServiceFee.get(p.id)) { case (?v) v; case (null) 0.0 };
+      { p with isSpecial = special; serviceFee = fee }
+    });
   };
 
   public shared ({ caller }) func suggestProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, suggestedBy : Text) : async () {
@@ -926,14 +985,37 @@ actor {
     orders.add(id, order);
   };
 
-  public query ({ caller }) func getOrders() : async [Order] {
+  public shared ({ caller }) func addShopperProof(orderId : Text, proofImagesJson : Text) : async () {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot add proof");
+    };
+    let isApprovedStaff = isCallerApprovedInternal(caller);
+    let isAdm = Authorization.hasPermission(accessControlState, caller, #admin);
+    if (not (isApprovedStaff or isAdm)) {
+      Runtime.trap("Unauthorized: Only approved staff can add proof images");
+    };
+    switch (orders.get(orderId)) {
+      case (null) { Runtime.trap("Order not found") };
+      case (?order) {
+        orderProofImages.add(orderId, proofImagesJson);
+      };
+    };
+  };
+
+  // Helper: attach proof images to an Order to produce an OrderExtended
+  func extendOrder(order : Order) : OrderExtended {
+    let proof = orderProofImages.get(order.id);
+    { order with shopperProofImagesJson = proof }
+  };
+
+      public query ({ caller }) func getOrders() : async [OrderExtended] {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
-    orders.values().toArray();
+    orders.values().toArray().map(extendOrder);
   };
 
-  public query ({ caller }) func getMyOrders(customerId : Text) : async [Order] {
+  public query ({ caller }) func getMyOrders(customerId : Text) : async [OrderExtended] {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders");
     };
@@ -949,7 +1031,7 @@ actor {
         order.customerId == customerId;
       }
     );
-    filteredOrders;
+    filteredOrders.map(extendOrder);
   };
 
   public query ({ caller }) func getOrderById(id : Text) : async ?Order {
@@ -982,7 +1064,7 @@ actor {
     };
   };
 
-  public query ({ caller }) func getOrdersByStatus(statusText : Text) : async [Order] {
+  public query ({ caller }) func getOrdersByStatus(statusText : Text) : async [OrderExtended] {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders");
     };
@@ -995,10 +1077,10 @@ actor {
         order.status == statusText;
       }
     );
-    filteredOrders;
+    filteredOrders.map(extendOrder);
   };
 
-  public query ({ caller }) func getOrdersByArea(businessAreaId : Text) : async [Order] {
+  public query ({ caller }) func getOrdersByArea(businessAreaId : Text) : async [OrderExtended] {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders by area");
     };
@@ -1016,7 +1098,7 @@ actor {
         order.businessAreaId == businessAreaId and order.status == "pending"
       }
     );
-    filteredOrders;
+    filteredOrders.map(extendOrder);
   };
 
   public shared ({ caller }) func updateOrderStatus(
@@ -1093,7 +1175,7 @@ actor {
     orders.remove(id);
   };
 
-  public query ({ caller }) func getOrdersByCustomerId(customerId : Text) : async [Order] {
+  public query ({ caller }) func getOrdersByCustomerId(customerId : Text) : async [OrderExtended] {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders");
     };
@@ -1108,7 +1190,7 @@ actor {
         order.customerId == customerId;
       }
     );
-    filteredOrders;
+    filteredOrders.map(extendOrder);
   };
 
   // ─── Nomayini Wallet Functions ────────────────────────────────────────────────
@@ -1200,6 +1282,20 @@ actor {
         }]));
       };
     };
+  };
+
+
+  // ─── Custom Categories ────────────────────────────────────────────────────
+
+  public shared(msg) func addCategory(name : Text) : async () {
+    if (not Authorization.hasPermission(accessControlState, msg.caller, #admin)) {
+      Runtime.trap("Unauthorized: Only admins can add categories");
+    };
+    categoriesList.add(name, true);
+  };
+
+  public query func getCategories() : async [Text] {
+    categoriesList.keys().toArray()
   };
 
 };

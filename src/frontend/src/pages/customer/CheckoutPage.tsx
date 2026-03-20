@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "@tanstack/react-router";
-import { CheckCircle, Coins, Home, MapPin, Truck } from "lucide-react";
+import { CheckCircle, Coins, Home, MapPin, Truck, Zap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
@@ -34,6 +34,8 @@ export function CheckoutPage() {
     orders,
   } = useApp();
   const navigate = useNavigate();
+
+  const isSpecialCart = cart.some((i) => (i as any).meterInputs !== undefined);
 
   const [deliveryType, setDeliveryType] =
     useState<DeliveryType>("pickup_point");
@@ -76,10 +78,15 @@ export function CheckoutPage() {
         ci !== null && ci.product !== undefined,
     );
 
-  const subtotal = cartItems.reduce(
-    (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
-    0,
-  );
+  const subtotal = isSpecialCart
+    ? cart.reduce((sum, ci) => {
+        const entries = (ci as any).meterInputs?.length ?? 1;
+        return sum + (ci.chosenPrice ?? 0) * entries;
+      }, 0)
+    : cartItems.reduce(
+        (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
+        0,
+      );
 
   // Recalculates immediately when deliveryType changes
   const feeBreakdown = calculateDeliveryFee(
@@ -89,7 +96,7 @@ export function CheckoutPage() {
     deliveryType,
     retailerProducts,
   );
-  const deliveryFee = feeBreakdown.total;
+  const deliveryFee = isSpecialCart ? 0 : feeBreakdown.total;
   const total = subtotal + deliveryFee;
 
   const townPickupPoints = pickupPoints.filter(
@@ -102,11 +109,15 @@ export function CheckoutPage() {
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPickupId) {
+    if (!isSpecialCart && !selectedPickupId) {
       toast.error("Please select a pick-up point");
       return;
     }
-    if (deliveryType === "home_delivery" && !homeAddress.trim()) {
+    if (
+      !isSpecialCart &&
+      deliveryType === "home_delivery" &&
+      !homeAddress.trim()
+    ) {
       toast.error("Please enter your home address");
       return;
     }
@@ -117,12 +128,30 @@ export function CheckoutPage() {
       customerId: currentUser?.id || "cust1",
       customerName: currentUser?.name || "Customer",
       customerPhone: currentUser?.phone || "",
-      items: cartItems.map((ci) => ({
-        productId: ci.productId,
-        productName: ci.product?.name ?? "",
-        price: ci.chosenPrice ?? 0,
-        quantity: ci.quantity,
-      })),
+      items: isSpecialCart
+        ? cart.flatMap((ci) => {
+            const entries = (ci as any).meterInputs ?? [{ entryId: "0" }];
+            const prod = cartItems.find((x) => x.productId === ci.productId);
+            return entries.map(
+              (m: {
+                entryId: string;
+                meterNumber?: string;
+                slipImage?: string;
+              }) => ({
+                productId: ci.productId,
+                productName: prod?.product?.name ?? ci.productId,
+                price: ci.chosenPrice ?? 0,
+                quantity: 1,
+                meterInputs: [m],
+              }),
+            );
+          })
+        : cartItems.map((ci) => ({
+            productId: ci.productId,
+            productName: ci.product?.name ?? "",
+            price: ci.chosenPrice ?? 0,
+            quantity: ci.quantity,
+          })),
       total,
       status: "pending",
       deliveryType,
@@ -208,240 +237,268 @@ export function CheckoutPage() {
           </CardContent>
         </Card>
 
-        {/* Delivery Type */}
-        <Card className="card-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-display text-base">
-              Delivery Method
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup
-              value={deliveryType}
-              onValueChange={(v) => setDeliveryType(v as DeliveryType)}
-              className="space-y-3"
-              data-ocid="checkout.delivery.radio"
-            >
-              <div className="flex items-start gap-3 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/30">
-                <RadioGroupItem
-                  value="pickup_point"
-                  id="pickup"
-                  className="mt-0.5"
-                />
-                <Label htmlFor="pickup" className="cursor-pointer flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="font-semibold">Pick-up Point</span>
-                    <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                      Recommended
-                    </span>
+        {!isSpecialCart && (
+          <>
+            {/* Delivery Type */}
+            <Card className="card-glow">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-display text-base">
+                  Delivery Method
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={deliveryType}
+                  onValueChange={(v) => setDeliveryType(v as DeliveryType)}
+                  className="space-y-3"
+                  data-ocid="checkout.delivery.radio"
+                >
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/30">
+                    <RadioGroupItem
+                      value="pickup_point"
+                      id="pickup"
+                      className="mt-0.5"
+                    />
+                    <Label htmlFor="pickup" className="cursor-pointer flex-1">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="font-semibold">Pick-up Point</span>
+                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Collect at your nearest community pick-up point
+                      </p>
+                    </Label>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Collect at your nearest community pick-up point
-                  </p>
-                </Label>
-              </div>
-              <div className="flex items-start gap-3 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/30">
-                <RadioGroupItem
-                  value="home_delivery"
-                  id="home"
-                  className="mt-0.5"
-                />
-                <Label htmlFor="home" className="cursor-pointer flex-1">
-                  <div className="flex items-center gap-2">
-                    <Home className="h-4 w-4 text-blue-600" />
-                    <span className="font-semibold">Home Delivery</span>
-                    <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
-                      +R5.00 surcharge
-                    </span>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/30">
+                    <RadioGroupItem
+                      value="home_delivery"
+                      id="home"
+                      className="mt-0.5"
+                    />
+                    <Label htmlFor="home" className="cursor-pointer flex-1">
+                      <div className="flex items-center gap-2">
+                        <Home className="h-4 w-4 text-blue-600" />
+                        <span className="font-semibold">Home Delivery</span>
+                        <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                          +R5.00 surcharge
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Delivered to your door (linked to nearest pick-up point
+                        as fallback)
+                      </p>
+                    </Label>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Delivered to your door (linked to nearest pick-up point as
-                    fallback)
-                  </p>
-                </Label>
-              </div>
-            </RadioGroup>
-          </CardContent>
-        </Card>
+                </RadioGroup>
+              </CardContent>
+            </Card>
 
-        {/* Location */}
-        <Card className="card-glow">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-display text-base">
-              Delivery Location
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Town</Label>
-              <Select
-                value={selectedTownId}
-                onValueChange={(v) => {
-                  setSelectedTownId(v);
-                  setSelectedPickupId("");
-                }}
-              >
-                <SelectTrigger data-ocid="checkout.town.select">
-                  <SelectValue placeholder="Select town" />
-                </SelectTrigger>
-                <SelectContent>
-                  {towns.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Location */}
+            <Card className="card-glow">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-display text-base">
+                  Delivery Location
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Town</Label>
+                  <Select
+                    value={selectedTownId}
+                    onValueChange={(v) => {
+                      setSelectedTownId(v);
+                      setSelectedPickupId("");
+                    }}
+                  >
+                    <SelectTrigger data-ocid="checkout.town.select">
+                      <SelectValue placeholder="Select town" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {towns.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label>
-                {deliveryType === "pickup_point"
-                  ? "Pick-up Point"
-                  : "Nearest Pick-up Point (for fallback)"}
-              </Label>
-              <Select
-                value={selectedPickupId}
-                onValueChange={setSelectedPickupId}
-              >
-                <SelectTrigger data-ocid="checkout.pickup.select">
-                  <SelectValue placeholder="Select pick-up point" />
-                </SelectTrigger>
-                <SelectContent>
-                  {townPickupPoints.map((pp) => (
-                    <SelectItem key={pp.id} value={pp.id}>
-                      {pp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedPickup && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedPickup.address}
-                </p>
-              )}
-            </div>
-
-            {deliveryType === "home_delivery" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="homeAddress">Home Address</Label>
-                <Input
-                  id="homeAddress"
-                  value={homeAddress}
-                  onChange={(e) => setHomeAddress(e.target.value)}
-                  placeholder="Enter your full home address"
-                  data-ocid="checkout.address.input"
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Delivery Fee Breakdown Card */}
-        <Card
-          className="border-amber-200/70 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/10"
-          data-ocid="checkout.delivery_fee.section"
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="font-display text-base flex items-center gap-2">
-              <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              Delivery Fee Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {feeBreakdown.areaBreakdown.map((area, idx) => (
-              <div
-                key={area.areaName}
-                className="flex justify-between items-start gap-2"
-              >
-                <span className="text-sm text-muted-foreground leading-snug">
-                  <span className="font-medium text-foreground/80">
-                    {idx === 0 ? "1st area" : "+Area"}
-                  </span>{" "}
-                  — {area.areaName}
-                  {area.retailerNames.length > 0 && (
-                    <span className="text-muted-foreground/70">
-                      {" "}
-                      (
-                      {area.retailerNames.length > 2
-                        ? `${area.retailerNames.slice(0, 2).join(", ")} +${area.retailerNames.length - 2} more`
-                        : area.retailerNames.join(", ")}
-                      )
-                    </span>
+                <div className="space-y-1.5">
+                  <Label>
+                    {deliveryType === "pickup_point"
+                      ? "Pick-up Point"
+                      : "Nearest Pick-up Point (for fallback)"}
+                  </Label>
+                  <Select
+                    value={selectedPickupId}
+                    onValueChange={setSelectedPickupId}
+                  >
+                    <SelectTrigger data-ocid="checkout.pickup.select">
+                      <SelectValue placeholder="Select pick-up point" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {townPickupPoints.map((pp) => (
+                        <SelectItem key={pp.id} value={pp.id}>
+                          {pp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPickup && (
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPickup.address}
+                    </p>
                   )}
-                </span>
-                <span className="text-sm font-medium text-amber-700 dark:text-amber-400 shrink-0">
-                  {idx === 0 ? "R40.00" : "+R15.00"}
-                </span>
-              </div>
-            ))}
+                </div>
 
-            {deliveryType === "home_delivery" && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  <Home className="h-3.5 w-3.5" />
-                  Home delivery surcharge
-                </span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">
-                  +R5.00
-                </span>
-              </div>
-            )}
-
-            <Separator className="border-amber-200/60 dark:border-amber-800/40" />
-
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-sm">Total delivery fee</span>
-              <span className="font-bold text-base text-amber-700 dark:text-amber-400">
-                R{deliveryFee.toFixed(2)}
-              </span>
-            </div>
-
-            <div className="pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                {deliveryType === "home_delivery" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="homeAddress">Home Address</Label>
+                    <Input
+                      id="homeAddress"
+                      value={homeAddress}
+                      onChange={(e) => setHomeAddress(e.target.value)}
+                      placeholder="Enter your full home address"
+                      data-ocid="checkout.address.input"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+        {/* Service Fee / Delivery Fee Summary */}
+        {isSpecialCart ? (
+          <Card className="border-yellow-200/70 dark:border-yellow-800/50 bg-yellow-50/50 dark:bg-yellow-950/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base flex items-center gap-2">
+                <Zap className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                Service Fee
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="font-semibold">Order subtotal</span>
-                <span>R{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center mt-1">
-                <span className="font-bold font-display text-base">
-                  Total to pay
-                </span>
-                <span className="font-bold font-display text-lg text-primary">
+                <span className="text-sm font-semibold">Total service fee</span>
+                <span className="font-bold text-base text-yellow-700 dark:text-yellow-400">
                   R{total.toFixed(2)}
                 </span>
               </div>
-            </div>
-
-            {/* Nomayini Token Reward Estimate */}
-            <div
-              className="mt-1 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 px-3 py-2.5 flex items-center gap-3"
-              data-ocid="checkout.token_reward.section"
-            >
-              <Coins className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
-                  You'll earn{" "}
-                  <span className="font-bold">
-                    {(Math.round(total * 0.1 * 100) / 100).toFixed(2)} Nomayini
-                    tokens
+              <p className="text-xs text-muted-foreground">
+                No delivery fee — this is a service-only order. Your electricity
+                token will be sent to you via the shopper proof.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card
+            className="border-amber-200/70 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/10"
+            data-ocid="checkout.delivery_fee.section"
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base flex items-center gap-2">
+                <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                Delivery Fee Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {feeBreakdown.areaBreakdown.map((area, idx) => (
+                <div
+                  key={area.areaName}
+                  className="flex justify-between items-start gap-2"
+                >
+                  <span className="text-sm text-muted-foreground leading-snug">
+                    <span className="font-medium text-foreground/80">
+                      {idx === 0 ? "1st area" : "+Area"}
+                    </span>{" "}
+                    — {area.areaName}
+                    {area.retailerNames.length > 0 && (
+                      <span className="text-muted-foreground/70">
+                        {" "}
+                        (
+                        {area.retailerNames.length > 2
+                          ? `${area.retailerNames.slice(0, 2).join(", ")} +${area.retailerNames.length - 2} more`
+                          : area.retailerNames.join(", ")}
+                        )
+                      </span>
+                    )}
                   </span>
-                </p>
-                <p className="text-xs text-yellow-700/70 dark:text-yellow-400/70 mt-0.5">
-                  10% reward · 50% unlocked after 3 months, 50% after 4 years
-                </p>
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400 shrink-0">
+                    {idx === 0 ? "R40.00" : "+R15.00"}
+                  </span>
+                </div>
+              ))}
+
+              {deliveryType === "home_delivery" && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Home className="h-3.5 w-3.5" />
+                    Home delivery surcharge
+                  </span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    +R5.00
+                  </span>
+                </div>
+              )}
+
+              <Separator className="border-amber-200/60 dark:border-amber-800/40" />
+
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-sm">
+                  Total delivery fee
+                </span>
+                <span className="font-bold text-base text-amber-700 dark:text-amber-400">
+                  R{deliveryFee.toFixed(2)}
+                </span>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">
-                  ~{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} now
-                </p>
-                <p className="text-xs text-yellow-600/60 dark:text-yellow-500/60">
-                  +{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} later
-                </p>
+
+              <div className="pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Order subtotal</span>
+                  <span>R{subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="font-bold font-display text-base">
+                    Total to pay
+                  </span>
+                  <span className="font-bold font-display text-lg text-primary">
+                    R{total.toFixed(2)}
+                  </span>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+
+              {/* Nomayini Token Reward Estimate */}
+              <div
+                className="mt-1 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 px-3 py-2.5 flex items-center gap-3"
+                data-ocid="checkout.token_reward.section"
+              >
+                <Coins className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                    You'll earn{" "}
+                    <span className="font-bold">
+                      {(Math.round(total * 0.1 * 100) / 100).toFixed(2)}{" "}
+                      Nomayini tokens
+                    </span>
+                  </p>
+                  <p className="text-xs text-yellow-700/70 dark:text-yellow-400/70 mt-0.5">
+                    10% reward · 50% unlocked after 3 months, 50% after 4 years
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">
+                    ~{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} now
+                  </p>
+                  <p className="text-xs text-yellow-600/60 dark:text-yellow-500/60">
+                    +{(Math.round(total * 0.05 * 100) / 100).toFixed(2)} later
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Button
           type="submit"

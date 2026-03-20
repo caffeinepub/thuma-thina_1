@@ -293,6 +293,8 @@ export interface backendInterface {
     getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }>;
     getNomayiniTransactions(): Promise<Array<{ id: string; txType: string; amount: number; description: string; date: string; unlockDate?: string }>>;
     sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void>;
+    addCategory(name: string): Promise<void>;
+    getCategories(): Promise<Array<string>>;
 }
 import type { AppUserRole as _AppUserRole, ApprovalStatus as _ApprovalStatus, Order as _Order, PickupPoint as _PickupPoint, Product as _Product, Retailer as _Retailer, RetailerProduct as _RetailerProduct, UserApprovalInfo as _UserApprovalInfo, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -1258,6 +1260,16 @@ export class Backend implements backendInterface {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const actor = this.actor as any;
         await actor.sendNomayiniTokens(recipientPhone, amount, now);
+    }
+    async addCategory(name: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        await actor.addCategory(name);
+    }
+    async getCategories(): Promise<Array<string>> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        return actor.getCategories();
     }
 }
 function from_candid_AppUserRole_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {

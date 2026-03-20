@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Clock, Search, ShoppingCart, Star } from "lucide-react";
+import { Check, Clock, Search, ShoppingCart, Star, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
@@ -37,6 +37,7 @@ export function CataloguePage() {
     products,
     cart,
     addToCartWithListing,
+    addSpecialToCart,
     addRetailerProductToCart,
     removeFromCart,
     listings,
@@ -144,6 +145,26 @@ export function CataloguePage() {
       return true;
     });
   }, [listings, retailerProducts, retailers, selectedTownId]);
+
+  const handleAddSpecial = (product: (typeof products)[0]) => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to add items to your cart");
+      return;
+    }
+    // Check if cart has regular (non-special) items
+    const hasRegular = cart.some((i) => i.meterInputs === undefined);
+    if (hasRegular) {
+      toast.error(
+        "Special service products must be ordered separately. Please checkout your current cart first.",
+      );
+      return;
+    }
+    const entryId = `${Date.now()}`;
+    addSpecialToCart(product.id, "", "", product.serviceFee ?? 20, entryId);
+    toast.success(
+      `${product.name} added to cart — add your meter details in the cart`,
+    );
+  };
 
   const getCartQty = (productId: string) =>
     cart.find((i) => i.productId === productId)?.quantity || 0;
@@ -393,6 +414,66 @@ export function CataloguePage() {
               : false;
             const canAdd =
               hasListings && !!chosenListingId && !selectedIsDisabled;
+
+            // Special service product — render separately
+            if (product.isSpecial) {
+              const specialInCart = cart.some(
+                (ci) => ci.productId === product.id,
+              );
+              return (
+                <Card
+                  key={product.id}
+                  className="card-glow border-yellow-400/50 overflow-hidden transition-all hover:shadow-md relative"
+                  data-ocid={`catalogue.item.${i + 1}`}
+                >
+                  <div className="absolute top-2 left-2 z-10">
+                    <Badge className="text-[10px] gap-0.5 bg-yellow-500/90 text-yellow-950 border-0 shadow">
+                      <Zap className="h-2.5 w-2.5" />
+                      Special Service
+                    </Badge>
+                  </div>
+                  <div className="bg-yellow-50 dark:bg-yellow-950/20 flex items-center justify-center h-24 sm:h-32 text-4xl sm:text-5xl overflow-hidden">
+                    {product.images?.[0] ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-contain bg-white"
+                      />
+                    ) : (
+                      "⚡"
+                    )}
+                  </div>
+                  <CardContent className="p-3">
+                    <h3 className="font-semibold text-xs sm:text-sm leading-tight mb-1 line-clamp-2">
+                      {product.name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
+                      {product.description}
+                    </p>
+                    <div className="mb-2">
+                      <span className="font-display font-bold text-yellow-700 dark:text-yellow-400 text-sm">
+                        R{(product.serviceFee ?? 20).toFixed(2)} service fee
+                      </span>
+                    </div>
+                    {product.inStock ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddSpecial(product)}
+                        className="h-7 w-full text-xs gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+                        data-ocid={`catalogue.add.button.${i + 1}`}
+                      >
+                        <Zap className="h-3 w-3" />
+                        {specialInCart ? "Add Another Meter" : "Order Service"}
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Out of stock
+                      </Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            }
 
             return (
               <Card

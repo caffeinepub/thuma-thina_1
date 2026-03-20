@@ -56,6 +56,7 @@ export interface Order {
     driverName?: string;
     businessAreaId: string;
     shopperName?: string;
+    shopperProofImagesJson?: string;
 }
 export interface UserApprovalInfo {
     status: ApprovalStatus;
@@ -92,6 +93,8 @@ export interface Product {
     approved: boolean;
     category: string;
     imagesJson?: string;
+    isSpecial?: boolean;
+    serviceFee?: number;
 }
 export interface Retailer {
     id: string;
@@ -142,7 +145,7 @@ export interface backendInterface {
     addBusinessArea(id: string, name: string, townId: string, areaType: string): Promise<void>;
     addListing(id: string, productId: string, retailerId: string, price: number): Promise<void>;
     addPickupPoint(id: string, name: string, townId: string, address: string, profileImageUrl: string | null): Promise<void>;
-    addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     addRetailer(id: string, name: string, townId: string, businessAreaId: string, address: string, operatingHoursJson: string | null): Promise<void>;
     addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
     /**
@@ -201,10 +204,13 @@ export interface backendInterface {
     updateOrderStatus(id: string, statusText: string, shopperId: string | null, shopperName: string | null, driverId: string | null, driverName: string | null, updatedAt: string): Promise<void>;
     updateListingPrice(id: string, price: number): Promise<void>;
     updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
-    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
     getNomayiniBalance(): Promise<NomayiniBalance>;
     getNomayiniTransactions(): Promise<Array<NomayiniTransaction>>;
     sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void>;
+    addCategory(name: string): Promise<void>;
+    getCategories(): Promise<Array<string>>;
+    addShopperProof(orderId: string, proofImagesJson: string): Promise<void>;
 }

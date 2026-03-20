@@ -165,12 +165,16 @@ export function AdminAnalyticsPage() {
     [filteredOrders],
   );
   const activeShoppers = useMemo(
-    () => new Set(filteredOrders.map((o) => o.shopperId).filter(Boolean)).size,
-    [filteredOrders],
+    () =>
+      staffUsers.filter((u) => u.role === "shopper" && u.status === "approved")
+        .length,
+    [staffUsers],
   );
   const activeDrivers = useMemo(
-    () => new Set(filteredOrders.map((o) => o.driverId).filter(Boolean)).size,
-    [filteredOrders],
+    () =>
+      staffUsers.filter((u) => u.role === "driver" && u.status === "approved")
+        .length,
+    [staffUsers],
   );
 
   // ── Daily volume chart ───────────────────────────────────────────────────

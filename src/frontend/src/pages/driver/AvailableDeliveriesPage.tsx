@@ -17,7 +17,8 @@ function formatDate(iso: string) {
 }
 
 export function DriverAvailableDeliveriesPage() {
-  const { orders, updateOrderStatus, currentUser, staffUsers } = useApp();
+  const { orders, updateOrderStatus, currentUser, staffUsers, businessAreas } =
+    useApp();
   const staffUser = staffUsers.find((u) => u.id === currentUser?.id);
   const initials = currentUser?.name
     ? currentUser.name
@@ -136,12 +137,33 @@ export function DriverAvailableDeliveriesPage() {
                 </div>
 
                 <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <MapPin className="h-3 w-3" />
-                    Collect:{" "}
+                    Collect from:{" "}
                     <span className="font-medium text-foreground ml-0.5">
-                      {order.pickupPointName}
+                      {businessAreas.find((a) => a.id === order.businessAreaId)
+                        ?.name ||
+                        order.businessAreaId ||
+                        "Shopping area"}
                     </span>
+                    {order.items.length > 0 && (
+                      <span className="text-muted-foreground/70">
+                        (
+                        {[
+                          ...new Set(
+                            order.items.map(
+                              (it) => it.productName.split(" – ")[0],
+                            ),
+                          ),
+                        ]
+                          .slice(0, 2)
+                          .join(", ")}
+                        {order.items.length > 2
+                          ? ` +${order.items.length - 2} more`
+                          : ""}
+                        )
+                      </span>
+                    )}
                   </div>
                 </div>
 

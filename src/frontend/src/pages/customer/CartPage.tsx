@@ -1,8 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Info, ShoppingBag, Trash2, Truck } from "lucide-react";
+import {
+  ArrowRight,
+  Info,
+  ShoppingBag,
+  Trash2,
+  Truck,
+  Zap,
+} from "lucide-react";
+import { ImageUpload } from "../../components/ImageUpload";
 import { useApp } from "../../context/AppContext";
 import { calculateDeliveryFee } from "../../utils/deliveryFee";
 
@@ -16,11 +26,16 @@ export function CartPage() {
     removeFromCart,
     clearCart,
     retailerProducts,
+    updateMeterInput,
+    removeMeterEntry,
+    addSpecialToCart,
   } = useApp();
+
+  // Detect special cart
+  const isSpecialCart = cart.some((i) => i.meterInputs !== undefined);
 
   const cartItems = cart
     .map((ci) => {
-      // Retailer exclusive product
       if (ci.retailerProductId) {
         const rp = retailerProducts.find((p) => p.id === ci.retailerProductId);
         if (!rp) return null;
@@ -37,7 +52,6 @@ export function CartPage() {
           isRetailerProduct: true,
         };
       }
-      // Universal product
       return {
         ...ci,
         product: products.find((p) => p.id === ci.productId),
@@ -51,22 +65,6 @@ export function CartPage() {
       (ci): ci is NonNullable<typeof ci> =>
         ci !== null && ci.product !== undefined,
     );
-
-  const subtotal = cartItems.reduce(
-    (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
-    0,
-  );
-
-  // Cart page shows pick-up rate (type will be selected at checkout)
-  const feeBreakdown = calculateDeliveryFee(
-    cart,
-    retailers,
-    businessAreas,
-    "pickup_point",
-    retailerProducts,
-  );
-  const deliveryFee = feeBreakdown.total;
-  const total = subtotal + deliveryFee;
 
   if (cartItems.length === 0) {
     return (
@@ -90,6 +88,273 @@ export function CartPage() {
       </div>
     );
   }
+
+  // ──────────────────────────────────────────────
+  // SPECIAL CART
+  // ──────────────────────────────────────────────
+  if (isSpecialCart) {
+    const canCheckout = cart.every((ci) => {
+      if (!ci.meterInputs) return true;
+      return ci.meterInputs.every(
+        (m) => !!(m.meterNumber?.trim() || m.slipImage),
+      );
+    });
+
+    const totalServiceFee = cart.reduce((sum, ci) => {
+      if (!ci.meterInputs) return sum;
+      return sum + (ci.chosenPrice ?? 0) * ci.meterInputs.length;
+    }, 0);
+
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <Zap className="h-5 w-5 text-yellow-500" />
+              <h1 className="font-display text-2xl font-bold">
+                Special Service Order
+              </h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Provide your meter number and/or a recent electricity slip for
+              each purchase.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearCart}
+            className="text-destructive hover:text-destructive gap-1.5 text-xs"
+            data-ocid="cart.clear.delete_button"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear
+          </Button>
+        </div>
+
+        <div className="space-y-4 mb-6">
+          {cartItems.map((ci, itemIdx) => {
+            const meterEntries = ci.meterInputs ?? [];
+            const fullProduct = products.find((p) => p.id === ci.productId);
+            const feePerMeter = ci.chosenPrice ?? fullProduct?.serviceFee ?? 20;
+
+            return (
+              <Card
+                key={ci.productId}
+                className="card-glow border-yellow-400/40"
+                data-ocid={`cart.item.${itemIdx + 1}`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="font-display text-sm flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      {ci.product?.name}
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeFromCart(ci.productId)}
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      data-ocid={`cart.delete.delete_button.${itemIdx + 1}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    R{feePerMeter.toFixed(2)} service fee per meter —{" "}
+                    {meterEntries.length} meter
+                    {meterEntries.length !== 1 ? "s" : ""} selected
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {meterEntries.map((entry, entryIdx) => {
+                    const hasInput = !!(
+                      entry.meterNumber?.trim() || entry.slipImage
+                    );
+                    return (
+                      <div
+                        key={entry.entryId}
+                        className={`rounded-lg border p-3 space-y-3 ${
+                          hasInput
+                            ? "border-green-300/60 bg-green-50/30 dark:bg-green-950/10"
+                            : "border-border/60"
+                        }`}
+                        data-ocid={`cart.meter.item.${itemIdx + 1}.${entryIdx + 1}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            Meter #{entryIdx + 1}
+                          </p>
+                          {meterEntries.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              onClick={() =>
+                                removeMeterEntry(ci.productId, entry.entryId)
+                              }
+                              data-ocid={`cart.meter.delete_button.${itemIdx + 1}.${entryIdx + 1}`}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">
+                            Meter Number{" "}
+                            <span className="text-muted-foreground">
+                              (recommended)
+                            </span>
+                          </Label>
+                          <Input
+                            value={entry.meterNumber ?? ""}
+                            onChange={(e) =>
+                              updateMeterInput(
+                                ci.productId,
+                                entry.entryId,
+                                "meterNumber",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="e.g. 12345678"
+                            className="h-8 text-sm"
+                            data-ocid={`cart.meter_number.input.${itemIdx + 1}.${entryIdx + 1}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">
+                            Recent Electricity Slip{" "}
+                            <span className="text-muted-foreground">
+                              (recommended)
+                            </span>
+                          </Label>
+                          <ImageUpload
+                            value={entry.slipImage ? [entry.slipImage] : []}
+                            onChange={(imgs) =>
+                              updateMeterInput(
+                                ci.productId,
+                                entry.entryId,
+                                "slipImage",
+                                imgs[0] ?? "",
+                              )
+                            }
+                            maxImages={1}
+                            label="Upload slip photo"
+                          />
+                        </div>
+                        {!hasInput && (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <Info className="h-3 w-3 shrink-0" />
+                            At least one of meter number or slip image is
+                            required
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5 text-xs border-yellow-400/60 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-950/20"
+                    onClick={() =>
+                      addSpecialToCart(
+                        ci.productId,
+                        "",
+                        "",
+                        feePerMeter,
+                        `${Date.now()}`,
+                      )
+                    }
+                    data-ocid={`cart.add_meter.secondary_button.${itemIdx + 1}`}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    Add Another Meter
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Service Summary */}
+        <Card className="card-glow mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-base">
+              Order Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Service fee total</span>
+              <span className="font-bold text-yellow-700 dark:text-yellow-400">
+                R{totalServiceFee.toFixed(2)}
+              </span>
+            </div>
+            <Separator />
+            <div className="flex justify-between font-bold font-display">
+              <span>Total</span>
+              <span className="text-primary text-lg">
+                R{totalServiceFee.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-start gap-1.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-800/40 p-2.5 mt-2">
+              <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                No delivery fee — this is a service-only order. Your electricity
+                token will be sent to you.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {!canCheckout && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 text-center mb-3 flex items-center justify-center gap-1.5">
+            <Info className="h-4 w-4" />
+            Please fill in at least one field for each meter entry before
+            proceeding.
+          </p>
+        )}
+
+        <Link to="/checkout" data-ocid="cart.checkout.primary_button">
+          <Button
+            className="w-full gap-2 h-12 text-base font-semibold bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+            disabled={!canCheckout}
+          >
+            Proceed to Checkout
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+        <Link
+          to="/catalogue"
+          className="block mt-3"
+          data-ocid="cart.continue.link"
+        >
+          <Button variant="ghost" className="w-full text-muted-foreground">
+            Continue Shopping
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // REGULAR CART
+  // ──────────────────────────────────────────────
+  const subtotal = cartItems.reduce(
+    (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
+    0,
+  );
+
+  const feeBreakdown = calculateDeliveryFee(
+    cart,
+    retailers,
+    businessAreas,
+    "pickup_point",
+    retailerProducts,
+  );
+  const deliveryFee = feeBreakdown.total;
+  const total = subtotal + deliveryFee;
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -196,7 +461,6 @@ export function CartPage() {
             <span>R{subtotal.toFixed(2)}</span>
           </div>
 
-          {/* Delivery Fee Breakdown */}
           <div
             className="rounded-lg border border-amber-200/60 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800/40 px-3 py-2.5 space-y-1.5"
             data-ocid="cart.delivery.section"
@@ -207,7 +471,6 @@ export function CartPage() {
                 Delivery Fee
               </span>
             </div>
-
             {feeBreakdown.areaBreakdown.map((area, idx) => (
               <div
                 key={area.areaName}
@@ -234,7 +497,6 @@ export function CartPage() {
                 </span>
               </div>
             ))}
-
             <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
               <span className="text-xs font-semibold text-foreground">
                 Delivery total
@@ -243,7 +505,6 @@ export function CartPage() {
                 R{deliveryFee.toFixed(2)}
               </span>
             </div>
-
             <div className="flex items-start gap-1 pt-0.5">
               <Info className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[11px] text-muted-foreground leading-snug">

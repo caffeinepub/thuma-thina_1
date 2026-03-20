@@ -521,17 +521,27 @@ function PopularInTownSection() {
       });
   }, [retailerProducts, retailers, townRetailerIds, businessAreas]);
 
-  // Combine and limit to 20
+  // Shuffle carousel so customers see different products each visit
+  const universalSlice = useMemo(() => {
+    const arr = [...productsWithListings];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, 20);
+  }, [productsWithListings]);
+  const exclusiveSlice = useMemo(() => {
+    const arr = [...exclusiveProductsInTown];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, Math.max(0, 20 - universalSlice.length));
+  }, [exclusiveProductsInTown, universalSlice.length]);
+
+  // Total count for display
   const totalCarouselCount =
     productsWithListings.length + exclusiveProductsInTown.length;
-  const universalSlice = productsWithListings.slice(
-    0,
-    Math.min(20, productsWithListings.length),
-  );
-  const exclusiveSlice = exclusiveProductsInTown.slice(
-    0,
-    Math.max(0, 20 - universalSlice.length),
-  );
 
   const navigate = useNavigate();
 
