@@ -148,9 +148,7 @@ export function AdminProductsPage() {
       if (actor) {
         // Re-register admin before write in case accessControlState reset after deploy
         const adminTok = getSecretParameter("caffeineAdminToken") || "";
-        await actor
-          ._initializeAccessControlWithSecret(adminTok)
-          .catch(() => {});
+        await actor._initializeAccessControlWithSecret(adminTok);
         await (actor as any).addProduct(
           id,
           form.name,
@@ -195,7 +193,8 @@ export function AdminProductsPage() {
       });
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add product");
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Add product failed: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -1112,9 +1111,7 @@ export function AdminProductsPage() {
                     // Re-register admin before update in case accessControlState reset after deploy
                     const adminTok =
                       getSecretParameter("caffeineAdminToken") || "";
-                    await actor
-                      ._initializeAccessControlWithSecret(adminTok)
-                      .catch(() => {});
+                    await actor._initializeAccessControlWithSecret(adminTok);
                     await (actor as any).updateProduct(
                       editProduct.id,
                       editProductForm.name,
@@ -1155,11 +1152,7 @@ export function AdminProductsPage() {
                 } catch (err) {
                   console.error("Failed to update product:", err);
                   const msg = err instanceof Error ? err.message : String(err);
-                  toast.error(
-                    msg.includes("not found")
-                      ? "Product not found in backend - please delete and re-add"
-                      : "Failed to update product",
-                  );
+                  toast.error(`Update product failed: ${msg}`);
                 } finally {
                   setSaving(false);
                 }
