@@ -228,7 +228,7 @@ export interface backendInterface {
     addBusinessArea(id: string, name: string, townId: string, areaType: string): Promise<void>;
     addListing(id: string, productId: string, retailerId: string, price: number): Promise<void>;
     addPickupPoint(id: string, name: string, townId: string, address: string, profileImageUrl: string | null): Promise<void>;
-    addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     addRetailer(id: string, name: string, townId: string, businessAreaId: string, address: string, operatingHoursJson: string | null): Promise<void>;
     addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
     /**
@@ -287,7 +287,7 @@ export interface backendInterface {
     updateOrderStatus(id: string, statusText: string, shopperId: string | null, shopperName: string | null, driverId: string | null, driverName: string | null, updatedAt: string): Promise<void>;
     updateListingPrice(id: string, price: number): Promise<void>;
     updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
-    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
     updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
     getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }>;
@@ -439,17 +439,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string | null): Promise<void> {
+    async addProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string | null, arg6: boolean, arg7: number): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+                const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5), arg6, arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+            const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5), arg6, arg7);
             return result;
         }
     }
@@ -1209,17 +1209,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string | null): Promise<void> {
+    async updateProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string | null, arg6: boolean, arg7: number): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+                const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5), arg6, arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
+            const result = await this.actor.updateProduct(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5), arg6, arg7);
             return result;
         }
     }

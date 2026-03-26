@@ -91,12 +91,14 @@ function ApplicantCard({
   index,
   onApprove,
   onReject,
+  onSuspend,
   actionLoading,
 }: {
   item: ApprovalUserInfo;
   index: number;
   onApprove: (principal: string) => void;
   onReject: (principal: string) => void;
+  onSuspend?: (principal: string) => void;
   actionLoading: string | null;
 }) {
   const { approvalInfo, profile } = item;
@@ -175,6 +177,23 @@ function ApplicantCard({
               >
                 <XCircle className="h-3.5 w-3.5" />
                 Reject
+              </Button>
+            </div>
+          )}
+          {approvalInfo.status === ApprovalStatus.approved && onSuspend && (
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onSuspend(principalStr)}
+                disabled={isLoading}
+                className="h-8 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs"
+                data-ocid={`admin.suspend.delete_button.${index}`}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Suspend
               </Button>
             </div>
           )}
@@ -351,6 +370,24 @@ export function AdminApprovalsPage() {
       await loadData();
     } catch (err) {
       toast.error("Failed to approve application");
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSuspend = async (principalStr: string) => {
+    if (!actor) return;
+    if (!confirm("Suspend this staff member? They will lose dashboard access."))
+      return;
+    setActionLoading(principalStr);
+    try {
+      const principal = await getPrincipal(principalStr);
+      await actor.setApproval(principal, ApprovalStatus.rejected);
+      toast.success("Staff member suspended");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to suspend staff member");
       console.error(err);
     } finally {
       setActionLoading(null);
@@ -551,6 +588,7 @@ export function AdminApprovalsPage() {
                   index={i + 1}
                   onApprove={handleApprove}
                   onReject={handleReject}
+                  onSuspend={handleSuspend}
                   actionLoading={actionLoading}
                 />
               ))}

@@ -101,6 +101,8 @@ export const Product = IDL.Record({
   'approved' : IDL.Bool,
   'category' : IDL.Text,
   'imagesJson' : IDL.Opt(IDL.Text),
+  'isSpecial' : IDL.Bool,
+  'serviceFee' : IDL.Float64,
 });
 export const RetailerProduct = IDL.Record({
   'id' : IDL.Text,
@@ -176,7 +178,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'addProduct' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64],
       [],
       [],
     ),
@@ -313,11 +315,7 @@ export const idlService = IDL.Service({
   'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
   'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
-  'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64], [], []),
   'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
 });
 
@@ -417,6 +415,8 @@ export const idlFactory = ({ IDL }) => {
     'approved' : IDL.Bool,
     'category' : IDL.Text,
     'imagesJson' : IDL.Opt(IDL.Text),
+    'isSpecial' : IDL.Bool,
+    'serviceFee' : IDL.Float64,
   });
   const RetailerProduct = IDL.Record({
     'id' : IDL.Text,
@@ -496,7 +496,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'addProduct' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64],
         [],
         [],
       ),

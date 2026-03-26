@@ -27,6 +27,7 @@ import { StaffApplyPage } from "./pages/auth/StaffApplyPage";
 import { CartPage } from "./pages/customer/CartPage";
 import { CataloguePage } from "./pages/customer/CataloguePage";
 import { CheckoutPage } from "./pages/customer/CheckoutPage";
+import { ListingDetailPage } from "./pages/customer/ListingDetailPage";
 import { MyOrdersPage } from "./pages/customer/MyOrdersPage";
 import { NomayiniWalletPage } from "./pages/customer/NomayiniWalletPage";
 import { DriverAvailableDeliveriesPage } from "./pages/driver/AvailableDeliveriesPage";
@@ -381,6 +382,12 @@ const adminAnalyticsRoute = createRoute({
   ),
 });
 
+const listingDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/listing/$listingId",
+  component: ListingDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -388,6 +395,7 @@ const routeTree = rootRoute.addChildren([
   registerStaffRoute,
   pendingApprovalRoute,
   catalogueRoute,
+  listingDetailRoute,
   cartRoute,
   checkoutRoute,
   myOrdersRoute,

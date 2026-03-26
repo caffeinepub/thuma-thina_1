@@ -121,6 +121,7 @@ export interface CartItem {
     entryId: string;
     meterNumber?: string;
     slipImage?: string;
+    purchaseAmount?: number;
   }>;
 }
 
@@ -133,6 +134,7 @@ export interface OrderItem {
     entryId: string;
     meterNumber?: string;
     slipImage?: string;
+    purchaseAmount?: number;
   }>;
 }
 

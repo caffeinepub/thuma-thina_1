@@ -166,6 +166,11 @@ interface AppContextValue {
     field: "meterNumber" | "slipImage",
     value: string,
   ) => void;
+  updateMeterPurchaseAmount: (
+    productId: string,
+    entryId: string,
+    amount: number,
+  ) => void;
   removeMeterEntry: (productId: string, entryId: string) => void;
   addShopperProof: (orderId: string, proofImages: string[]) => Promise<void>;
 }
@@ -905,6 +910,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const updateMeterPurchaseAmount = useCallback(
+    (productId: string, entryId: string, amount: number) => {
+      setCart((prev) =>
+        prev.map((i) =>
+          i.productId === productId
+            ? {
+                ...i,
+                meterInputs: (i.meterInputs ?? []).map((m) =>
+                  m.entryId === entryId ? { ...m, purchaseAmount: amount } : m,
+                ),
+              }
+            : i,
+        ),
+      );
+    },
+    [],
+  );
+
   const removeMeterEntry = useCallback((productId: string, entryId: string) => {
     setCart((prev) =>
       prev
@@ -1349,6 +1372,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addCustomCategory,
         addSpecialToCart,
         updateMeterInput,
+        updateMeterPurchaseAmount,
         removeMeterEntry,
         addShopperProof,
       }}

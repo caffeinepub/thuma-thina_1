@@ -27,6 +27,7 @@ export function CartPage() {
     clearCart,
     retailerProducts,
     updateMeterInput,
+    updateMeterPurchaseAmount,
     removeMeterEntry,
     addSpecialToCart,
   } = useApp();
@@ -96,14 +97,25 @@ export function CartPage() {
     const canCheckout = cart.every((ci) => {
       if (!ci.meterInputs) return true;
       return ci.meterInputs.every(
-        (m) => !!(m.meterNumber?.trim() || m.slipImage),
+        (m) =>
+          !!(m.meterNumber?.trim() || m.slipImage) &&
+          (m.purchaseAmount ?? 0) > 0,
       );
     });
 
-    const totalServiceFee = cart.reduce((sum, ci) => {
+    const totalServiceFees = cart.reduce((sum, ci) => {
       if (!ci.meterInputs) return sum;
       return sum + (ci.chosenPrice ?? 0) * ci.meterInputs.length;
     }, 0);
+
+    const totalPurchaseAmount = cart.reduce((sum, ci) => {
+      if (!ci.meterInputs) return sum;
+      return (
+        sum + ci.meterInputs.reduce((s, m) => s + (m.purchaseAmount ?? 0), 0)
+      );
+    }, 0);
+
+    const totalServiceFee = totalServiceFees + totalPurchaseAmount;
 
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -242,11 +254,41 @@ export function CartPage() {
                             label="Upload slip photo"
                           />
                         </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">
+                            Amount to purchase (R){" "}
+                            <span className="text-muted-foreground">
+                              (required)
+                            </span>
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={10}
+                            value={entry.purchaseAmount ?? ""}
+                            onChange={(e) =>
+                              updateMeterPurchaseAmount(
+                                ci.productId,
+                                entry.entryId,
+                                Number.parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            placeholder="e.g. 100"
+                            className="h-8 text-sm"
+                            data-ocid={`cart.purchase_amount.input.${itemIdx + 1}.${entryIdx + 1}`}
+                          />
+                        </div>
                         {!hasInput && (
                           <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
                             <Info className="h-3 w-3 shrink-0" />
                             At least one of meter number or slip image is
                             required
+                          </p>
+                        )}
+                        {hasInput && (entry.purchaseAmount ?? 0) <= 0 && (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <Info className="h-3 w-3 shrink-0" />
+                            Please enter the electricity amount to purchase
                           </p>
                         )}
                       </div>
@@ -286,9 +328,17 @@ export function CartPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Service fee total</span>
+              <span className="text-muted-foreground">
+                Purchase amount total
+              </span>
+              <span className="font-medium">
+                R{totalPurchaseAmount.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Service fees</span>
               <span className="font-bold text-yellow-700 dark:text-yellow-400">
-                R{totalServiceFee.toFixed(2)}
+                R{totalServiceFees.toFixed(2)}
               </span>
             </div>
             <Separator />

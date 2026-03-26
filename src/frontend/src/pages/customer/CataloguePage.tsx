@@ -9,7 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Clock, Search, ShoppingCart, Star, Zap } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Search,
+  Share2,
+  ShoppingCart,
+  Star,
+  Zap,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
@@ -432,6 +440,21 @@ export function CataloguePage() {
                       Special Service
                     </Badge>
                   </div>
+                  <button
+                    type="button"
+                    className="absolute top-2 right-2 z-10 h-6 w-6 flex items-center justify-center rounded-full bg-background/80 hover:bg-background border border-border/60 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Copy shareable link"
+                    data-ocid={`catalogue.share.button.${i + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = `${window.location.origin}${window.location.pathname}#/listing/special_${product.id}`;
+                      navigator.clipboard
+                        .writeText(url)
+                        .then(() => toast.success("Link copied!"));
+                    }}
+                  >
+                    <Share2 className="h-3 w-3" />
+                  </button>
                   <div className="bg-yellow-50 dark:bg-yellow-950/20 flex items-center justify-center h-24 sm:h-32 text-4xl sm:text-5xl overflow-hidden">
                     {product.images?.[0] ? (
                       <img
@@ -494,10 +517,27 @@ export function CataloguePage() {
                     product.imageEmoji
                   )}
                 </div>
-                <CardContent className="p-3">
-                  <h3 className="font-semibold text-xs sm:text-sm leading-tight mb-1 line-clamp-2">
-                    {product.name}
-                  </h3>
+                <CardContent className="p-3 relative">
+                  <div className="flex items-start justify-between gap-1 mb-1">
+                    <h3 className="font-semibold text-xs sm:text-sm leading-tight line-clamp-2 flex-1">
+                      {product.name}
+                    </h3>
+                    <button
+                      type="button"
+                      className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
+                      title="Copy shareable link"
+                      data-ocid={`catalogue.share.button.${i + 1}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const url = `${window.location.origin}${window.location.pathname}#/listing/${chosenListingId ?? product.id}`;
+                        navigator.clipboard
+                          .writeText(url)
+                          .then(() => toast.success("Link copied!"));
+                      }}
+                    >
+                      <Share2 className="h-3 w-3" />
+                    </button>
+                  </div>
                   <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                     {product.description}
                   </p>

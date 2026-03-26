@@ -67,6 +67,8 @@ export interface Product {
   'approved' : boolean,
   'category' : string,
   'imagesJson' : [] | [string],
+  'isSpecial' : boolean,
+  'serviceFee' : number,
 }
 export interface ProductListing {
   'id' : string,
@@ -149,7 +151,7 @@ export interface _SERVICE {
     undefined
   >,
   'addProduct' : ActorMethod<
-    [string, string, string, string, string, [] | [string]],
+    [string, string, string, string, string, [] | [string], boolean, number],
     undefined
   >,
   'addRetailer' : ActorMethod<
@@ -261,7 +263,7 @@ export interface _SERVICE {
   'updateRetailerHours' : ActorMethod<[string, string], undefined>,
   'updateListingPrice' : ActorMethod<[string, number], undefined>,
   'updatePickupPoint' : ActorMethod<[string, string, string, [] | [string]], undefined>,
-  'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string]], undefined>,
+  'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string], boolean, number], undefined>,
   'updateRetailerProduct' : ActorMethod<[string, string, string, string, string, number, string, [] | [string]], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
