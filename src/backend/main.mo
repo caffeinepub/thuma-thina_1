@@ -14,7 +14,7 @@ import MixinAuthorization "authorization/MixinAuthorization";
 
 
 
-actor {
+persistent actor {
   include MixinStorage();
 
   let accessControlState = Authorization.initState();
