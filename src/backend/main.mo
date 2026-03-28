@@ -656,6 +656,8 @@ actor {
       isSuggestion = false;
       suggestedBy = null;
       approved = true;
+      isSpecial;
+      serviceFee;
     };
     products.add(id, product);
     productIsSpecial.add(id, isSpecial);
@@ -676,7 +678,7 @@ actor {
     switch (products.get(id)) {
       case (null) { Runtime.trap("Product not found") };
       case (?product) {
-        let updated = { product with name; description; category; imageEmoji; imagesJson };
+        let updated = { product with name; description; category; imageEmoji; imagesJson; isSpecial; serviceFee };
         products.add(id, updated);
         productIsSpecial.add(id, isSpecial);
         productServiceFee.add(id, serviceFee);
@@ -1288,7 +1290,8 @@ actor {
   // ─── Custom Categories ────────────────────────────────────────────────────
 
   public shared(msg) func addCategory(name : Text) : async () {
-    if (not Authorization.hasPermission(accessControlState, msg.caller, #admin)) {
+    let profile = requireRegisteredCaller(msg.caller);
+    if (profile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can add categories");
     };
     categoriesList.add(name, true);
