@@ -1462,6 +1462,8 @@ function from_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uin
     approved: boolean;
     category: string;
     imagesJson: [] | [string];
+    isSpecial: boolean;
+    serviceFee: number;
 }): {
     id: string;
     suggestedBy?: string;
@@ -1473,6 +1475,8 @@ function from_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uin
     approved: boolean;
     category: string;
     imagesJson?: string;
+    isSpecial: boolean;
+    serviceFee: number;
 } {
     return {
         id: value.id,
@@ -1484,7 +1488,9 @@ function from_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uin
         imageEmoji: value.imageEmoji,
         approved: value.approved,
         category: value.category,
-        imagesJson: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.imagesJson))
+        imagesJson: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.imagesJson)),
+        isSpecial: value.isSpecial ?? false,
+        serviceFee: value.serviceFee ?? 0
     };
 }
 function from_candid_record_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
