@@ -207,7 +207,6 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access business area info");
     };
-    // Authorization: only the staff member themselves or an admin can access
     if (caller != staffPrincipal and not Authorization.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own business area or must be admin");
     };
@@ -225,15 +224,12 @@ persistent actor {
     phone : Text,
     businessAreaId : ?Text,
   ) : async () {
-    // Prevent anonymous registration
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot register");
     };
 
-    // Prevent duplicate registration — but allow customers to upgrade to a staff role
     switch (users.get(caller)) {
       case (?existingProfile) {
-        // A customer may apply for a staff role — update to pending
         if (existingProfile.role == #customer and (role == #shopper or role == #driver or role == #operator)) {
           let updatedProfile : UserProfile = {
             existingProfile with
@@ -253,11 +249,9 @@ persistent actor {
       case (null) {};
     };
 
-    // Check if this is the first user (master admin logic)
     let isFirstUser = not hasAnyAdminInternal();
 
     if (isFirstUser) {
-      // First user becomes admin regardless of requested role
       let adminProfile : UserProfile = {
         principal = caller;
         displayName;
@@ -268,17 +262,13 @@ persistent actor {
         registrationStatus = #active;
       };
       users.add(caller, adminProfile);
-
-      // Directly set admin role in access control state (no guard check for first user)
       accessControlState.userRoles.add(caller, #admin);
       accessControlState.adminAssigned := true;
       return ();
     };
 
-    // Subsequent users: handle based on requested role
     switch (role) {
       case (#admin) {
-        // Non-first users cannot self-assign admin role
         Runtime.trap("Unauthorized: Cannot self-assign admin role");
       };
       case (#customer) {
@@ -292,8 +282,6 @@ persistent actor {
           registrationStatus = #active;
         };
         users.add(caller, customerProfile);
-
-        // Directly set user role in access control state (no guard check for customers)
         accessControlState.userRoles.add(caller, #user);
       };
       case (#shopper) {
@@ -371,6 +359,7 @@ persistent actor {
     operatingHoursJson : ?Text;
   };
 
+  // Base product type -- isSpecial/serviceFee live in separate maps for upgrade compatibility
   type Product = {
     id : Text;
     name : Text;
@@ -384,7 +373,7 @@ persistent actor {
     approved : Bool;
   };
 
-  // Extended product type returned by queries (merges extras from productExtras map)
+  // Extended product returned by getProducts -- merges isSpecial/serviceFee from separate maps
   type ProductExtended = {
     id : Text;
     name : Text;
@@ -421,7 +410,6 @@ persistent actor {
   };
 
   type ShopperRetailerAssignments = {
-    // key is shopper principal, value is array of retailer IDs
     assignments : Map.Map<Principal, [Text]>;
   };
 
@@ -451,7 +439,6 @@ persistent actor {
     dedicatedRetailerId : ?Text;
   };
 
-  // Extended order type returned by queries (merges proof images from orderProofImages map)
   type OrderExtended = {
     id : Text;
     customerId : Text;
@@ -479,10 +466,9 @@ persistent actor {
     shopperProofImagesJson : ?Text;
   };
 
-  // ─── Nomayini Wallet Types ────────────────────────────────────────────────────
   type NomayiniTransaction = {
     id : Text;
-    txType : Text; // "earned", "sent", "received", "spent"
+    txType : Text;
     amount : Float;
     description : Text;
     date : Text;
@@ -505,15 +491,12 @@ persistent actor {
   let retailerProducts = Map.empty<Text, RetailerProduct>();
   let shopperAssignments = Map.empty<Principal, [Text]>();
   let orders = Map.empty<Text, Order>();
-  // Nomayini wallet storage (keyed by customerId = principal text)
   let nomayiniBalances = Map.empty<Text, NomayiniBalance>();
   let nomayiniTransactions = Map.empty<Text, [NomayiniTransaction]>();
-
-  let categoriesList = Map.empty<Text, Bool>(); // using map as a set for O(1) lookups
-  // Separate stable maps for special product fields (avoids breaking stable Product type)
+  let categoriesList = Map.empty<Text, Bool>();
+  // Separate maps for special product fields -- kept separate to avoid Product type migrations
   let productIsSpecial = Map.empty<Text, Bool>();
   let productServiceFee = Map.empty<Text, Float>();
-  // Separate stable map for order proof images (avoids breaking stable Order type)
   let orderProofImages = Map.empty<Text, Text>();
 
 
@@ -584,7 +567,8 @@ persistent actor {
   };
 
   public shared ({ caller }) func updatePickupPoint(id : Text, name : Text, address : Text, profileImageUrl : ?Text) : async () {
-    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (pickupPoints.get(id)) {
@@ -656,10 +640,9 @@ persistent actor {
       isSuggestion = false;
       suggestedBy = null;
       approved = true;
-      isSpecial;
-      serviceFee;
     };
     products.add(id, product);
+    // Store special fields in separate persistent maps
     productIsSpecial.add(id, isSpecial);
     productServiceFee.add(id, serviceFee);
   };
@@ -669,16 +652,19 @@ persistent actor {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     products.remove(id);
+    productIsSpecial.remove(id);
+    productServiceFee.remove(id);
   };
 
   public shared ({ caller }) func updateProduct(id : Text, name : Text, description : Text, category : Text, imageEmoji : Text, imagesJson : ?Text, isSpecial : Bool, serviceFee : Float) : async () {
-    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (products.get(id)) {
       case (null) { Runtime.trap("Product not found") };
       case (?product) {
-        let updated = { product with name; description; category; imageEmoji; imagesJson; isSpecial; serviceFee };
+        let updated = { product with name; description; category; imageEmoji; imagesJson };
         products.add(id, updated);
         productIsSpecial.add(id, isSpecial);
         productServiceFee.add(id, serviceFee);
@@ -686,11 +672,25 @@ persistent actor {
     };
   };
 
+  // getProducts merges isSpecial/serviceFee from separate persistent maps into ProductExtended
   public query ({ caller }) func getProducts() : async [ProductExtended] {
     products.values().toArray().map(func(p : Product) : ProductExtended {
-      let special = switch (productIsSpecial.get(p.id)) { case (?v) v; case (null) false };
-      let fee = switch (productServiceFee.get(p.id)) { case (?v) v; case (null) 0.0 };
-      { p with isSpecial = special; serviceFee = fee }
+      let isSpecial = switch (productIsSpecial.get(p.id)) { case (?v) v; case (null) false };
+      let serviceFee = switch (productServiceFee.get(p.id)) { case (?v) v; case (null) 0.0 };
+      {
+        id = p.id;
+        name = p.name;
+        description = p.description;
+        category = p.category;
+        imageEmoji = p.imageEmoji;
+        imagesJson = p.imagesJson;
+        inStock = p.inStock;
+        isSuggestion = p.isSuggestion;
+        suggestedBy = p.suggestedBy;
+        approved = p.approved;
+        isSpecial;
+        serviceFee;
+      }
     });
   };
 
@@ -760,7 +760,8 @@ persistent actor {
   };
 
   public shared ({ caller }) func updateListingPrice(id : Text, price : Float) : async () {
-    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (productListings.get(id)) {
@@ -776,21 +777,15 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot update listings");
     };
-    
-    // Get the listing to check retailer
     let listing = switch (productListings.get(id)) {
       case (null) { Runtime.trap("Listing not found") };
       case (?l) { l };
     };
-    
-    // Check authorization: admin OR (approved shopper assigned to this retailer)
     let isAdmin = Authorization.hasPermission(accessControlState, caller, #admin);
     let isApprovedShopper = isCallerApprovedInternal(caller) and isShopperAssignedToRetailer(caller, listing.retailerId);
-    
     if (not isAdmin and not isApprovedShopper) {
       Runtime.trap("Unauthorized: Only admins or approved shoppers assigned to this retailer can update listings");
     };
-    
     let updatedListing = { listing with outOfStock };
     productListings.add(id, updatedListing);
   };
@@ -826,7 +821,8 @@ persistent actor {
   };
 
   public shared ({ caller }) func updateRetailerProduct(id : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text) : async () {
-    if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (retailerProducts.get(id)) {
@@ -842,21 +838,15 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot update products");
     };
-    
-    // Get the product to check retailer
     let product = switch (retailerProducts.get(id)) {
       case (null) { Runtime.trap("Product not found") };
       case (?p) { p };
     };
-    
-    // Check authorization: admin OR (approved shopper assigned to this retailer)
     let isAdmin = Authorization.hasPermission(accessControlState, caller, #admin);
     let isApprovedShopper = isCallerApprovedInternal(caller) and isShopperAssignedToRetailer(caller, product.retailerId);
-    
     if (not isAdmin and not isApprovedShopper) {
       Runtime.trap("Unauthorized: Only admins or approved shoppers assigned to this retailer can update products");
     };
-    
     let updatedProduct = { product with inStock };
     retailerProducts.add(id, updatedProduct);
   };
@@ -942,18 +932,15 @@ persistent actor {
       Runtime.trap("Unauthorized: Anonymous users cannot place orders");
     };
 
-    // Authorization: Verify customerId matches caller (for regular users) or caller is approved staff (for walk-in orders)
     let callerPrincipalText = caller.toText();
     let isAdmin = Authorization.hasPermission(accessControlState, caller, #admin);
     let isApprovedStaff = isCallerApprovedInternal(caller);
-    
-    // For walk-in orders, only approved staff or admin can place them
+
     if (isWalkIn) {
       if (not (isAdmin or isApprovedStaff)) {
         Runtime.trap("Unauthorized: Only admins or approved staff can place walk-in orders");
       };
     } else {
-      // For regular orders, customerId must match caller unless caller is admin/staff
       if (customerId != callerPrincipalText and not (isAdmin or isApprovedStaff)) {
         Runtime.trap("Unauthorized: Cannot place orders for other customers");
       };
@@ -1004,13 +991,12 @@ persistent actor {
     };
   };
 
-  // Helper: attach proof images to an Order to produce an OrderExtended
   func extendOrder(order : Order) : OrderExtended {
     let proof = orderProofImages.get(order.id);
     { order with shopperProofImagesJson = proof }
   };
 
-      public query ({ caller }) func getOrders() : async [OrderExtended] {
+  public query ({ caller }) func getOrders() : async [OrderExtended] {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -1021,13 +1007,10 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders");
     };
-    
-    // Authorization: customerId must match caller's principal
     let callerPrincipalText = caller.toText();
     if (customerId != callerPrincipalText) {
       Runtime.trap("Unauthorized: Can only view your own orders");
     };
-    
     let filteredOrders = orders.values().toArray().filter(
       func(order) {
         order.customerId == customerId;
@@ -1046,8 +1029,6 @@ persistent actor {
         let isAdmin = Authorization.isAdmin(accessControlState, caller);
         let callerPrincipalText = caller.toText();
         let isOwner = order.customerId == callerPrincipalText;
-        
-        // Check if caller is assigned shopper or driver
         let isAssignedShopper = switch (order.shopperId) {
           case (null) { false };
           case (?shopperId) { shopperId == callerPrincipalText };
@@ -1057,7 +1038,6 @@ persistent actor {
           case (?driverId) { driverId == callerPrincipalText };
         };
         let isAssignedStaff = isAssignedShopper or isAssignedDriver;
-        
         if (not (isAdmin or isOwner or isAssignedStaff)) {
           Runtime.trap("Unauthorized: Not permitted to access this order");
         };
@@ -1086,15 +1066,11 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders by area");
     };
-    
-    // Authorization: Only approved staff or admin can view orders by area
     let isAdmin = Authorization.isAdmin(accessControlState, caller);
     let isApprovedStaff = isCallerApprovedInternal(caller);
-    
     if (not (isAdmin or isApprovedStaff)) {
       Runtime.trap("Unauthorized: Only admins or approved staff can access orders by area");
     };
-    
     let filteredOrders = orders.values().toArray().filter(
       func(order) {
         order.businessAreaId == businessAreaId and order.status == "pending"
@@ -1134,7 +1110,6 @@ persistent actor {
         };
         orders.add(id, updatedOrder);
 
-        // Credit Nomayini tokens when order is delivered (10% of total)
         if (statusText == "delivered") {
           let customerId = order.customerId;
           let earnedTokens = order.total * 0.1;
@@ -1151,7 +1126,6 @@ persistent actor {
             lockedLongTerm = existingBalance.lockedLongTerm + longTermShare;
           };
           nomayiniBalances.add(customerId, newBalance);
-          // Add transaction
           let existingTxs = switch (nomayiniTransactions.get(customerId)) {
             case (?txs) { txs };
             case (null) { [] };
@@ -1181,7 +1155,6 @@ persistent actor {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot access orders");
     };
-    
     let isAdmin = Authorization.isAdmin(accessControlState, caller);
     let isStaff = isCallerApprovedInternal(caller);
     if (not (isAdmin or isStaff)) {
@@ -1231,7 +1204,6 @@ persistent actor {
     if (amount <= 0.0 or amount > senderBalance.unlockedBalance) {
       Runtime.trap("Insufficient unlocked balance");
     };
-    // Deduct from sender
     let newSenderBalance = {
       senderBalance with
       unlockedBalance = senderBalance.unlockedBalance - amount;
@@ -1250,14 +1222,13 @@ persistent actor {
       date = now;
       unlockDate = null;
     }]));
-    // Find recipient by phone and credit
     let recipientOpt = users.entries().toArray().find(
       func(entry : (Principal, UserProfile)) : Bool {
         entry.1.phone == recipientPhone;
       }
     );
     switch (recipientOpt) {
-      case (null) { }; // Recipient not found — tokens still deducted from sender
+      case (null) { };
       case (?(recipientPrincipal, _)) {
         let recipientKey = recipientPrincipal.toText();
         let recipientBalance = switch (nomayiniBalances.get(recipientKey)) {
