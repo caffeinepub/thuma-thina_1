@@ -1037,9 +1037,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const grandTotal = orderData.total;
       const subOrderCount = effectiveGroups.length;
+      const actualDeliveryFee = (orderData as any).deliveryFee ?? 0;
       const perSubDeliveryFee =
         subOrderCount > 1
-          ? Math.round((grandTotal / subOrderCount) * 100) / 100
+          ? Math.round((actualDeliveryFee / subOrderCount) * 100) / 100
           : 0;
 
       // Build sub-orders in memory first (we need them for notifications)
@@ -1050,7 +1051,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : `${parentOrderId}_sub${index + 1}`;
 
         const groupItemTotal = group.items.reduce((sum, ci) => {
-          return sum + (ci.chosenPrice ?? 0) * ci.quantity;
+          const basePrice = (ci.chosenPrice ?? 0) * ci.quantity;
+          const meterPurchase = ((ci as any).meterInputs ?? []).reduce(
+            (s: number, m: any) => s + (m.purchaseAmount ?? 0),
+            0,
+          );
+          return sum + basePrice + meterPurchase;
         }, 0);
 
         const orderItems: OrderItem[] = group.items.map((ci) => {
@@ -1119,6 +1125,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
           // Reload orders from backend after placing
           await loadOrdersFromBackend();
+          // Set all new sub-orders to awaiting_payment so shoppers don't see them until operator confirms payment
+          try {
+            await Promise.all(
+              newOrders.map((subOrder) =>
+                actor.updateOrderStatus(
+                  subOrder.id,
+                  "awaiting_payment",
+                  null,
+                  null,
+                  null,
+                  null,
+                  new Date().toISOString(),
+                ),
+              ),
+            );
+            await loadOrdersFromBackend();
+          } catch (statusErr) {
+            console.warn("Could not set awaiting_payment status:", statusErr);
+          }
         } catch (err) {
           console.error("Failed to persist orders to backend:", err);
           toast.error("Order may not have been saved. Please try again.");
@@ -1153,27 +1178,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         transactions: [newTx, ...prev.transactions],
       }));
 
-      // Create notifications (in-memory)
-      const newNotifications: AppNotification[] = newOrders.map((subOrder) => {
-        const isDedicated = !!subOrder.dedicatedRetailerId;
-        const retailerName = isDedicated
-          ? (retailers.find((r) => r.id === subOrder.dedicatedRetailerId)
-              ?.name ?? "retailer")
-          : null;
-        return {
-          id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          type: "order" as const,
-          title: isDedicated ? "New Dedicated Order" : "New Order Available",
-          message: isDedicated
-            ? `New order for ${retailerName} — ready for your assigned shopper.`
-            : "A new order has been placed. Ready for a shopper to accept.",
-          read: false,
-          createdAt: now,
-          targetRole: "shopper" as const,
-        };
-      });
-
-      setNotifications((prev) => [...newNotifications, ...prev]);
+      // Notify operator that payment is awaiting (shoppers notified after payment confirmed)
+      const ppName = newOrders[0]?.pickupPointName ?? "the pick-up point";
+      const operatorNotif: AppNotification = {
+        id: `notif_${Date.now()}_op`,
+        type: "order" as const,
+        title: "Payment Awaiting",
+        message: `New order awaiting cash payment at ${ppName}.`,
+        read: false,
+        createdAt: now,
+        targetRole: "operator" as const,
+      };
+      setNotifications((prev) => [operatorNotif, ...prev]);
 
       return parentOrderId;
     },

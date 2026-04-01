@@ -1,35 +1,30 @@
 # Thuma Thina
 
 ## Current State
-Version 56 is live. Add product works. But special products (isSpecial=true) never persist after page reload. All other entities (towns, retailers, orders) load correctly. Staff suspension and shareable listing links are missing.
+Orders go straight to `pending` status on placement, immediately visible to shoppers. Operator dashboard only handles incoming/delivery orders (out_for_delivery, delivered, accepted_by_driver). No payment confirmation step exists.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Purchase amount input per meter entry in the special product cart
-- Shareable listing URL: `/listing/:listingId` route + ListingDetailPage
-- "Copy Link" button on catalogue listing cards
-- "Suspend" button on approved staff in ApprovalsPage (calls existing setApproval with rejected status)
+- New `OrderStatus` value: `awaiting_payment` (inserted before `pending` in workflow)
+- Operator dashboard: new "Awaiting Payment" tab listing orders at `awaiting_payment` status for their pick-up point, with a "Mark Payment Received" button that transitions to `pending`
+- After `placeOrder` backend call, immediately call `actor.updateOrderStatus` on each new sub-order to set status to `awaiting_payment` (since backend defaults to `pending`)
 
 ### Modify
-- `declarations/backend.did.js`: both `Product` IDL.Record entries missing `isSpecial: IDL.Bool` and `serviceFee: IDL.Float64` — add them (ROOT FIX for isSpecial not persisting)
-- `declarations/backend.did.d.ts`: `Product` type missing `isSpecial: boolean` and `serviceFee: number`
-- `data/mockData.ts`: add `purchaseAmount?: number` to MeterEntry in CartItem and OrderItem
-- `CartPage.tsx`: add "Purchase amount (R)" number input per meter entry; update order summary to show purchase total + service fee total
-- `AppContext.tsx`: extend `updateMeterInput` or add `updateMeterPurchaseAmount` to handle the number field
-- `App.tsx`: add `/listing/:listingId` route
-- `CataloguePage.tsx`: add "Share" / "Copy Link" button on each listing card
-- `ApprovalsPage.tsx`: add "Suspend" button for approved staff (status: active)
+- `mockData.ts`: Add `awaiting_payment` to `OrderStatus` union, `ORDER_STATUS_LABELS` (label: "Awaiting Payment"), and beginning of `ORDER_STATUS_STEPS`
+- `StatusBadge.tsx`: Add yellow/amber styling for `awaiting_payment` status
+- `IncomingOrdersPage.tsx`: Add "Awaiting Payment" tab alongside existing "Incoming Orders" tab; show orders where `o.pickupPointId === myPickupPoint?.id && o.status === 'awaiting_payment'`; each card has a "Mark Payment Received" button calling `updateOrderStatus(orderId, 'pending')`
+- `MyOrdersPage.tsx`: Add `awaiting_payment` to the FILTERS list with label "Awaiting Payment"
+- `AppContext.tsx`: In `placeOrder`, after `loadOrdersFromBackend()` succeeds, call `actor.updateOrderStatus` for each new sub-order to set status to `awaiting_payment`
+- Customer order tracking: `awaiting_payment` status shows message like "Go to [pick-up point name] to pay for your order"
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Patch both Product IDL records in `declarations/backend.did.js` to add `'isSpecial': IDL.Bool, 'serviceFee': IDL.Float64`
-2. Patch `declarations/backend.did.d.ts` Product interface
-3. Add `purchaseAmount?: number` to MeterEntry in mockData.ts
-4. Add purchase amount input to CartPage.tsx special cart section
-5. Add `updateMeterPurchaseAmount` function to AppContext.tsx
-6. Add `/listing/:listingId` route to App.tsx and create ListingDetailPage.tsx
-7. Add Copy Link button in CataloguePage.tsx listing cards
-8. Add Suspend button in ApprovalsPage.tsx for active staff
+1. Update `OrderStatus` type + labels + steps in `mockData.ts`
+2. Update `StatusBadge.tsx` with amber color for `awaiting_payment`
+3. Update `AppContext.tsx` placeOrder to immediately set status to `awaiting_payment` after placing
+4. Update `IncomingOrdersPage.tsx` to add Awaiting Payment tab with mark-paid button
+5. Update `MyOrdersPage.tsx` to include awaiting_payment in filters
+6. Update `MyOrdersPage.tsx` order tracking to show pick-up point message for awaiting_payment orders

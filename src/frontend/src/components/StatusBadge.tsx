@@ -8,6 +8,7 @@ interface StatusBadgeProps {
 }
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
+  awaiting_payment: "status-awaiting_payment",
   pending: "status-pending",
   accepted_by_shopper: "status-accepted_by_shopper",
   shopping_in_progress: "status-shopping_in_progress",

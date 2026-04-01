@@ -12,6 +12,7 @@ import { SPECIAL_SHOPPER_MARKER } from "../../utils/orderSplit";
 
 const FILTERS: { value: "all" | OrderStatus; label: string }[] = [
   { value: "all", label: "All" },
+  { value: "awaiting_payment", label: "Awaiting Payment" },
   { value: "pending", label: "Pending" },
   { value: "shopping_in_progress", label: "In Progress" },
   { value: "out_for_delivery", label: "Out for Delivery" },
@@ -210,6 +211,22 @@ export function MyOrdersPage() {
                             <div className="flex items-center gap-2 mt-1">
                               <StatusBadge status={subOrder.status} />
                             </div>
+                            {subOrder.status === "awaiting_payment" && (
+                              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800/60 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                                <span className="text-base leading-none">
+                                  💳
+                                </span>
+                                <span>
+                                  Please visit{" "}
+                                  <strong>
+                                    {subOrder.pickupPointName ||
+                                      "your pick-up point"}
+                                  </strong>{" "}
+                                  to pay for your order before it can be
+                                  processed.
+                                </span>
+                              </div>
+                            )}
                             {subOrder.businessAreaId && (
                               <span className="text-xs text-muted-foreground">
                                 📍 {subOrder.businessAreaId}
@@ -222,6 +239,35 @@ export function MyOrdersPage() {
                                 </span>
                               ))}
                             </div>
+                            {subOrder.shopperProofImages &&
+                              subOrder.shopperProofImages.length > 0 && (
+                                <div className="mt-2 rounded border border-yellow-200/60 bg-yellow-50/30 dark:bg-yellow-950/10 p-2 space-y-1.5">
+                                  <div className="flex items-center gap-1 text-xs font-medium text-yellow-800 dark:text-yellow-300">
+                                    <Zap className="h-3 w-3" />
+                                    Token slip from shopper
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {subOrder.shopperProofImages.map(
+                                      (img, pi) => (
+                                        <button
+                                          key={img.slice(-12)}
+                                          type="button"
+                                          onClick={() =>
+                                            window.open(img, "_blank")
+                                          }
+                                          className="w-16 h-16 rounded border border-border bg-white overflow-hidden p-0"
+                                        >
+                                          <img
+                                            src={img}
+                                            alt={`Token ${pi + 1}`}
+                                            className="w-full h-full object-contain"
+                                          />
+                                        </button>
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="font-display font-bold text-xs text-primary">

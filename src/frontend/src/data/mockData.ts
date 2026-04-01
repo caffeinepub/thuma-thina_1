@@ -9,6 +9,7 @@ export type DemoRole =
   | "guest";
 
 export type OrderStatus =
+  | "awaiting_payment"
   | "pending"
   | "accepted_by_shopper"
   | "shopping_in_progress"
@@ -145,6 +146,7 @@ export interface Order {
   customerPhone: string;
   items: OrderItem[];
   total: number;
+  deliveryFee?: number;
   status: OrderStatus;
   deliveryType: DeliveryType;
   pickupPointId: string;
@@ -950,6 +952,7 @@ export const sampleWallet: NomayiniWallet = {
 };
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  awaiting_payment: "Awaiting Payment",
   pending: "Awaiting Shopper",
   accepted_by_shopper: "Accepted by Shopper",
   shopping_in_progress: "Shopping in Progress",
@@ -961,6 +964,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_STEPS: OrderStatus[] = [
+  "awaiting_payment",
   "pending",
   "accepted_by_shopper",
   "shopping_in_progress",

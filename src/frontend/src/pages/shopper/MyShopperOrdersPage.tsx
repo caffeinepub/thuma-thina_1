@@ -31,6 +31,7 @@ export function ShopperMyOrdersPage() {
   const [proofDialog, setProofDialog] = useState<string | null>(null); // orderId
   const [proofImage, setProofImage] = useState<string[]>([]);
   const [proofSubmitting, setProofSubmitting] = useState(false);
+  const [viewSlipUrl, setViewSlipUrl] = useState<string | null>(null);
 
   const activeOrders = orders.filter(
     (o) =>
@@ -128,24 +129,45 @@ export function ShopperMyOrdersPage() {
               </div>
               {(item as any).meterInputs &&
                 (item as any).meterInputs.length > 0 && (
-                  <div className="mt-1 pl-3 space-y-0.5">
+                  <div className="mt-2 pl-2 space-y-2">
                     {(item as any).meterInputs.map(
                       (
                         m: {
                           entryId: string;
                           meterNumber?: string;
                           slipImage?: string;
+                          purchaseAmount?: number;
                         },
                         mi: number,
                       ) => (
-                        <p
+                        <div
                           key={m.entryId}
-                          className="text-[10px] text-muted-foreground"
+                          className="rounded border border-yellow-200/60 bg-yellow-50/30 dark:bg-yellow-950/10 p-2 text-xs space-y-1"
                         >
-                          Meter #{mi + 1}
-                          {m.meterNumber ? `: ${m.meterNumber}` : ""}
-                          {m.slipImage ? " 📷" : ""}
-                        </p>
+                          <div className="font-medium text-yellow-800 dark:text-yellow-300">
+                            Meter {mi + 1}
+                            {m.meterNumber
+                              ? `: ${m.meterNumber}`
+                              : " (no number provided)"}
+                          </div>
+                          {m.purchaseAmount && m.purchaseAmount > 0 && (
+                            <div className="text-muted-foreground">
+                              Purchase:{" "}
+                              <span className="font-medium text-foreground">
+                                R{m.purchaseAmount.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {m.slipImage && (
+                            <button
+                              type="button"
+                              onClick={() => setViewSlipUrl(m.slipImage!)}
+                              className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
+                            >
+                              📄 View customer slip
+                            </button>
+                          )}
+                        </div>
                       ),
                     )}
                   </div>
@@ -287,6 +309,36 @@ export function ShopperMyOrdersPage() {
           )}
         </TabsContent>
       </Tabs>
+      {/* Customer Slip Viewer */}
+      <Dialog
+        open={!!viewSlipUrl}
+        onOpenChange={(open) => {
+          if (!open) setViewSlipUrl(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Customer Slip</DialogTitle>
+          </DialogHeader>
+          {viewSlipUrl && (
+            <div className="space-y-3">
+              <img
+                src={viewSlipUrl}
+                alt="Customer slip"
+                className="w-full rounded-lg border border-border object-contain max-h-80 bg-white"
+              />
+              <a
+                href={viewSlipUrl}
+                download="customer-slip.jpg"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-muted hover:bg-muted/80 text-sm font-medium w-full justify-center"
+              >
+                ⬇ Download Slip
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Proof Upload Dialog for Special Orders */}
       <Dialog
         open={!!proofDialog}

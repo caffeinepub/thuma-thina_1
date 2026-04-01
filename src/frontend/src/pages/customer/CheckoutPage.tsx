@@ -80,8 +80,14 @@ export function CheckoutPage() {
 
   const subtotal = isSpecialCart
     ? cart.reduce((sum, ci) => {
-        const entries = (ci as any).meterInputs?.length ?? 1;
-        return sum + (ci.chosenPrice ?? 0) * entries;
+        const meterInputs: Array<{ purchaseAmount?: number }> =
+          (ci as any).meterInputs ?? [];
+        const serviceFees = (ci.chosenPrice ?? 0) * meterInputs.length;
+        const purchaseAmounts = meterInputs.reduce(
+          (s, m) => s + (m.purchaseAmount ?? 0),
+          0,
+        );
+        return sum + serviceFees + purchaseAmounts;
       }, 0)
     : cartItems.reduce(
         (sum, ci) => sum + (ci.chosenPrice ?? 0) * ci.quantity,
@@ -137,10 +143,11 @@ export function CheckoutPage() {
                 entryId: string;
                 meterNumber?: string;
                 slipImage?: string;
+                purchaseAmount?: number;
               }) => ({
                 productId: ci.productId,
                 productName: prod?.product?.name ?? ci.productId,
-                price: ci.chosenPrice ?? 0,
+                price: (ci.chosenPrice ?? 0) + (m.purchaseAmount ?? 0),
                 quantity: 1,
                 meterInputs: [m],
               }),
@@ -152,6 +159,7 @@ export function CheckoutPage() {
             price: ci.chosenPrice ?? 0,
             quantity: ci.quantity,
           })),
+      deliveryFee,
       total,
       status: "pending",
       deliveryType,
@@ -229,6 +237,49 @@ export function CheckoutPage() {
                 </span>
               </div>
             ))}
+            {isSpecialCart &&
+              cart.map((ci) => {
+                const meterInputs: Array<{
+                  entryId: string;
+                  meterNumber?: string;
+                  slipImage?: string;
+                  purchaseAmount?: number;
+                }> = (ci as any).meterInputs ?? [];
+                return meterInputs.map((m, mi) => (
+                  <div
+                    key={m.entryId}
+                    className="rounded-lg border border-yellow-200/60 bg-yellow-50/30 dark:bg-yellow-950/10 p-3 space-y-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-xs font-medium text-yellow-800 dark:text-yellow-300">
+                      <Zap className="h-3.5 w-3.5" />
+                      Meter {mi + 1}
+                      {m.meterNumber ? `: ${m.meterNumber}` : ""}
+                    </div>
+                    {m.purchaseAmount && m.purchaseAmount > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Purchase amount
+                        </span>
+                        <span className="font-medium">
+                          R{m.purchaseAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {m.slipImage && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">
+                          Previous slip:
+                        </p>
+                        <img
+                          src={m.slipImage}
+                          alt="Previous slip"
+                          className="w-20 h-20 rounded object-contain border border-border bg-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ));
+              })}
             <Separator />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
@@ -380,12 +431,47 @@ export function CheckoutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold">Total service fee</span>
-                <span className="font-bold text-base text-yellow-700 dark:text-yellow-400">
-                  R{total.toFixed(2)}
-                </span>
-              </div>
+              {(() => {
+                const serviceFeeTotal = cart.reduce(
+                  (s, ci) =>
+                    s +
+                    (ci.chosenPrice ?? 0) *
+                      ((ci as any).meterInputs?.length ?? 1),
+                  0,
+                );
+                const purchaseAmountTotal = cart.reduce(
+                  (s, ci) =>
+                    s +
+                    ((ci as any).meterInputs ?? []).reduce(
+                      (ms: number, m: any) => ms + (m.purchaseAmount ?? 0),
+                      0,
+                    ),
+                  0,
+                );
+                return (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Service fee</span>
+                      <span>R{serviceFeeTotal.toFixed(2)}</span>
+                    </div>
+                    {purchaseAmountTotal > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Purchase amount
+                        </span>
+                        <span>R{purchaseAmountTotal.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-semibold">Total</span>
+                      <span className="font-bold text-base text-yellow-700 dark:text-yellow-400">
+                        R{total.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
               <p className="text-xs text-muted-foreground">
                 No delivery fee — this is a service-only order. Your electricity
                 token will be sent to you via the shopper proof.
