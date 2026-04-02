@@ -6,6 +6,7 @@ import Iter "mo:core/Iter";
 import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
 import Int "mo:core/Int";
+import Time "mo:base/Time";
 import Nat "mo:core/Nat";
 import MixinStorage "blob-storage/Mixin";
 import UserApproval "user-approval/approval";
@@ -1168,6 +1169,24 @@ persistent actor {
     filteredOrders.map(extendOrder);
   };
 
+
+  public query ({ caller }) func getOrdersByPickupPoint(pickupPointId : Text) : async [OrderExtended] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    let isApprovedStaff = isCallerApprovedInternal(caller);
+    let isAdm = Authorization.isAdmin(accessControlState, caller);
+    if (not (isApprovedStaff or isAdm)) {
+      Runtime.trap("Unauthorized: Only approved staff can access orders by pickup point");
+    };
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        order.pickupPointId == pickupPointId
+      }
+    );
+    filteredOrders.map(extendOrder);
+  };
+
   // ─── Nomayini Wallet Functions ────────────────────────────────────────────────
 
   public query ({ caller }) func getNomayiniBalance() : async NomayiniBalance {
@@ -1302,7 +1321,7 @@ persistent actor {
     articles.add(id, {
       id; title; body; categoryId; imagesJson;
       authorPrincipal = caller;
-      createdAt = 0;
+      createdAt = Time.now();
       published;
     });
   };

@@ -109,7 +109,8 @@ export function AdminNewsPage() {
     categories.find((c) => c.id === id)?.name ?? "—";
 
   const formatDate = (ts: number) => {
-    const ms = ts;
+    // ICP Time.now() returns nanoseconds; convert to milliseconds for JS Date
+    const ms = ts > 1e12 ? Math.floor(ts / 1_000_000) : ts;
     return new Date(ms).toLocaleDateString("en-ZA", {
       day: "numeric",
       month: "short",

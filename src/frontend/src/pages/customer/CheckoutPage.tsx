@@ -161,7 +161,7 @@ export function CheckoutPage() {
           })),
       deliveryFee,
       total,
-      status: "pending",
+      status: "awaiting_payment",
       deliveryType,
       pickupPointId: selectedPickupId,
       pickupPointName: selectedPickup?.name || "",
@@ -178,13 +178,14 @@ export function CheckoutPage() {
     const subOrders = orders.filter((o) => o.parentOrderId === orderId);
     const subOrderCount = subOrders.length;
 
+    const ppName = selectedPickup?.name ?? "your pick-up point";
     if (subOrderCount > 1) {
       toast.success(
-        `Order placed and split into ${subOrderCount} sub-orders! 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
+        `Order placed! Please visit ${ppName} to pay in cash. Split into ${subOrderCount} sub-orders. 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
       );
     } else {
       toast.success(
-        `Order placed! 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
+        `Order placed! Please visit ${ppName} to pay in cash before your order is processed. 🎉 You earned ${earnedTokens.toFixed(2)} Nomayini tokens`,
       );
     }
 

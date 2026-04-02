@@ -363,8 +363,9 @@ export function AdminApprovalsPage() {
         type: "approval",
         title: "Application Approved",
         message:
-          "An application to join Thuma Thina has been approved. Welcome aboard!",
+          "Your application to join Thuma Thina has been approved. Welcome aboard! You now have access to your staff dashboard.",
         targetRole: "all",
+        targetUserId: principalStr,
       });
       toast.success("Application approved ✅");
       await loadData();
@@ -403,8 +404,10 @@ export function AdminApprovalsPage() {
       addNotification({
         type: "approval",
         title: "Application Update",
-        message: "An application was not approved at this time.",
+        message:
+          "Your application was not approved at this time. Please contact Thuma Thina support for more information.",
         targetRole: "all",
+        targetUserId: principalStr,
       });
       toast.error("Application rejected");
       await loadData();

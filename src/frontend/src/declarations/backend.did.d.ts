@@ -194,6 +194,7 @@ export interface _SERVICE {
   'getOrders' : ActorMethod<[], Array<Order>>,
   'getOrdersByArea' : ActorMethod<[string], Array<Order>>,
   'getOrdersByCustomerId' : ActorMethod<[string], Array<Order>>,
+  'getOrdersByPickupPoint' : ActorMethod<[string], Array<Order>>,
   'getOrdersByStatus' : ActorMethod<[string], Array<Order>>,
   'getPickupPoints' : ActorMethod<[], Array<PickupPoint>>,
   'getProducts' : ActorMethod<[], Array<Product>>,

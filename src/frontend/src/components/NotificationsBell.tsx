@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Bell, BellOff, Package, ShieldCheck, Truck } from "lucide-react";
 import { useState } from "react";
 import { type AppNotification, useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 
 // ─── Relative time helper ─────────────────────────────────────────────────────
 
@@ -45,13 +46,21 @@ function NotifIcon({ type }: { type: AppNotification["type"] }) {
 export function NotificationsBell() {
   const { notifications, markNotificationRead, markAllRead, unreadCount } =
     useApp();
+  const { userRole, principalText } = useAuth();
 
   const [open, setOpen] = useState(false);
 
-  // Show all notifications (role filtering is done server-side in real app)
-  const roleNotifications = notifications.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  // Filter to only show notifications relevant to current user
+  const roleNotifications = notifications
+    .filter((n) => {
+      if (n.targetUserId) return n.targetUserId === principalText;
+      if (n.targetRole === "all") return true;
+      return n.targetRole === (userRole as string);
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

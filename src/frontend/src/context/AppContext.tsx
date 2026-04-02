@@ -55,6 +55,7 @@ export interface AppNotification {
   read: boolean;
   createdAt: string;
   targetRole: NotificationTargetRole;
+  targetUserId?: string; // if set, only this user sees the notification
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -434,8 +435,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       } else if (userRole === AppUserRole.operator && principalText) {
-        // Operator sees orders they placed (walk-in orders)
-        rawOrders = await actor.getOrdersByCustomerId(principalText);
+        // Operator loads orders for their pickup point (businessAreaId = pickupPointId for operators)
+        const opPickupPointId = userProfile?.businessAreaId ?? null;
+        if (opPickupPointId) {
+          rawOrders = await actor.getOrdersByPickupPoint(opPickupPointId);
+        } else {
+          // Fallback: walk-in orders placed by this operator
+          rawOrders = await actor.getOrdersByCustomerId(principalText);
+        }
       }
       // For unauthenticated users or users with no role yet, leave rawOrders empty
 
@@ -444,7 +451,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error("Failed to load orders:", err);
       // Don't toast here — it's called silently and orders are optional
     }
-  }, [actor, actorFetching, isAdmin, userRole, principalText]);
+  }, [actor, actorFetching, isAdmin, userRole, principalText, userProfile]);
 
   // ─── Load Nomayini wallet from backend ────────────────────────────────────────
   const loadWalletFromBackend = useCallback(async () => {
@@ -1041,11 +1048,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const grandTotal = orderData.total;
       const subOrderCount = effectiveGroups.length;
-      const actualDeliveryFee = (orderData as any).deliveryFee ?? 0;
-      const perSubDeliveryFee =
-        subOrderCount > 1
-          ? Math.round((actualDeliveryFee / subOrderCount) * 100) / 100
-          : 0;
+      // Delivery fee per sub-order: R40 for first area, R15 for each additional area
+      const subOrderDeliveryFees = effectiveGroups.map((_group, index) =>
+        index === 0 ? 40 : 15,
+      );
 
       // Build sub-orders in memory first (we need them for notifications)
       const newOrders: Order[] = effectiveGroups.map((group, index) => {
@@ -1081,10 +1087,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         });
 
+        const subDeliveryFee = subOrderDeliveryFees[index] ?? 40;
         const subTotal =
           subOrderCount === 1
             ? grandTotal
-            : Math.round((groupItemTotal + perSubDeliveryFee) * 100) / 100;
+            : Math.round((groupItemTotal + subDeliveryFee) * 100) / 100;
 
         return {
           ...orderData,
@@ -1193,7 +1200,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: now,
         targetRole: "operator" as const,
       };
-      setNotifications((prev) => [operatorNotif, ...prev]);
+      // Notify the customer to go pay at pick-up point
+      const customerNotif: AppNotification = {
+        id: `notif_${Date.now()}_cust`,
+        type: "order" as const,
+        title: "Go Pay at Pick-up Point",
+        message: `Your order is confirmed! Please visit ${ppName} to complete your cash payment before your order can be processed.`,
+        read: false,
+        createdAt: now,
+        targetRole: "customer" as const,
+      };
+      setNotifications((prev) => [operatorNotif, customerNotif, ...prev]);
 
       return parentOrderId;
     },
@@ -1341,7 +1358,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [actor, actorFetching, loadWalletFromBackend],
   );
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Filter notifications for current user's role and/or specific targetUserId
+  const currentUserId = currentUser?.id ?? null;
+  const currentUserRoleStr = (userRole as string) ?? null;
+  const visibleNotifications = notifications.filter((n) => {
+    if (n.targetUserId) return n.targetUserId === currentUserId;
+    if (n.targetRole === "all") return true;
+    return n.targetRole === currentUserRoleStr;
+  });
+  const unreadCount = visibleNotifications.filter((n) => !n.read).length;
 
   return (
     <AppContext.Provider
