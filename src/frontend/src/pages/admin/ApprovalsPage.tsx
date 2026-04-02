@@ -2,6 +2,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -203,6 +210,42 @@ function ApplicantCard({
   );
 }
 
+type JuniorAdminRole =
+  | "products_admin"
+  | "listings_admin"
+  | "approvals_admin"
+  | "";
+
+function getJuniorAdminRole(principalStr: string): JuniorAdminRole {
+  try {
+    return (
+      (localStorage.getItem(
+        `junior_admin_role_${principalStr}`,
+      ) as JuniorAdminRole) || ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+function setJuniorAdminRole(principalStr: string, role: JuniorAdminRole) {
+  try {
+    if (role) {
+      localStorage.setItem(`junior_admin_role_${principalStr}`, role);
+    } else {
+      localStorage.removeItem(`junior_admin_role_${principalStr}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+const JUNIOR_ROLE_LABELS: Record<string, string> = {
+  products_admin: "Products Admin",
+  listings_admin: "Listings Admin",
+  approvals_admin: "Approvals Admin",
+};
+
 function AdminUserCard({
   profile,
   index,
@@ -219,6 +262,22 @@ function AdminUserCard({
   const principalStr = profile.principal.toString();
   const isLoading = actionLoading === principalStr;
   const isAdmin = profile.role === AppUserRole.admin;
+  const [juniorRole, setJuniorRoleState] = useState<JuniorAdminRole>(() =>
+    getJuniorAdminRole(principalStr),
+  );
+
+  const handleJuniorRoleChange = (role: string) => {
+    const r = role as JuniorAdminRole;
+    setJuniorRoleState(r);
+    setJuniorAdminRole(principalStr, r);
+    if (r) {
+      toast.success(
+        `Junior admin role "${JUNIOR_ROLE_LABELS[r] || r}" assigned`,
+      );
+    } else {
+      toast.success("Junior admin role removed");
+    }
+  };
 
   return (
     <Card
@@ -252,6 +311,14 @@ function AdminUserCard({
                     Admin
                   </Badge>
                 )}
+                {juniorRole && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 text-[10px] px-1.5 py-0.5 h-auto border"
+                  >
+                    {JUNIOR_ROLE_LABELS[juniorRole]}
+                  </Badge>
+                )}
               </div>
               <p className="text-xs text-muted-foreground font-mono">
                 {principalStr.slice(0, 24)}…
@@ -259,6 +326,34 @@ function AdminUserCard({
               <p className="text-xs text-muted-foreground mt-0.5">
                 📞 {profile.phone}
               </p>
+              {/* Junior admin role assignment */}
+              <div className="mt-2">
+                <Select
+                  value={juniorRole || "none"}
+                  onValueChange={(v) =>
+                    handleJuniorRoleChange(v === "none" ? "" : v)
+                  }
+                >
+                  <SelectTrigger
+                    className="h-7 text-xs w-44"
+                    data-ocid={`admin.junior_role.select.${index}`}
+                  >
+                    <SelectValue placeholder="Assign junior role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No junior role</SelectItem>
+                    <SelectItem value="products_admin">
+                      Products Admin
+                    </SelectItem>
+                    <SelectItem value="listings_admin">
+                      Listings Admin
+                    </SelectItem>
+                    <SelectItem value="approvals_admin">
+                      Approvals Admin
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="shrink-0">

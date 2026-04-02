@@ -647,7 +647,14 @@ export const idlFactory = ({ IDL }) => {
     'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
     'updateArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
     'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  });
+    'deleteUser' : IDL.Func([IDL.Principal], [], []),
+    'getAllNomayiniBalances' : IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Record({ 'totalEarned': IDL.Float64, 'unlockedBalance': IDL.Float64, 'lockedShortTerm': IDL.Float64, 'lockedLongTerm': IDL.Float64 })))], ['query']),
+    'wipeAllOrders' : IDL.Func([], [], []),
+    'wipeAllNomayini' : IDL.Func([], [], []),
+    'wipeAllUsers' : IDL.Func([], [], []),
+      'getMyShopperOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
+    'getMyDriverOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
+});
 };
 
 export const init = ({ IDL }) => { return []; };

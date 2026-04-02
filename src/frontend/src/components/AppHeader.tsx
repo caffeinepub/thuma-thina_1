@@ -94,6 +94,11 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       ocid: "nav.analytics.link",
     },
     { to: "/admin/news", label: "News Mgmt", ocid: "nav.news_admin.link" },
+    {
+      to: "/admin/data-management",
+      label: "Data Mgmt",
+      ocid: "nav.data_management.link",
+    },
   ],
 };
 

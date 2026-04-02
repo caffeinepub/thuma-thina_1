@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@tanstack/react-router";
-import { Banknote, MapPin, Package, UserCircle } from "lucide-react";
+import {
+  Banknote,
+  ClipboardList,
+  MapPin,
+  Package,
+  UserCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useApp } from "../../context/AppContext";
@@ -39,15 +45,34 @@ export function OperatorIncomingOrdersPage() {
       o.status === "awaiting_payment",
   );
 
-  // Orders assigned to this pickup point that aren't yet collected
+  // Orders assigned to this pickup point that are in-progress (paid, with shopper/driver)
+  const incomingStatuses = [
+    "pending",
+    "accepted_by_shopper",
+    "shopping_in_progress",
+    "ready_for_collection",
+    "accepted_by_driver",
+    "out_for_delivery",
+  ];
   const incoming = orders.filter(
     (o) =>
       (o.pickupPointId === myPickupPointId ||
         o.pickupPointId === myPickupPoint?.id) &&
-      ["out_for_delivery", "delivered", "accepted_by_driver"].includes(
-        o.status,
-      ),
+      incomingStatuses.includes(o.status),
   );
+
+  // All orders for tracking / history — sorted most recent first
+  const allOrders = orders
+    .filter(
+      (o) =>
+        o.pickupPointId === myPickupPointId ||
+        o.pickupPointId === myPickupPoint?.id,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime(),
+    );
 
   const handleMarkPaymentReceived = (orderId: string) => {
     updateOrderStatus(orderId, "pending");
@@ -112,7 +137,7 @@ export function OperatorIncomingOrdersPage() {
       </div>
 
       <Tabs defaultValue="awaiting_payment">
-        <TabsList className="w-full mb-5">
+        <TabsList className="w-full mb-5 h-auto flex-wrap gap-1">
           <TabsTrigger
             value="awaiting_payment"
             className="flex-1"
@@ -133,10 +158,25 @@ export function OperatorIncomingOrdersPage() {
             className="flex-1"
             data-ocid="operator.incoming.tab"
           >
-            Incoming Orders
+            In Progress
             {incoming.length > 0 && (
               <Badge className="ml-2 h-5 min-w-5 px-1.5 text-[10px]">
                 {incoming.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="all"
+            className="flex-1"
+            data-ocid="operator.all_orders.tab"
+          >
+            All Orders
+            {allOrders.length > 0 && (
+              <Badge
+                variant="outline"
+                className="ml-2 h-5 min-w-5 px-1.5 text-[10px]"
+              >
+                {allOrders.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -229,16 +269,20 @@ export function OperatorIncomingOrdersPage() {
           )}
         </TabsContent>
 
-        {/* ── Incoming Orders tab ── */}
+        {/* ── In Progress Orders tab ── */}
         <TabsContent value="incoming">
           {incoming.length === 0 ? (
-            <div className="text-center py-16" data-ocid="operator.empty_state">
+            <div
+              className="text-center py-16"
+              data-ocid="operator.incoming.empty_state"
+            >
               <div className="text-5xl mb-3">📦</div>
               <p className="font-display font-semibold text-lg mb-1">
-                No incoming orders
+                No orders in progress
               </p>
               <p className="text-muted-foreground text-sm">
-                Orders will appear here when drivers are on their way
+                Paid orders being processed by shoppers and drivers will appear
+                here
               </p>
             </div>
           ) : (
@@ -290,14 +334,24 @@ export function OperatorIncomingOrdersPage() {
                     </div>
 
                     <div className="flex items-center text-xs text-muted-foreground mb-3">
-                      Driver: {order.driverName || "Not yet assigned"}
+                      {order.shopperName && (
+                        <span>Shopper: {order.shopperName}</span>
+                      )}
+                      {order.driverName && (
+                        <span className="ml-3">Driver: {order.driverName}</span>
+                      )}
+                      {!order.shopperName && !order.driverName && (
+                        <span>Awaiting shopper assignment</span>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between">
                       <span className="font-display font-bold text-primary">
                         R{order.total.toFixed(2)}
                       </span>
-                      {order.status !== "collected" && (
+                      {["out_for_delivery", "delivered"].includes(
+                        order.status,
+                      ) && (
                         <Button
                           onClick={() => handleMarkCollected(order.id)}
                           size="sm"
@@ -307,6 +361,100 @@ export function OperatorIncomingOrdersPage() {
                           Mark Collected ✓
                         </Button>
                       )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── All Orders tracking tab ── */}
+        <TabsContent value="all">
+          {allOrders.length === 0 ? (
+            <div
+              className="text-center py-16"
+              data-ocid="operator.all_orders.empty_state"
+            >
+              <div className="text-5xl mb-3">📋</div>
+              <p className="font-display font-semibold text-lg mb-1">
+                No orders yet
+              </p>
+              <p className="text-muted-foreground text-sm">
+                All orders processed at this pick-up point will appear here
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground mb-2">
+                <ClipboardList className="inline h-3.5 w-3.5 mr-1" />
+                Complete order history for customer enquiries
+              </p>
+              {allOrders.map((order, i) => (
+                <Card
+                  key={order.id}
+                  className="card-glow border-border/40"
+                  data-ocid={`operator.all.item.${i + 1}`}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-semibold text-sm font-display font-mono">
+                            #{order.id}
+                          </span>
+                          <StatusBadge status={order.status} />
+                          {order.isWalkIn && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5"
+                            >
+                              Walk-in
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {order.customerName} · {order.customerPhone}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(order.createdAt).toLocaleString("en-ZA", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        {order.shopperName && (
+                          <p className="text-xs text-muted-foreground">
+                            Shopper: {order.shopperName}
+                          </p>
+                        )}
+                        {order.driverName && (
+                          <p className="text-xs text-muted-foreground">
+                            Driver: {order.driverName}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="font-display font-bold text-primary text-sm">
+                          R{order.total.toFixed(2)}
+                        </span>
+                        {["out_for_delivery", "delivered"].includes(
+                          order.status,
+                        ) && (
+                          <div className="mt-2">
+                            <Button
+                              onClick={() => handleMarkCollected(order.id)}
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-xs h-7"
+                              data-ocid={`operator.all.collected.primary_button.${i + 1}`}
+                            >
+                              Mark Collected
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

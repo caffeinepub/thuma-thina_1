@@ -255,6 +255,9 @@ export interface backendInterface {
     getCallerUserRole(): Promise<UserRole>;
     getListings(): Promise<Array<ProductListing>>;
     getMyOrders(customerId: string): Promise<Array<Order>>;
+    getMyShopperOrders(): Promise<Array<Order>>;
+    getMyDriverOrders(): Promise<Array<Order>>;
+
     getMyProfile(): Promise<UserProfile | null>;
     getOrderById(id: string): Promise<Order | null>;
     getOrders(): Promise<Array<Order>>;
@@ -774,6 +777,34 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getOrderById(arg0);
             return from_candid_opt_n24(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getMyShopperOrders(): Promise<Array<Order>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyShopperOrders();
+                return from_candid_vec_n21(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyShopperOrders();
+            return from_candid_vec_n21(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getMyDriverOrders(): Promise<Array<Order>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyDriverOrders();
+                return from_candid_vec_n21(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyDriverOrders();
+            return from_candid_vec_n21(this._uploadFile, this._downloadFile, result);
         }
     }
     async getOrders(): Promise<Array<Order>> {
@@ -1352,6 +1383,32 @@ export class Backend implements backendInterface {
             userId: l.userId.toString(),
             isLike: l.isLike,
         }));
+    }
+    async deleteUser(userPrincipal: any): Promise<void> {
+        const actor = this.actor as any;
+        await actor.deleteUser(userPrincipal);
+    }
+    async getAllNomayiniBalances(): Promise<Array<[string, { totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }]>> {
+        const actor = this.actor as any;
+        const raw = await actor.getAllNomayiniBalances();
+        return raw.map(([key, bal]: [string, any]) => [key, {
+            totalEarned: Number(bal.totalEarned),
+            unlockedBalance: Number(bal.unlockedBalance),
+            lockedShortTerm: Number(bal.lockedShortTerm),
+            lockedLongTerm: Number(bal.lockedLongTerm),
+        }]);
+    }
+    async wipeAllOrders(): Promise<void> {
+        const actor = this.actor as any;
+        await actor.wipeAllOrders();
+    }
+    async wipeAllNomayini(): Promise<void> {
+        const actor = this.actor as any;
+        await actor.wipeAllNomayini();
+    }
+    async wipeAllUsers(): Promise<void> {
+        const actor = this.actor as any;
+        await actor.wipeAllUsers();
     }
 }
 function from_candid_AppUserRole_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {

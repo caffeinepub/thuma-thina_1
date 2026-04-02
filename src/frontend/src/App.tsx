@@ -20,6 +20,7 @@ import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { AdminNewsPage } from "./pages/admin/AdminNewsPage";
 import { AdminAnalyticsPage } from "./pages/admin/AnalyticsPage";
 import { AdminApprovalsPage } from "./pages/admin/ApprovalsPage";
+import { DataManagementPage } from "./pages/admin/DataManagementPage";
 import { AdminLocationsPage } from "./pages/admin/LocationsPage";
 import { AdminOrdersPage } from "./pages/admin/OrdersOverviewPage";
 import { AdminProductsPage } from "./pages/admin/ProductsPage";
@@ -385,6 +386,16 @@ const adminAnalyticsRoute = createRoute({
   ),
 });
 
+const adminDataManagementRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/data-management",
+  component: () => (
+    <ProtectedPage>
+      <DataManagementPage />
+    </ProtectedPage>
+  ),
+});
+
 const newsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/news",
@@ -447,6 +458,7 @@ const routeTree = rootRoute.addChildren([
   adminProductsRoute,
   adminOrdersRoute,
   adminAnalyticsRoute,
+  adminDataManagementRoute,
 ]);
 
 const router = createRouter({ routeTree });

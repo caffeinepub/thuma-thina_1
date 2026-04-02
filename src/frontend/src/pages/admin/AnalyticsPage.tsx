@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -32,6 +33,7 @@ import {
 import { useApp } from "../../context/AppContext";
 import type { Order, OrderStatus } from "../../data/mockData";
 import { ORDER_STATUS_LABELS } from "../../data/mockData";
+import { useActor } from "../../hooks/useActor";
 
 // ─── Time range helpers ──────────────────────────────────────────────────────
 
@@ -124,8 +126,20 @@ function KpiCard({
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+interface NomayiniBalanceEntry {
+  userId: string;
+  totalEarned: number;
+  unlockedBalance: number;
+  lockedShortTerm: number;
+  lockedLongTerm: number;
+}
+
 export function AdminAnalyticsPage() {
-  const { orders, staffUsers, towns, nomayiniWallet, products } = useApp();
+  const { orders, staffUsers, towns, products } = useApp();
+  const { actor } = useActor();
+  const [nomayiniBalances, setNomayiniBalances] = useState<
+    NomayiniBalanceEntry[]
+  >([]);
 
   // Time range state
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
@@ -139,6 +153,25 @@ export function AdminAnalyticsPage() {
   const [historyTownFilter, setHistoryTownFilter] = useState("all");
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  // Load platform-wide Nomayini balances
+  useEffect(() => {
+    if (!actor) return;
+    (actor as any)
+      .getAllNomayiniBalances()
+      .then((raw: Array<[string, any]>) => {
+        setNomayiniBalances(
+          raw.map(([userId, bal]) => ({
+            userId,
+            totalEarned: Number(bal.totalEarned ?? 0),
+            unlockedBalance: Number(bal.unlockedBalance ?? 0),
+            lockedShortTerm: Number(bal.lockedShortTerm ?? 0),
+            lockedLongTerm: Number(bal.lockedLongTerm ?? 0),
+          })),
+        );
+      })
+      .catch(() => {});
+  }, [actor]);
 
   // ── Filtered orders ──────────────────────────────────────────────────────
   const rangeStart = useMemo(
@@ -278,24 +311,40 @@ export function AdminAnalyticsPage() {
     });
   }, [filteredOrders, staffUsers]);
 
-  // ── Nomayini token activity ───────────────────────────────────────────────
-  const nomayiniStats = useMemo(() => {
-    const txs = nomayiniWallet.transactions.filter((tx) => {
-      const d = new Date(tx.date);
-      return d >= rangeStart && d <= rangeEnd;
-    });
+  // ── Platform-wide Nomayini analytics ─────────────────────────────────────
+  const nomayiniPlatformStats = useMemo(() => {
+    const nonZero = nomayiniBalances.filter(
+      (b) =>
+        b.totalEarned > 0 ||
+        b.unlockedBalance > 0 ||
+        b.lockedShortTerm > 0 ||
+        b.lockedLongTerm > 0,
+    );
+    const totalDistributed = nomayiniBalances.reduce(
+      (s, b) => s + b.totalEarned,
+      0,
+    );
+    const totalUnlocked = nomayiniBalances.reduce(
+      (s, b) => s + b.unlockedBalance,
+      0,
+    );
+    const totalShortTerm = nomayiniBalances.reduce(
+      (s, b) => s + b.lockedShortTerm,
+      0,
+    );
+    const totalLongTerm = nomayiniBalances.reduce(
+      (s, b) => s + b.lockedLongTerm,
+      0,
+    );
     return {
-      earned: txs
-        .filter((t) => t.type === "earned")
-        .reduce((s, t) => s + t.amount, 0),
-      spent: txs
-        .filter((t) => t.type === "spent")
-        .reduce((s, t) => s + t.amount, 0),
-      sent: txs
-        .filter((t) => t.type === "sent")
-        .reduce((s, t) => s + t.amount, 0),
+      totalDistributed,
+      totalUnlocked,
+      totalShortTerm,
+      totalLongTerm,
+      holders: nonZero.length,
+      totalLocked: totalShortTerm + totalLongTerm,
     };
-  }, [nomayiniWallet, rangeStart, rangeEnd]);
+  }, [nomayiniBalances]);
 
   // ── Order history (filtered + paginated) ──────────────────────────────────
   const historyFiltered = useMemo(() => {
@@ -657,40 +706,141 @@ export function AdminAnalyticsPage() {
         </Card>
       </div>
 
-      {/* Nomayini Token Activity */}
+      {/* Platform-Wide Nomayini Token Structure */}
       <Card className="card-glow border-border/50">
         <CardHeader className="pb-3">
           <CardTitle className="font-display text-base">
-            🪙 Nomayini Token Activity
+            🪙 Nomayini Token Structure — Platform Wide
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <div className="text-center p-4 rounded-xl bg-[oklch(0.95_0.06_75)] border border-[oklch(0.85_0.08_75)]">
               <p className="font-display text-xl font-bold text-[oklch(0.4_0.1_65)]">
-                {nomayiniStats.earned.toFixed(1)}
+                {nomayiniPlatformStats.totalDistributed.toFixed(1)}
               </p>
-              <p className="text-xs text-[oklch(0.45_0.08_65)] font-medium">
-                Earned
-              </p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-[oklch(0.93_0.06_230)] border border-[oklch(0.82_0.08_240)]">
-              <p className="font-display text-xl font-bold text-[oklch(0.35_0.1_240)]">
-                {nomayiniStats.spent.toFixed(1)}
-              </p>
-              <p className="text-xs text-[oklch(0.4_0.08_240)] font-medium">
-                Spent
+              <p className="text-xs text-[oklch(0.45_0.08_65)] font-medium mt-0.5">
+                Total Distributed
               </p>
             </div>
             <div className="text-center p-4 rounded-xl bg-[oklch(0.93_0.07_150)] border border-[oklch(0.80_0.09_150)]">
               <p className="font-display text-xl font-bold text-[oklch(0.35_0.12_150)]">
-                {nomayiniStats.sent.toFixed(1)}
+                {nomayiniPlatformStats.totalUnlocked.toFixed(1)}
               </p>
-              <p className="text-xs text-[oklch(0.38_0.1_150)] font-medium">
-                Sent
+              <p className="text-xs text-[oklch(0.38_0.1_150)] font-medium mt-0.5">
+                Unlocked
+              </p>
+            </div>
+            <div className="text-center p-4 rounded-xl bg-[oklch(0.93_0.06_230)] border border-[oklch(0.82_0.08_240)]">
+              <p className="font-display text-xl font-bold text-[oklch(0.35_0.1_240)]">
+                {nomayiniPlatformStats.totalShortTerm.toFixed(1)}
+              </p>
+              <p className="text-xs text-[oklch(0.4_0.08_240)] font-medium mt-0.5">
+                Locked 3-Month
+              </p>
+            </div>
+            <div className="text-center p-4 rounded-xl bg-[oklch(0.92_0.08_310)] border border-[oklch(0.80_0.10_310)]">
+              <p className="font-display text-xl font-bold text-[oklch(0.35_0.12_300)]">
+                {nomayiniPlatformStats.totalLongTerm.toFixed(1)}
+              </p>
+              <p className="text-xs text-[oklch(0.38_0.10_300)] font-medium mt-0.5">
+                Locked 4-Year
               </p>
             </div>
           </div>
+
+          {/* Token holders count */}
+          <div className="flex items-center gap-3 mb-4 text-sm">
+            <span className="text-muted-foreground">Token holders:</span>
+            <span className="font-bold text-primary">
+              {nomayiniPlatformStats.holders}
+            </span>
+          </div>
+
+          {/* Lock structure visual breakdown */}
+          {nomayiniPlatformStats.totalDistributed > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Lock Distribution
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs w-28 text-muted-foreground">
+                    Unlocked
+                  </span>
+                  <Progress
+                    value={
+                      (nomayiniPlatformStats.totalUnlocked /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    }
+                    className="flex-1 h-3"
+                  />
+                  <span className="text-xs w-10 text-right font-medium text-[oklch(0.35_0.12_150)]">
+                    {(
+                      (nomayiniPlatformStats.totalUnlocked /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs w-28 text-muted-foreground">
+                    Locked 3-month
+                  </span>
+                  <Progress
+                    value={
+                      (nomayiniPlatformStats.totalShortTerm /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    }
+                    className="flex-1 h-3 [&>div]:bg-[oklch(0.5_0.15_240)]"
+                  />
+                  <span className="text-xs w-10 text-right font-medium text-[oklch(0.35_0.1_240)]">
+                    {(
+                      (nomayiniPlatformStats.totalShortTerm /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs w-28 text-muted-foreground">
+                    Locked 4-year
+                  </span>
+                  <Progress
+                    value={
+                      (nomayiniPlatformStats.totalLongTerm /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    }
+                    className="flex-1 h-3 [&>div]:bg-[oklch(0.5_0.15_310)]"
+                  />
+                  <span className="text-xs w-10 text-right font-medium text-[oklch(0.35_0.12_300)]">
+                    {(
+                      (nomayiniPlatformStats.totalLongTerm /
+                        nomayiniPlatformStats.totalDistributed) *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {nomayiniPlatformStats.totalDistributed === 0 && (
+            <p
+              className="text-sm text-muted-foreground text-center py-4"
+              data-ocid="analytics.nomayini.empty_state"
+            >
+              No tokens distributed yet — token rewards are credited when orders
+              are delivered
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -174,6 +174,11 @@ interface AppContextValue {
   ) => void;
   removeMeterEntry: (productId: string, entryId: string) => void;
   addShopperProof: (orderId: string, proofImages: string[]) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  wipeAllOrders: () => Promise<void>;
+  wipeAllNomayini: () => Promise<void>;
+  wipeAllUsers: () => Promise<void>;
+  loadOrdersFromBackend: () => Promise<void>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -349,86 +354,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Customer sees their own orders
         rawOrders = await actor.getMyOrders(principalText);
       } else if (userRole === AppUserRole.shopper) {
-        // Shopper sees pending orders + their accepted orders + completed history
-        const [pendingOrders, acceptedOrders] = await Promise.all([
-          actor.getOrdersByStatus("pending"),
-          actor.getOrdersByStatus("accepted_by_shopper"),
+        // Shopper sees:
+        // 1. All pending orders in their area (broadcast pool) -- so they can accept new orders
+        // 2. ALL orders they have ever been assigned (any status) -- for full history
+        const [pendingOrders, myAllOrders] = await Promise.all([
+          actor.getOrdersByStatus("pending").catch(() => [] as BackendOrder[]),
+          actor.getMyShopperOrders().catch(() => [] as BackendOrder[]),
         ]);
-        const shoppingOrders = await actor.getOrdersByStatus(
-          "shopping_in_progress",
-        );
-        const readyOrders = await actor.getOrdersByStatus(
-          "ready_for_collection",
-        );
-        // Fetch all post-ready statuses so shopper completed history stays visible
-        const [
-          deliveredOrders,
-          acceptedByDriverOrders,
-          outForDeliveryOrders,
-          collectedOrders,
-        ] = await Promise.all([
-          actor
-            .getOrdersByStatus("delivered")
-            .catch(() => [] as typeof pendingOrders),
-          actor
-            .getOrdersByStatus("accepted_by_driver")
-            .catch(() => [] as typeof pendingOrders),
-          actor
-            .getOrdersByStatus("out_for_delivery")
-            .catch(() => [] as typeof pendingOrders),
-          actor
-            .getOrdersByStatus("collected")
-            .catch(() => [] as typeof pendingOrders),
-        ]);
-
-        const unwrapShopperId = (o: (typeof pendingOrders)[0]) => {
-          const sid = o.shopperId;
-          return Array.isArray(sid) ? (sid[0] ?? null) : (sid ?? null);
-        };
-
-        const myAccepted = [
-          ...acceptedOrders,
-          ...shoppingOrders,
-          ...readyOrders,
-        ].filter((o) => unwrapShopperId(o) === principalText);
-        const myCompleted = [
-          ...deliveredOrders,
-          ...acceptedByDriverOrders,
-          ...outForDeliveryOrders,
-          ...collectedOrders,
-        ].filter((o) => unwrapShopperId(o) === principalText);
 
         const seen = new Set<string>();
-        for (const o of [...pendingOrders, ...myAccepted, ...myCompleted]) {
+        for (const o of [...myAllOrders, ...pendingOrders]) {
           if (!seen.has(o.id)) {
             seen.add(o.id);
             rawOrders.push(o);
           }
         }
       } else if (userRole === AppUserRole.driver) {
-        // Driver sees ready-for-collection orders + their accepted/completed deliveries
-        const [readyOrders, acceptedByDriver] = await Promise.all([
-          actor.getOrdersByStatus("ready_for_collection"),
-          actor.getOrdersByStatus("accepted_by_driver"),
+        // Driver sees:
+        // 1. All orders ready for collection (broadcast pool) -- so they can accept new deliveries
+        // 2. ALL orders they have ever driven (any status) -- for full history
+        const [readyOrders, myAllDriverOrders] = await Promise.all([
+          actor
+            .getOrdersByStatus("ready_for_collection")
+            .catch(() => [] as BackendOrder[]),
+          actor.getMyDriverOrders().catch(() => [] as BackendOrder[]),
         ]);
-        const outForDelivery =
-          await actor.getOrdersByStatus("out_for_delivery");
-        const deliveredOrders = await actor
-          .getOrdersByStatus("delivered")
-          .catch(() => [] as typeof readyOrders);
-        const collectedOrders = await actor
-          .getOrdersByStatus("collected")
-          .catch(() => [] as typeof readyOrders);
-
-        const myDeliveries = [...acceptedByDriver, ...outForDelivery].filter(
-          (o) => o.driverId === principalText,
-        );
-        const myCompleted = [...deliveredOrders, ...collectedOrders].filter(
-          (o) => o.driverId === principalText,
-        );
 
         const seen = new Set<string>();
-        for (const o of [...readyOrders, ...myDeliveries, ...myCompleted]) {
+        for (const o of [...myAllDriverOrders, ...readyOrders]) {
           if (!seen.has(o.id)) {
             seen.add(o.id);
             rawOrders.push(o);
@@ -1000,16 +953,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (name: string) => {
       if (!name.trim()) return;
       try {
-        if (actor) await actor.addCategory(name.trim());
+        if (actor) {
+          await actor.addCategory(name.trim());
+        }
         setCustomCategories((prev) =>
           prev.includes(name.trim()) ? prev : [...prev, name.trim()],
         );
       } catch (e) {
         console.error("Failed to save category:", e);
-        // Still add locally even if backend fails
-        setCustomCategories((prev) =>
-          prev.includes(name.trim()) ? prev : [...prev, name.trim()],
-        );
+        toast.error("Failed to save category. Please try again.");
+        // Do NOT add locally if backend fails — would create false persistence illusion
       }
     },
     [actor],
@@ -1338,6 +1291,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [actor, actorFetching, loadOrdersFromBackend, loadWalletFromBackend],
   );
 
+  // ─── Admin data management ───────────────────────────────────────────────────
+
+  const deleteUser = useCallback(
+    async (userId: string) => {
+      if (!actor || actorFetching) throw new Error("Not connected");
+      const { Principal } = await import("@icp-sdk/core/principal");
+      const principal = Principal.fromText(userId);
+      await (actor as any).deleteUser(principal);
+      setStaffUsers((prev) => prev.filter((u) => u.id !== userId));
+    },
+    [actor, actorFetching],
+  );
+
+  const wipeAllOrders = useCallback(async () => {
+    if (!actor || actorFetching) throw new Error("Not connected");
+    await (actor as any).wipeAllOrders();
+    setOrders([]);
+  }, [actor, actorFetching]);
+
+  const wipeAllNomayini = useCallback(async () => {
+    if (!actor || actorFetching) throw new Error("Not connected");
+    await (actor as any).wipeAllNomayini();
+  }, [actor, actorFetching]);
+
+  const wipeAllUsers = useCallback(async () => {
+    if (!actor || actorFetching) throw new Error("Not connected");
+    await (actor as any).wipeAllUsers();
+    setStaffUsers([]);
+  }, [actor, actorFetching]);
+
   // ─── sendNomayiniTokens ──────────────────────────────────────────────────────
   const sendNomayiniTokens = useCallback(
     async (recipientPhone: string, amount: number) => {
@@ -1411,6 +1394,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateMeterPurchaseAmount,
         removeMeterEntry,
         addShopperProof,
+        deleteUser,
+        wipeAllOrders,
+        wipeAllNomayini,
+        wipeAllUsers,
+        loadOrdersFromBackend,
       }}
     >
       {children}

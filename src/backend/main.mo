@@ -1074,7 +1074,7 @@ persistent actor {
     };
     let filteredOrders = orders.values().toArray().filter(
       func(order) {
-        order.businessAreaId == businessAreaId and order.status == "pending"
+        order.businessAreaId == businessAreaId
       }
     );
     filteredOrders.map(extendOrder);
@@ -1424,5 +1424,109 @@ persistent actor {
     let all = likeDislikes.values().toArray();
     all.filter(func(l : LikeDislike) : Bool { l.targetId == targetId })
   };
+
+
+  // ─── Admin Data Management ─────────────────────────────────────────────────
+
+  public shared ({ caller }) func deleteUser(userPrincipal : Principal) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can delete users");
+    };
+    ignore users.remove(userPrincipal);
+    let key = userPrincipal.toText();
+    ignore nomayiniBalances.remove(key);
+    ignore nomayiniTransactions.remove(key);
+  };
+
+  public query ({ caller }) func getAllNomayiniBalances() : async [(Text, NomayiniBalance)] {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can access all balances");
+    };
+    nomayiniBalances.entries().toArray()
+  };
+
+  public shared ({ caller }) func wipeAllOrders() : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can wipe data");
+    };
+    let ids = orders.keys().toArray();
+    for (id in ids.vals()) {
+      ignore orders.remove(id);
+      ignore orderProofImages.remove(id);
+    };
+  };
+
+  public shared ({ caller }) func wipeAllNomayini() : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can wipe data");
+    };
+    let bkeys = nomayiniBalances.keys().toArray();
+    for (k in bkeys.vals()) { ignore nomayiniBalances.remove(k) };
+    let tkeys = nomayiniTransactions.keys().toArray();
+    for (k in tkeys.vals()) { ignore nomayiniTransactions.remove(k) };
+  };
+
+  public shared ({ caller }) func wipeAllUsers() : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can wipe data");
+    };
+    let allUsersList = users.entries().toArray();
+    for ((p, userProfile) in allUsersList.vals()) {
+      if (userProfile.role != #admin) {
+        ignore users.remove(p);
+      };
+    };
+  };
+
+
+  // Returns ALL orders where caller is the shopper (any status) -- for history
+  public query ({ caller }) func getMyShopperOrders() : async [OrderExtended] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    let callerPrincipalText = caller.toText();
+    let isStaff = isCallerApprovedInternal(caller);
+    let isAdm = Authorization.isAdmin(accessControlState, caller);
+    if (not (isStaff or isAdm)) {
+      Runtime.trap("Unauthorized: Only approved staff can access shopper orders");
+    };
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        switch (order.shopperId) {
+          case (null) { false };
+          case (?sid) { sid == callerPrincipalText };
+        }
+      }
+    );
+    filteredOrders.map(extendOrder)
+  };
+
+  // Returns ALL orders where caller is the driver (any status) -- for history
+  public query ({ caller }) func getMyDriverOrders() : async [OrderExtended] {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Anonymous users cannot access orders");
+    };
+    let callerPrincipalText = caller.toText();
+    let isStaff = isCallerApprovedInternal(caller);
+    let isAdm = Authorization.isAdmin(accessControlState, caller);
+    if (not (isStaff or isAdm)) {
+      Runtime.trap("Unauthorized: Only approved staff can access driver orders");
+    };
+    let filteredOrders = orders.values().toArray().filter(
+      func(order) {
+        switch (order.driverId) {
+          case (null) { false };
+          case (?did) { did == callerPrincipalText };
+        }
+      }
+    );
+    filteredOrders.map(extendOrder)
+  };
+
 
 };

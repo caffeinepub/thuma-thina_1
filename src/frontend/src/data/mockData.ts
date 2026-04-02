@@ -180,6 +180,7 @@ export interface StaffUser {
   createdAt: string;
   isPromotedAdmin?: boolean;
   assignedRetailerIds?: string[];
+  juniorAdminRole?: "products_admin" | "listings_admin" | "approvals_admin";
 }
 
 export interface NomayiniWallet {
