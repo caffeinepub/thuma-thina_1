@@ -12,9 +12,12 @@ import { AppHeader } from "./components/AppHeader";
 import { AppProvider, useApp } from "./context/AppContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
+import { ArticleDetailPage } from "./pages/ArticleDetailPage";
 // Pages
 import { LandingPage } from "./pages/LandingPage";
+import { NewsPage } from "./pages/NewsPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
+import { AdminNewsPage } from "./pages/admin/AdminNewsPage";
 import { AdminAnalyticsPage } from "./pages/admin/AnalyticsPage";
 import { AdminApprovalsPage } from "./pages/admin/ApprovalsPage";
 import { AdminLocationsPage } from "./pages/admin/LocationsPage";
@@ -382,6 +385,28 @@ const adminAnalyticsRoute = createRoute({
   ),
 });
 
+const newsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/news",
+  component: NewsPage,
+});
+
+const articleDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/news/$articleId",
+  component: ArticleDetailPage,
+});
+
+const adminNewsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/news",
+  component: () => (
+    <ProtectedPage>
+      <AdminNewsPage />
+    </ProtectedPage>
+  ),
+});
+
 const listingDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/listing/$listingId",
@@ -396,6 +421,9 @@ const routeTree = rootRoute.addChildren([
   pendingApprovalRoute,
   catalogueRoute,
   listingDetailRoute,
+  newsRoute,
+  articleDetailRoute,
+  adminNewsRoute,
   cartRoute,
   checkoutRoute,
   myOrdersRoute,

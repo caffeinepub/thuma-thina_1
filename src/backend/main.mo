@@ -1272,4 +1272,138 @@ persistent actor {
     categoriesList.keys().toArray()
   };
 
+
+  // ─── Articles / Blog ─────────────────────────────────────────────────────
+
+  type Article = {
+    id : Text;
+    title : Text;
+    body : Text;
+    categoryId : Text;
+    imagesJson : ?Text;
+    authorPrincipal : Principal;
+    createdAt : Int;
+    published : Bool;
+  };
+
+  type ArticleCategory = {
+    id : Text;
+    name : Text;
+  };
+
+  let articles = Map.empty<Text, Article>();
+  let articleCategories = Map.empty<Text, ArticleCategory>();
+
+  public shared ({ caller }) func addArticle(id : Text, title : Text, body : Text, categoryId : Text, imagesJson : ?Text, published : Bool) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can publish articles");
+    };
+    articles.add(id, {
+      id; title; body; categoryId; imagesJson;
+      authorPrincipal = caller;
+      createdAt = 0;
+      published;
+    });
+  };
+
+  public shared ({ caller }) func updateArticle(id : Text, title : Text, body : Text, categoryId : Text, imagesJson : ?Text, published : Bool) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can update articles");
+    };
+    switch (articles.get(id)) {
+      case (null) { Runtime.trap("Article not found") };
+      case (?existing) {
+        articles.add(id, { existing with title; body; categoryId; imagesJson; published });
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteArticle(id : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can delete articles");
+    };
+    ignore articles.remove(id);
+  };
+
+  public query ({ caller }) func getArticles() : async [Article] {
+    let all = articles.values().toArray();
+    if (not isAnonymous(caller)) {
+      switch (users.get(caller)) {
+        case (?p) {
+          if (p.role == #admin) { return all };
+        };
+        case (null) {};
+      };
+    };
+    // Non-admin: return only published
+    all.filter(func(a : Article) : Bool { a.published })
+  };
+
+  public shared ({ caller }) func addArticleCategory(id : Text, name : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can add article categories");
+    };
+    articleCategories.add(id, { id; name });
+  };
+
+  public query func getArticleCategories() : async [ArticleCategory] {
+    articleCategories.values().toArray()
+  };
+
+  // ─── Reviews & Likes/Dislikes ─────────────────────────────────────────────
+
+  type Review = {
+    id : Text;
+    targetId : Text;
+    targetType : Text;
+    reviewerId : Principal;
+    rating : Nat;
+    comment : Text;
+    orderId : Text;
+    createdAt : Int;
+  };
+
+  type LikeDislike = {
+    targetId : Text;
+    targetType : Text;
+    userId : Principal;
+    isLike : Bool;
+  };
+
+  let reviews = Map.empty<Text, Review>();
+  let likeDislikes = Map.empty<Text, LikeDislike>();
+
+  public shared ({ caller }) func addReview(id : Text, targetId : Text, targetType : Text, rating : Nat, comment : Text, orderId : Text) : async () {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Must be logged in to review");
+    };
+    reviews.add(id, {
+      id; targetId; targetType; rating; comment; orderId;
+      reviewerId = caller;
+      createdAt = 0;
+    });
+  };
+
+  public query func getReviewsForTarget(targetId : Text) : async [Review] {
+    let all = reviews.values().toArray();
+    all.filter(func(r : Review) : Bool { r.targetId == targetId })
+  };
+
+  public shared ({ caller }) func setLikeDislike(targetId : Text, targetType : Text, isLike : Bool) : async () {
+    if (isAnonymous(caller)) {
+      Runtime.trap("Unauthorized: Must be logged in to like/dislike");
+    };
+    let key = targetId # "_" # caller.toText();
+    likeDislikes.add(key, { targetId; targetType; userId = caller; isLike });
+  };
+
+  public query func getLikesDislikesForTarget(targetId : Text) : async [LikeDislike] {
+    let all = likeDislikes.values().toArray();
+    all.filter(func(l : LikeDislike) : Bool { l.targetId == targetId })
+  };
+
 };

@@ -264,6 +264,16 @@ export interface _SERVICE {
   'updateListingPrice' : ActorMethod<[string, number], undefined>,
   'updatePickupPoint' : ActorMethod<[string, string, string, [] | [string]], undefined>,
   'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string], boolean, number], undefined>,
+  'addArticle' : ActorMethod<[string, string, string, string, [] | [string], boolean], undefined>,
+  'addArticleCategory' : ActorMethod<[string, string], undefined>,
+  'addReview' : ActorMethod<[string, string, string, bigint, string, string], undefined>,
+  'deleteArticle' : ActorMethod<[string], undefined>,
+  'getArticleCategories' : ActorMethod<[], Array<{ id: string; name: string }>>,
+  'getArticles' : ActorMethod<[], Array<{ id: string; title: string; body: string; categoryId: string; imagesJson: [] | [string]; authorPrincipal: Principal; createdAt: bigint; published: boolean }>>,
+  'getLikesDislikesForTarget' : ActorMethod<[string], Array<{ targetId: string; targetType: string; userId: Principal; isLike: boolean }>>,
+  'getReviewsForTarget' : ActorMethod<[string], Array<{ id: string; targetId: string; targetType: string; reviewerId: Principal; rating: bigint; comment: string; orderId: string; createdAt: bigint }>>,
+  'setLikeDislike' : ActorMethod<[string, string, boolean], undefined>,
+  'updateArticle' : ActorMethod<[string, string, string, string, [] | [string], boolean], undefined>,
   'updateRetailerProduct' : ActorMethod<[string, string, string, string, string, number, string, [] | [string]], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

@@ -17,6 +17,7 @@ interface NavLink {
 
 const NAV_LINKS: Record<string, NavLink[]> = {
   [AppUserRole.customer]: [
+    { to: "/news", label: "News", ocid: "nav.news.link" },
     { to: "/catalogue", label: "Browse", ocid: "nav.catalogue.link" },
     { to: "/cart", label: "Cart", ocid: "nav.cart.link" },
     { to: "/my-orders", label: "My Orders", ocid: "nav.orders.link" },
@@ -82,6 +83,7 @@ const NAV_LINKS: Record<string, NavLink[]> = {
     },
   ],
   [AppUserRole.admin]: [
+    { to: "/news", label: "News", ocid: "nav.news.link" },
     { to: "/admin/approvals", label: "Approvals", ocid: "nav.approvals.link" },
     { to: "/admin/orders", label: "Orders", ocid: "nav.orders.link" },
     { to: "/admin/products", label: "Catalogue", ocid: "nav.catalogue.link" },
@@ -91,6 +93,7 @@ const NAV_LINKS: Record<string, NavLink[]> = {
       label: "Analytics",
       ocid: "nav.analytics.link",
     },
+    { to: "/admin/news", label: "News Mgmt", ocid: "nav.news_admin.link" },
   ],
 };
 
@@ -238,11 +241,20 @@ export function AppHeader() {
                 </Button>
               </>
             ) : (
-              <Link to="/login" data-ocid="nav.login.link">
-                <Button variant="outline" size="sm" className="text-sm">
-                  Log In
-                </Button>
-              </Link>
+              <>
+                <Link
+                  to="/news"
+                  className="text-sm text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md hover:bg-muted/60 transition-colors"
+                  data-ocid="nav.news.link"
+                >
+                  News
+                </Link>
+                <Link to="/login" data-ocid="nav.login.link">
+                  <Button variant="outline" size="sm" className="text-sm">
+                    Log In
+                  </Button>
+                </Link>
+              </>
             )}
 
             {/* Mobile menu toggle */}

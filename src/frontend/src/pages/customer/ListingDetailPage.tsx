@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, MapPin, ShoppingBag, Store, Zap } from "lucide-react";
+import { LikeDislikeBar } from "../../components/LikeDislikeBar";
+import { ReviewsSection } from "../../components/ReviewsSection";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 
@@ -81,6 +83,10 @@ export function ListingDetailPage() {
       );
     }
   };
+
+  // Use product.id or listing.id as target for reviews/likes
+  const reviewTargetId = listing?.id ?? product.id;
+  const reviewTargetType = listing ? "listing" : "product";
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -165,6 +171,14 @@ export function ListingDetailPage() {
             ) : null}
           </div>
 
+          {/* Like/Dislike bar */}
+          <div className="mb-4">
+            <LikeDislikeBar
+              targetId={reviewTargetId}
+              targetType={reviewTargetType}
+            />
+          </div>
+
           <Separator className="mb-4" />
 
           {/* Retailer info */}
@@ -211,6 +225,13 @@ export function ListingDetailPage() {
               Out of Stock
             </Badge>
           )}
+
+          {/* Reviews section */}
+          <ReviewsSection
+            targetId={reviewTargetId}
+            targetType={reviewTargetType}
+            completedOrderId={null}
+          />
         </CardContent>
       </Card>
     </div>

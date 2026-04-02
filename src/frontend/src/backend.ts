@@ -1271,6 +1271,73 @@ export class Backend implements backendInterface {
         const actor = this.actor as any;
         return actor.getCategories();
     }
+
+    async addArticle(id: string, title: string, body: string, categoryId: string, imagesJson: string | null, published: boolean): Promise<void> {
+        const actor = this.actor as any;
+        await actor.addArticle(id, title, body, categoryId, imagesJson ? [imagesJson] : [], published);
+    }
+    async updateArticle(id: string, title: string, body: string, categoryId: string, imagesJson: string | null, published: boolean): Promise<void> {
+        const actor = this.actor as any;
+        await actor.updateArticle(id, title, body, categoryId, imagesJson ? [imagesJson] : [], published);
+    }
+    async deleteArticle(id: string): Promise<void> {
+        const actor = this.actor as any;
+        await actor.deleteArticle(id);
+    }
+    async getArticles(): Promise<Array<{ id: string; title: string; body: string; categoryId: string; imagesJson: string | null; authorPrincipal: string; createdAt: number; published: boolean }>> {
+        const actor = this.actor as any;
+        const raw = await actor.getArticles();
+        return raw.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            body: a.body,
+            categoryId: a.categoryId,
+            imagesJson: a.imagesJson.length > 0 ? a.imagesJson[0] : null,
+            authorPrincipal: a.authorPrincipal.toString(),
+            createdAt: Number(a.createdAt),
+            published: a.published,
+        }));
+    }
+    async addArticleCategory(id: string, name: string): Promise<void> {
+        const actor = this.actor as any;
+        await actor.addArticleCategory(id, name);
+    }
+    async getArticleCategories(): Promise<Array<{ id: string; name: string }>> {
+        const actor = this.actor as any;
+        return actor.getArticleCategories();
+    }
+    async addReview(id: string, targetId: string, targetType: string, rating: number, comment: string, orderId: string): Promise<void> {
+        const actor = this.actor as any;
+        await actor.addReview(id, targetId, targetType, BigInt(rating), comment, orderId);
+    }
+    async getReviewsForTarget(targetId: string): Promise<Array<{ id: string; targetId: string; targetType: string; reviewerId: string; rating: number; comment: string; orderId: string; createdAt: number }>> {
+        const actor = this.actor as any;
+        const raw = await actor.getReviewsForTarget(targetId);
+        return raw.map((r: any) => ({
+            id: r.id,
+            targetId: r.targetId,
+            targetType: r.targetType,
+            reviewerId: r.reviewerId.toString(),
+            rating: Number(r.rating),
+            comment: r.comment,
+            orderId: r.orderId,
+            createdAt: Number(r.createdAt),
+        }));
+    }
+    async setLikeDislike(targetId: string, targetType: string, isLike: boolean): Promise<void> {
+        const actor = this.actor as any;
+        await actor.setLikeDislike(targetId, targetType, isLike);
+    }
+    async getLikesDislikesForTarget(targetId: string): Promise<Array<{ targetId: string; targetType: string; userId: string; isLike: boolean }>> {
+        const actor = this.actor as any;
+        const raw = await actor.getLikesDislikesForTarget(targetId);
+        return raw.map((l: any) => ({
+            targetId: l.targetId,
+            targetType: l.targetType,
+            userId: l.userId.toString(),
+            isLike: l.isLike,
+        }));
+    }
 }
 function from_candid_AppUserRole_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {
     return from_candid_variant_n15(_uploadFile, _downloadFile, value);

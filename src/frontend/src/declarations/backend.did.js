@@ -634,6 +634,16 @@ export const idlFactory = ({ IDL }) => {
     'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
     'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
     'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64], [], []),
+    'addArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
+    'addArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'addReview' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Text], [], []),
+    'deleteArticle' : IDL.Func([IDL.Text], [], []),
+    'getArticleCategories' : IDL.Func([], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'name': IDL.Text }))], ['query']),
+    'getArticles' : IDL.Func([], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'title': IDL.Text, 'body': IDL.Text, 'categoryId': IDL.Text, 'imagesJson': IDL.Opt(IDL.Text), 'authorPrincipal': IDL.Principal, 'createdAt': IDL.Int, 'published': IDL.Bool }))], ['query']),
+    'getLikesDislikesForTarget' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'targetId': IDL.Text, 'targetType': IDL.Text, 'userId': IDL.Principal, 'isLike': IDL.Bool }))], ['query']),
+    'getReviewsForTarget' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'targetId': IDL.Text, 'targetType': IDL.Text, 'reviewerId': IDL.Principal, 'rating': IDL.Nat, 'comment': IDL.Text, 'orderId': IDL.Text, 'createdAt': IDL.Int }))], ['query']),
+    'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
+    'updateArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
     'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
   });
 };
