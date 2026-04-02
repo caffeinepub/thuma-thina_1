@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
+  Calendar,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
   Coins,
   MapPin,
+  Newspaper,
   Package,
   Search,
   ShoppingBag,
@@ -32,6 +34,7 @@ import {
   getNextOpeningText,
   isRetailerOpen,
 } from "../data/mockData";
+import { useActor } from "../hooks/useActor";
 
 // ─── Constant data ─────────────────────────────────────────────────────────
 
@@ -721,6 +724,195 @@ function PopularInTownSection() {
   );
 }
 
+// ─── News Carousel Section ───────────────────────────────────────────────────
+
+interface Article {
+  id: string;
+  title: string;
+  body: string;
+  categoryId: string;
+  imagesJson: string | null;
+  authorPrincipal: string;
+  createdAt: number;
+  published: boolean;
+}
+
+interface ArticleCategory {
+  id: string;
+  name: string;
+}
+
+function NewsCarouselSection() {
+  const { actor } = useActor();
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [categories, setCategories] = useState<ArticleCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!actor) return;
+    Promise.all([
+      (actor as any).getArticles().catch(() => []),
+      (actor as any).getArticleCategories().catch(() => []),
+    ]).then(([arts, cats]) => {
+      const published = (arts as Article[]).filter((a) => a.published);
+      // Shuffle randomly
+      for (let i = published.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [published[i], published[j]] = [published[j], published[i]];
+      }
+      setArticles(published);
+      setCategories(cats as ArticleCategory[]);
+      setLoading(false);
+    });
+  }, [actor]);
+
+  const getCategoryName = (id: string) =>
+    categories.find((c) => c.id === id)?.name ?? "News";
+
+  const getImageUrl = (imagesJson: string | null): string | null => {
+    if (!imagesJson) return null;
+    try {
+      const parsed = JSON.parse(imagesJson);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const scrollCarousel = useCallback((direction: "prev" | "next") => {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: direction === "next" ? 900 : -900,
+      behavior: "smooth",
+    });
+  }, []);
+
+  // Don't render if no articles and not loading
+  if (!loading && articles.length === 0) return null;
+
+  return (
+    <section className="py-10 sm:py-14 bg-muted/20 border-b border-border/40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        {/* Header row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Newspaper className="h-5 w-5 text-primary" />
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
+                News & Updates
+              </h2>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Latest from the Thuma Thina community
+            </p>
+          </div>
+          <Link to="/news" data-ocid="home.news.link">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+              View All News
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        </div>
+
+        {/* Carousel */}
+        <div className="relative" data-ocid="home.news_carousel.panel">
+          <button
+            type="button"
+            onClick={() => scrollCarousel("prev")}
+            data-ocid="home.news_carousel.prev_button"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollCarousel("next")}
+            data-ocid="home.news_carousel.next_button"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          <div
+            ref={carouselRef}
+            className="flex gap-4 overflow-x-auto pb-3 scroll-smooth"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {loading
+              ? Array.from({ length: 4 }, (_, i) => i).map((i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 w-72 rounded-xl border border-border/50 bg-card overflow-hidden"
+                  >
+                    <div className="h-40 bg-muted animate-pulse" />
+                    <div className="p-4 space-y-2">
+                      <div className="h-3 bg-muted animate-pulse rounded w-16" />
+                      <div className="h-4 bg-muted animate-pulse rounded w-full" />
+                      <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                      <div className="h-3 bg-muted animate-pulse rounded w-24" />
+                    </div>
+                  </div>
+                ))
+              : articles.map((article, idx) => {
+                  const imgUrl = getImageUrl(article.imagesJson);
+                  return (
+                    <Link
+                      key={article.id}
+                      to="/news/$articleId"
+                      params={{ articleId: article.id }}
+                      data-ocid={`home.news.item.${idx + 1}`}
+                      className="flex-shrink-0 w-72 rounded-xl border border-border/50 bg-card overflow-hidden hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+                    >
+                      {/* Image */}
+                      <div className="h-40 bg-muted/60 overflow-hidden flex items-center justify-center relative">
+                        {imgUrl ? (
+                          <img
+                            src={imgUrl}
+                            alt={article.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground/50">
+                            <Newspaper className="h-10 w-10" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      {/* Content */}
+                      <div className="p-4">
+                        <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 rounded-full px-2 py-0.5 mb-2">
+                          {getCategoryName(article.categoryId)}
+                        </span>
+                        <h3 className="font-semibold text-sm leading-snug line-clamp-2 text-foreground group-hover:text-primary transition-colors mb-2">
+                          {article.title}
+                        </h3>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(article.createdAt).toLocaleDateString(
+                            "en-ZA",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Track My Order Section ──────────────────────────────────────────────────
 
 function TrackMyOrderSection() {
@@ -1088,6 +1280,9 @@ export function LandingPage() {
 
       {/* Popular In Your Town — Shop section */}
       <PopularInTownSection />
+
+      {/* News & Updates Carousel */}
+      <NewsCarouselSection />
 
       {/* Track My Order */}
       <TrackMyOrderSection />

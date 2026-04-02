@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMemo, useState } from "react";
+import { LikeDislikeBar } from "../../components/LikeDislikeBar";
+import { ReviewsSection } from "../../components/ReviewsSection";
 import { useApp } from "../../context/AppContext";
 import { ORDER_STATUS_LABELS } from "../../data/mockData";
 
@@ -355,6 +357,32 @@ export function OperatorAnalyticsPage() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      {/* My Reviews */}
+      <Card className="card-glow border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display text-base">
+            ⭐ My Reviews & Ratings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <LikeDislikeBar
+            targetId={currentUser?.id ?? ""}
+            targetType="operator"
+          />
+          <ReviewsSection
+            targetId={currentUser?.id ?? ""}
+            targetType="operator"
+            completedOrderId={
+              myOrders.find((o) =>
+                ["delivered", "collected", "ready_for_collection"].includes(
+                  o.status,
+                ),
+              )?.id ?? null
+            }
+          />
         </CardContent>
       </Card>
     </div>

@@ -645,6 +645,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     : ("rejected" as const),
               createdAt: new Date().toISOString(),
               businessAreaId: u.businessAreaId ?? undefined,
+              pickupPointId:
+                u.role === AppUserRole.operator
+                  ? (u.businessAreaId ?? undefined)
+                  : undefined,
               assignedRetailerIds: assignMap.get(u.principal.toString()) ?? [],
             }));
           setStaffUsers(mapped);

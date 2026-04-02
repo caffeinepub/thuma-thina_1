@@ -20,7 +20,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Fingerprint, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { BusinessArea, Town } from "../../backend.d";
+import type { BusinessArea, PickupPoint, Town } from "../../backend.d";
 import { AppUserRole } from "../../backend.d";
 import { useAuth } from "../../context/AuthContext";
 import { useActor } from "../../hooks/useActor";
@@ -67,16 +67,23 @@ export function StaffApplyPage() {
     phone: "",
   });
   const [businessAreaId, setBusinessAreaId] = useState<string>("");
+  const [pickupPointId, setPickupPointId] = useState<string>("");
   const [towns, setTowns] = useState<Town[]>([]);
   const [businessAreas, setBusinessAreas] = useState<BusinessArea[]>([]);
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
 
   // Fetch towns and business areas for the area selector
   useEffect(() => {
     if (!actor) return;
-    Promise.all([actor.getTowns(), actor.getBusinessAreas()])
-      .then(([rawTowns, rawAreas]) => {
+    Promise.all([
+      actor.getTowns(),
+      actor.getBusinessAreas(),
+      actor.getPickupPoints(),
+    ])
+      .then(([rawTowns, rawAreas, rawPoints]) => {
         setTowns(rawTowns);
         setBusinessAreas(rawAreas);
+        setPickupPoints(rawPoints as PickupPoint[]);
       })
       .catch(() => {
         // Non-fatal: areas will just be empty
@@ -96,6 +103,10 @@ export function StaffApplyPage() {
       toast.error("Please enter your phone number");
       return;
     }
+    if (role === AppUserRole.operator && !pickupPointId) {
+      toast.error("Please select your pick-up point");
+      return;
+    }
     if (role === AppUserRole.shopper && !businessAreaId) {
       toast.error("Please select your business area");
       return;
@@ -103,7 +114,10 @@ export function StaffApplyPage() {
     setLoading(true);
     try {
       if (!actor) throw new Error("Not connected to backend");
-      const areaId = businessAreaId || null;
+      const areaId =
+        role === AppUserRole.operator
+          ? pickupPointId || null
+          : businessAreaId || null;
       await actor.registerUser(
         role,
         form.name.trim(),
@@ -286,10 +300,46 @@ export function StaffApplyPage() {
                 />
               </div>
 
-              {/* Business area — required for shoppers, optional for others */}
+              {/* Pick-up point selector for operators */}
+              {role === AppUserRole.operator && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickup-point">
+                    Pick-up Point{" "}
+                    <span className="text-destructive ml-1">*</span>
+                  </Label>
+                  <Select
+                    value={pickupPointId}
+                    onValueChange={setPickupPointId}
+                  >
+                    <SelectTrigger
+                      id="pickup-point"
+                      data-ocid="auth.pickup_point.select"
+                    >
+                      <SelectValue placeholder="Select your pick-up point" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pickupPoints.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No pick-up points available yet
+                        </SelectItem>
+                      ) : (
+                        pickupPoints.map((pp) => (
+                          <SelectItem key={pp.id} value={pp.id}>
+                            {pp.name} — {pp.address}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Operators are linked to a specific pick-up point.
+                  </p>
+                </div>
+              )}
+
+              {/* Business area — required for shoppers, optional for drivers */}
               {(role === AppUserRole.shopper ||
-                role === AppUserRole.driver ||
-                role === AppUserRole.operator) && (
+                role === AppUserRole.driver) && (
                 <div className="space-y-1.5">
                   <Label htmlFor="business-area">
                     Business Area

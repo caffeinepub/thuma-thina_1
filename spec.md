@@ -1,50 +1,27 @@
 # Thuma Thina
 
 ## Current State
-Full-stack community personal shopper and delivery platform on ICP. Has admin, shopper, driver, operator, and customer roles. Products catalogue, order splitting by area, special product workflow (prepaid electricity), Nomayini token rewards, cash-at-pickup-point payment flow. Blog/news and reviews features do not yet exist.
+- LandingPage.tsx has a home carousel for products but no news/blog section
+- Operators apply linked to a business area (same as shoppers/drivers), but the operator workflow (`IncomingOrdersPage.tsx`) uses `staffUser.pickupPointId` to find their pick-up point — this field is never set because the backend `UserProfile` only stores `businessAreaId`
+- `ShopperAnalyticsPage.tsx` already wires `ReviewsSection` and `LikeDislikeBar` for the shopper role
+- `DriverAnalyticsPage.tsx` and `OperatorAnalyticsPage.tsx` / `OperatorProfilePage.tsx` do not yet show reviews/likes
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Article/Blog system**: Super admin can publish articles with title, body, images, and a category. Articles are public (visible to all including anonymous users). Admin can add article categories that persist for future use.
-- **News page** (`/news`): Public page listing all published articles, filterable by category, accessible from main nav.
-- **Article detail page** (`/news/:articleId`): Full article view with images and body.
-- **Admin News management** (`/admin/news`): Admin can create, edit/update, and delete articles and article categories.
-- **Reviews & Ratings**: Customers can leave a written review + star rating (1–5) on a listing or staff member (shopper, driver, operator) only after a completed/delivered order involving that entity. One review per entity per order.
-- **Likes/Dislikes**: Separate from reviews — customers can thumbs up/down a listing or staff member independently. Shows aggregate like/dislike counts.
-- **Staff review dashboard**: Each staff member sees their own review feed, average rating, and like/dislike totals in their personal analytics/profile page.
+- News/blog carousel on the home page: fetch published articles from the backend (`getArticles()`), shuffle randomly, display in a horizontally scrolling carousel below the product carousel. Each card shows title, category badge, date, and article image if present. Links to `/news/:articleId`. Gracefully hidden when no articles exist.
+- Wire reviews and likes into `DriverAnalyticsPage.tsx` and `OperatorAnalyticsPage.tsx` (or `OperatorProfilePage.tsx`) using the existing `ReviewsSection` and `LikeDislikeBar` components — same pattern already used in `ShopperAnalyticsPage.tsx`.
 
 ### Modify
-- `AppHeader.tsx` — add "News" link to the public nav
-- Staff analytics/profile pages — add reviews section showing personal stats and reviews
-- `App.tsx` — add routes for `/news`, `/news/:articleId`, `/admin/news`
+- `StaffApplyPage.tsx`: for the **operator** role, replace the business area selector with a pick-up point selector (fetch `getPickupPoints()`). Pass the selected pick-up point ID as the `businessAreaId` argument of `registerUser` (since `UserProfile` only has `businessAreaId` on the backend). Add required validation: operator must select a pick-up point to submit.
+- `AppContext.tsx`: in the `StaffUser` mapping (where `allUsers` is mapped), for users with `role === AppUserRole.operator`, set `pickupPointId = u.businessAreaId` in addition to / instead of `businessAreaId`. This ensures `IncomingOrdersPage` can find `myPickupPoint` correctly.
 
 ### Remove
-- Nothing removed
+- Nothing removed.
 
 ## Implementation Plan
-
-### Backend (main.mo)
-1. Add `Article` type: `{ id: Text; title: Text; body: Text; categoryId: Text; imagesJson: ?Text; authorPrincipal: Principal; createdAt: Int; published: Bool }`
-2. Add `ArticleCategory` type: `{ id: Text; name: Text }`
-3. Add stable maps: `articles`, `articleCategories`
-4. Add functions: `addArticle`, `updateArticle`, `deleteArticle`, `getArticles` (public query, returns all published; admin gets all), `addArticleCategory`, `getArticleCategories`
-5. Add `Review` type: `{ id: Text; targetId: Text; targetType: Text; reviewerId: Principal; rating: Nat; comment: Text; orderId: Text; createdAt: Int }`
-6. Add `LikeDislike` type: `{ targetId: Text; targetType: Text; userId: Principal; isLike: Bool }`
-7. Add stable maps: `reviews`, `likeDislikes`
-8. Add functions: `addReview`, `getReviewsForTarget`, `setLikeDislike`, `getLikesDislikesForTarget`, `getMyReviewForOrder`
-
-### IDL Files
-- Add all new functions to `declarations/backend.did.js` idlFactory and idlService
-- Add type signatures to `declarations/backend.did.d.ts`
-- Add wrapper methods to `backend.ts`
-
-### Frontend
-- New page: `NewsPage.tsx` — public article list with category filter tabs
-- New page: `ArticleDetailPage.tsx` — full article view
-- New admin page: `AdminNewsPage.tsx` — CRUD for articles and article categories
-- Reviews component: reusable `ReviewsSection.tsx` — shows star rating form (post-order gate) + review list
-- Likes/dislikes component: `LikeDislikeBar.tsx` — thumbs up/down with counts
-- Wire into `ListingDetailPage.tsx`, staff profile/analytics pages
-- Update `AppHeader.tsx` to include News nav link
-- Update `App.tsx` routes
+1. `StaffApplyPage.tsx` — fetch pick-up points; show pick-up point dropdown for operators; validate operator has selected one; pass value as businessAreaId to registerUser
+2. `AppContext.tsx` — in StaffUser mapping, for operator role set pickupPointId from businessAreaId
+3. `LandingPage.tsx` — add news carousel section after product carousel; fetch articles with getArticles(); shuffle; render cards; link to article detail
+4. `DriverAnalyticsPage.tsx` — add LikeDislikeBar and ReviewsSection with targetId=driver's principal, targetType='driver', completedOrderId from a completed order if available
+5. `OperatorAnalyticsPage.tsx` (or `OperatorProfilePage.tsx`) — same pattern for operator role
