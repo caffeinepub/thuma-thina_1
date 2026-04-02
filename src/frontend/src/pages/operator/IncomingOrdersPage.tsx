@@ -8,16 +8,20 @@ import { Banknote, MapPin, Package, UserCircle } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 
 export function OperatorIncomingOrdersPage() {
   const { orders, updateOrderStatus, currentUser, staffUsers, pickupPoints } =
     useApp();
+  const { userProfile } = useAuth();
 
-  // Get operator's pickup point
+  // For operators, their pickupPointId is stored as businessAreaId in their profile
+  const myPickupPointId =
+    userProfile?.businessAreaId ??
+    staffUsers.find((u) => u.id === currentUser?.id)?.pickupPointId ??
+    null;
+  const myPickupPoint = pickupPoints.find((pp) => pp.id === myPickupPointId);
   const staffUser = staffUsers.find((u) => u.id === currentUser?.id);
-  const myPickupPoint = pickupPoints.find(
-    (pp) => pp.id === staffUser?.pickupPointId,
-  );
   const initials = currentUser?.name
     ? currentUser.name
         .split(" ")
@@ -30,13 +34,16 @@ export function OperatorIncomingOrdersPage() {
   // Orders awaiting payment at this pickup point
   const awaitingPayment = orders.filter(
     (o) =>
-      o.pickupPointId === myPickupPoint?.id && o.status === "awaiting_payment",
+      (o.pickupPointId === myPickupPointId ||
+        o.pickupPointId === myPickupPoint?.id) &&
+      o.status === "awaiting_payment",
   );
 
   // Orders assigned to this pickup point that aren't yet collected
   const incoming = orders.filter(
     (o) =>
-      o.pickupPointId === myPickupPoint?.id &&
+      (o.pickupPointId === myPickupPointId ||
+        o.pickupPointId === myPickupPoint?.id) &&
       ["out_for_delivery", "delivered", "accepted_by_driver"].includes(
         o.status,
       ),

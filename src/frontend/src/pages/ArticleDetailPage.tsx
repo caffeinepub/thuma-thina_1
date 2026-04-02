@@ -1,9 +1,27 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, Calendar } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Calendar,
+  Check,
+  Copy,
+  Facebook,
+  MessageCircle,
+  Share2,
+  ThumbsDown,
+  ThumbsUp,
+  Twitter,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { SiWhatsapp } from "react-icons/si";
+import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 
 interface Article {
@@ -22,6 +40,55 @@ interface ArticleCategory {
   name: string;
 }
 
+interface ArticleLikes {
+  likes: number;
+  dislikes: number;
+  userVote: "like" | "dislike" | null;
+}
+
+interface ArticleComment {
+  id: string;
+  text: string;
+  author: string;
+  date: string;
+}
+
+function getLikesKey(articleId: string) {
+  return `tt_article_likes_${articleId}`;
+}
+
+function getCommentsKey(articleId: string) {
+  return `tt_article_comments_${articleId}`;
+}
+
+function loadLikes(articleId: string): ArticleLikes {
+  try {
+    const raw = localStorage.getItem(getLikesKey(articleId));
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* noop */
+  }
+  return { likes: 0, dislikes: 0, userVote: null };
+}
+
+function saveLikes(articleId: string, data: ArticleLikes) {
+  localStorage.setItem(getLikesKey(articleId), JSON.stringify(data));
+}
+
+function loadComments(articleId: string): ArticleComment[] {
+  try {
+    const raw = localStorage.getItem(getCommentsKey(articleId));
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* noop */
+  }
+  return [];
+}
+
+function saveComments(articleId: string, data: ArticleComment[]) {
+  localStorage.setItem(getCommentsKey(articleId), JSON.stringify(data));
+}
+
 export function ArticleDetailPage() {
   const { articleId } = useParams({ strict: false }) as { articleId: string };
   const { actor } = useActor();
@@ -29,6 +96,22 @@ export function ArticleDetailPage() {
   const [categories, setCategories] = useState<ArticleCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  // Likes/dislikes
+  const [likesData, setLikesData] = useState<ArticleLikes>({
+    likes: 0,
+    dislikes: 0,
+    userVote: null,
+  });
+
+  // Comments
+  const [comments, setComments] = useState<ArticleComment[]>([]);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [newCommentAuthor, setNewCommentAuthor] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Copy link state
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!actor) return;
@@ -47,6 +130,13 @@ export function ArticleDetailPage() {
     });
   }, [actor, articleId]);
 
+  // Load likes and comments from localStorage when articleId is available
+  useEffect(() => {
+    if (!articleId) return;
+    setLikesData(loadLikes(articleId));
+    setComments(loadComments(articleId));
+  }, [articleId]);
+
   const getCategoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? "General";
 
@@ -59,6 +149,100 @@ export function ArticleDetailPage() {
       year: "numeric",
     });
   };
+
+  const handleVote = (vote: "like" | "dislike") => {
+    setLikesData((prev) => {
+      let next: ArticleLikes;
+      if (prev.userVote === vote) {
+        // Toggle off
+        next = {
+          likes: vote === "like" ? prev.likes - 1 : prev.likes,
+          dislikes: vote === "dislike" ? prev.dislikes - 1 : prev.dislikes,
+          userVote: null,
+        };
+      } else {
+        // Switch or set
+        next = {
+          likes:
+            vote === "like"
+              ? prev.likes + 1
+              : prev.userVote === "like"
+                ? prev.likes - 1
+                : prev.likes,
+          dislikes:
+            vote === "dislike"
+              ? prev.dislikes + 1
+              : prev.userVote === "dislike"
+                ? prev.dislikes - 1
+                : prev.dislikes,
+          userVote: vote,
+        };
+      }
+      saveLikes(articleId, next);
+      return next;
+    });
+  };
+
+  const handleSubmitComment = () => {
+    if (!newCommentText.trim()) {
+      toast.error("Please write a comment before submitting.");
+      return;
+    }
+    setSubmittingComment(true);
+    const newComment: ArticleComment = {
+      id: `c_${Date.now()}`,
+      text: newCommentText.trim(),
+      author: newCommentAuthor.trim() || "Anonymous",
+      date: new Date().toLocaleDateString("en-ZA", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+    };
+    const updated = [newComment, ...comments];
+    setComments(updated);
+    saveComments(articleId, updated);
+    setNewCommentText("");
+    setNewCommentAuthor("");
+    setSubmittingComment(false);
+    toast.success("Comment added!");
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      toast.success("Link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy link.");
+    }
+  };
+
+  const shareUrl = encodeURIComponent(window.location.href);
+  const shareTitle = encodeURIComponent(article?.title ?? "Thuma Thina");
+
+  const socialLinks = [
+    {
+      label: "WhatsApp",
+      icon: <SiWhatsapp className="h-4 w-4" />,
+      href: `https://wa.me/?text=Check+out+this+article:+${shareUrl}`,
+      className: "bg-[#25D366] hover:bg-[#1da851] text-white border-0",
+    },
+    {
+      label: "Facebook",
+      icon: <Facebook className="h-4 w-4" />,
+      href: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`,
+      className: "bg-[#1877F2] hover:bg-[#1565d8] text-white border-0",
+    },
+    {
+      label: "X / Twitter",
+      icon: <Twitter className="h-4 w-4" />,
+      href: `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareTitle}`,
+      className:
+        "bg-foreground hover:bg-foreground/80 text-background border-0",
+    },
+  ];
 
   if (loading) {
     return (
@@ -145,9 +329,96 @@ export function ArticleDetailPage() {
         </span>
       </div>
 
-      <h1 className="font-display text-2xl sm:text-3xl font-bold mb-6 leading-tight">
+      <h1 className="font-display text-2xl sm:text-3xl font-bold mb-4 leading-tight">
         {article.title}
       </h1>
+
+      {/* ── Share Buttons ── */}
+      <div
+        className="flex flex-wrap items-center gap-2 mb-6"
+        data-ocid="article.share.panel"
+      >
+        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mr-1">
+          <Share2 className="h-3.5 w-3.5" />
+          Share:
+        </span>
+        {socialLinks.map((s) => (
+          <a
+            key={s.label}
+            href={s.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-ocid={"article.share.button"}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-8 gap-1.5 text-xs font-medium ${s.className}`}
+            >
+              {s.icon}
+              {s.label}
+            </Button>
+          </a>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={handleCopyLink}
+          data-ocid="article.copy_link.button"
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          {copied ? "Copied!" : "Copy Link"}
+        </Button>
+      </div>
+
+      {/* ── Likes / Dislikes ── */}
+      <div
+        className="flex items-center gap-3 mb-6"
+        data-ocid="article.likes.panel"
+      >
+        <Button
+          variant={likesData.userVote === "like" ? "default" : "outline"}
+          size="sm"
+          className={`h-9 gap-2 font-medium ${
+            likesData.userVote === "like"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => handleVote("like")}
+          data-ocid="article.like.toggle"
+        >
+          <ThumbsUp className="h-4 w-4" />
+          <span>{likesData.likes}</span>
+        </Button>
+        <Button
+          variant={likesData.userVote === "dislike" ? "destructive" : "outline"}
+          size="sm"
+          className={`h-9 gap-2 font-medium ${
+            likesData.userVote === "dislike"
+              ? ""
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => handleVote("dislike")}
+          data-ocid="article.dislike.toggle"
+        >
+          <ThumbsDown className="h-4 w-4" />
+          <span>{likesData.dislikes}</span>
+        </Button>
+        <span className="text-xs text-muted-foreground ml-1">
+          {likesData.likes + likesData.dislikes > 0
+            ? `${likesData.likes + likesData.dislikes} reaction${
+                likesData.likes + likesData.dislikes !== 1 ? "s" : ""
+              }`
+            : "Be the first to react"}
+        </span>
+      </div>
+
+      <Separator className="mb-6" />
 
       {/* Body */}
       <div className="prose prose-sm max-w-none text-foreground space-y-4">
@@ -178,6 +449,90 @@ export function ArticleDetailPage() {
           ))}
         </div>
       )}
+
+      <Separator className="mt-10 mb-8" />
+
+      {/* ── Comments Section ── */}
+      <section data-ocid="article.comments.panel">
+        <h2 className="font-display text-xl font-bold mb-5 flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          Comments
+          {comments.length > 0 && (
+            <Badge variant="secondary" className="text-xs ml-1">
+              {comments.length}
+            </Badge>
+          )}
+        </h2>
+
+        {/* Add comment form */}
+        <Card className="mb-6 border-border/60">
+          <CardContent className="p-4 space-y-3">
+            <Input
+              placeholder="Your name (optional)"
+              value={newCommentAuthor}
+              onChange={(e) => setNewCommentAuthor(e.target.value)}
+              className="h-9 text-sm"
+              data-ocid="article.comment_author.input"
+            />
+            <Textarea
+              placeholder="Write a comment..."
+              value={newCommentText}
+              onChange={(e) => setNewCommentText(e.target.value)}
+              className="resize-none text-sm min-h-[80px]"
+              data-ocid="article.comment.textarea"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleSubmitComment}
+                disabled={submittingComment || !newCommentText.trim()}
+                className="gap-1.5"
+                data-ocid="article.comment.submit_button"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Post Comment
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Comments list */}
+        {comments.length === 0 ? (
+          <div
+            className="text-center py-8 text-muted-foreground/60"
+            data-ocid="article.comments.empty_state"
+          >
+            <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">
+              No comments yet. Be the first to share your thoughts!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {comments.map((comment, i) => (
+              <Card
+                key={comment.id}
+                className="border-border/40 bg-muted/20"
+                data-ocid={`article.comment.item.${i + 1}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-sm">
+                      {comment.author}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {comment.date}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {comment.text}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

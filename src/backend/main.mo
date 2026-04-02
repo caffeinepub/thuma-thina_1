@@ -954,7 +954,7 @@ persistent actor {
       customerPhone;
       itemsJson;
       total;
-      status = "pending";
+      status = "awaiting_payment";
       deliveryType;
       pickupPointId;
       pickupPointName;

@@ -1136,25 +1136,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
           // Reload orders from backend after placing
           await loadOrdersFromBackend();
-          // Set all new sub-orders to awaiting_payment so shoppers don't see them until operator confirms payment
-          try {
-            await Promise.all(
-              newOrders.map((subOrder) =>
-                actor.updateOrderStatus(
-                  subOrder.id,
-                  "awaiting_payment",
-                  null,
-                  null,
-                  null,
-                  null,
-                  new Date().toISOString(),
-                ),
-              ),
-            );
-            await loadOrdersFromBackend();
-          } catch (statusErr) {
-            console.warn("Could not set awaiting_payment status:", statusErr);
-          }
         } catch (err) {
           console.error("Failed to persist orders to backend:", err);
           toast.error("Order may not have been saved. Please try again.");
@@ -1191,6 +1172,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Notify operator that payment is awaiting (shoppers notified after payment confirmed)
       const ppName = newOrders[0]?.pickupPointName ?? "the pick-up point";
+      const pickupPointId = newOrders[0]?.pickupPointId;
+      // Find the specific operator for this pickup point so only they get notified
+      const operatorUser = staffUsers.find(
+        (u) =>
+          u.role === "operator" &&
+          (u.pickupPointId === pickupPointId ||
+            u.businessAreaId === pickupPointId),
+      );
       const operatorNotif: AppNotification = {
         id: `notif_${Date.now()}_op`,
         type: "order" as const,
@@ -1199,8 +1188,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         read: false,
         createdAt: now,
         targetRole: "operator" as const,
+        targetUserId: operatorUser?.id ?? undefined,
       };
-      // Notify the customer to go pay at pick-up point
+      // Notify only the placing customer to go pay at pick-up point
       const customerNotif: AppNotification = {
         id: `notif_${Date.now()}_cust`,
         type: "order" as const,
@@ -1209,6 +1199,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         read: false,
         createdAt: now,
         targetRole: "customer" as const,
+        targetUserId: orderData.customerId,
       };
       setNotifications((prev) => [operatorNotif, customerNotif, ...prev]);
 

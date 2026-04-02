@@ -893,14 +893,15 @@ function NewsCarouselSection() {
                         </h3>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          {new Date(article.createdAt).toLocaleDateString(
-                            "en-ZA",
-                            {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            },
-                          )}
+                          {new Date(
+                            article.createdAt > 1e12
+                              ? Math.floor(article.createdAt / 1_000_000)
+                              : article.createdAt,
+                          ).toLocaleDateString("en-ZA", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </div>
                       </div>
                     </Link>
@@ -1178,6 +1179,7 @@ function FloatingCartButton() {
 
 export function LandingPage() {
   useApp(); // keep context alive
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen">
@@ -1233,50 +1235,54 @@ export function LandingPage() {
                   Join Our Team
                 </Button>
               </Link>
-              <Link to="/login" data-ocid="auth.login.button">
-                <Button
-                  size="lg"
-                  variant="ghost"
-                  className="w-full sm:w-auto text-white/80 hover:text-white hover:bg-white/10"
-                >
-                  Log In
-                </Button>
-              </Link>
+              {!isAuthenticated && (
+                <Link to="/login" data-ocid="auth.login.button">
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    className="w-full sm:w-auto text-white/80 hover:text-white hover:bg-white/10"
+                  >
+                    Log In
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Preview Mode Quick-Access */}
-      <section className="bg-muted/40 border-y border-border/40 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col sm:flex-row items-center gap-3 text-sm">
-            <span className="text-muted-foreground font-medium shrink-0">
-              🔐 Login to access your dashboard:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <Link to="/login" data-ocid="nav.login.link">
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  Log In
-                </Button>
-              </Link>
-              <Link
-                to="/register/customer"
-                data-ocid="nav.register_customer.link"
-              >
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  Register as Customer
-                </Button>
-              </Link>
-              <Link to="/register/staff" data-ocid="nav.register_staff.link">
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  Join Our Team
-                </Button>
-              </Link>
+      {/* Preview Mode Quick-Access - only show to unauthenticated users */}
+      {!isAuthenticated && (
+        <section className="bg-muted/40 border-y border-border/40 py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row items-center gap-3 text-sm">
+              <span className="text-muted-foreground font-medium shrink-0">
+                🔐 Login to access your dashboard:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Link to="/login" data-ocid="nav.login.link">
+                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                    Log In
+                  </Button>
+                </Link>
+                <Link
+                  to="/register/customer"
+                  data-ocid="nav.register_customer.link"
+                >
+                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                    Register as Customer
+                  </Button>
+                </Link>
+                <Link to="/register/staff" data-ocid="nav.register_staff.link">
+                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                    Join Our Team
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Popular In Your Town — Shop section */}
       <PopularInTownSection />
