@@ -27,7 +27,19 @@ export type ProductCategory =
   | "Fast Food"
   | "Beverages"
   | "Personal Care"
-  | "Baby & Kids";
+  | "Baby & Kids"
+  | "Auto Spares"
+  | "Butchery"
+  | "Voucher"
+  | "Building Materials"
+  | "Phones"
+  | "Gadgets"
+  | "TV"
+  | "Toys"
+  | "Power Tools"
+  | "Surface & Floor Cleaners"
+  | "Detergents & Soaps"
+  | string;
 
 export interface Town {
   id: string;

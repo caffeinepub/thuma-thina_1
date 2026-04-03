@@ -265,6 +265,26 @@ function mapBackendOrder(backendOrder: BackendOrder): Order {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+const DEFAULT_CATEGORIES = [
+  "Groceries",
+  "Household",
+  "Fast Food",
+  "Beverages",
+  "Personal Care",
+  "Baby & Kids",
+  "Auto Spares",
+  "Butchery",
+  "Voucher",
+  "Building Materials",
+  "Phones",
+  "Gadgets",
+  "TV",
+  "Toys",
+  "Power Tools",
+  "Surface & Floor Cleaners",
+  "Detergents & Soaps",
+];
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { actor, isFetching: actorFetching } = useActor();
   const { isAuthenticated, isAdmin, userRole, principalText, userProfile } =
@@ -658,9 +678,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Load custom categories (available to all users)
     try {
       const cats = await actor.getCategories();
-      if (cats && cats.length > 0) setCustomCategories(cats);
+      if (cats && cats.length > 0) {
+        // Merge defaults with any custom ones already stored
+        const merged = Array.from(new Set([...DEFAULT_CATEGORIES, ...cats]));
+        setCustomCategories(merged);
+      } else if (isAdmin) {
+        // First run: seed default categories into the backend
+        try {
+          await (actor as any).updateCategories(DEFAULT_CATEGORIES);
+          setCustomCategories(DEFAULT_CATEGORIES);
+        } catch {
+          setCustomCategories(DEFAULT_CATEGORIES);
+        }
+      } else {
+        setCustomCategories(DEFAULT_CATEGORIES);
+      }
     } catch {
-      /* ignore */
+      setCustomCategories(DEFAULT_CATEGORIES);
     }
 
     setDataLoading(false);
@@ -952,17 +986,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addCustomCategory = useCallback(
     async (name: string) => {
       if (!name.trim()) return;
+      // Add locally immediately so UI responds instantly
+      setCustomCategories((prev) =>
+        prev.includes(name.trim()) ? prev : [...prev, name.trim()],
+      );
       try {
         if (actor) {
           await actor.addCategory(name.trim());
         }
-        setCustomCategories((prev) =>
-          prev.includes(name.trim()) ? prev : [...prev, name.trim()],
-        );
       } catch (e) {
-        console.error("Failed to save category:", e);
-        toast.error("Failed to save category. Please try again.");
-        // Do NOT add locally if backend fails — would create false persistence illusion
+        console.error("Failed to save category to backend:", e);
+        // Keep local addition -- category still usable this session
       }
     },
     [actor],

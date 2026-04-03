@@ -54,15 +54,37 @@ const CATEGORIES: ProductCategory[] = [
   "Beverages",
   "Personal Care",
   "Baby & Kids",
+  "Auto Spares",
+  "Butchery",
+  "Voucher",
+  "Building Materials",
+  "Phones",
+  "Gadgets",
+  "TV",
+  "Toys",
+  "Power Tools",
+  "Surface & Floor Cleaners",
+  "Detergents & Soaps",
 ];
 
-const EMOJIS: Record<ProductCategory, string> = {
+const EMOJIS: Record<string, string> = {
   Groceries: "🌾",
   Household: "🏠",
   "Fast Food": "🍔",
   Beverages: "🥤",
   "Personal Care": "🧴",
   "Baby & Kids": "👶",
+  "Auto Spares": "🔧",
+  Butchery: "🥩",
+  Voucher: "🎟️",
+  "Building Materials": "🏗️",
+  Phones: "📱",
+  Gadgets: "🎮",
+  TV: "📺",
+  Toys: "🧸",
+  "Power Tools": "🔨",
+  "Surface & Floor Cleaners": "🧹",
+  "Detergents & Soaps": "🧼",
 };
 
 export function AdminProductsPage() {

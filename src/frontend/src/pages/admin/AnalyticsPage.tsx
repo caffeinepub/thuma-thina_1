@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -34,6 +34,18 @@ import { useApp } from "../../context/AppContext";
 import type { Order, OrderStatus } from "../../data/mockData";
 import { ORDER_STATUS_LABELS } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
+
+import {
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Package,
+  ShoppingBag,
+  Store,
+  TrendingUp,
+  Truck,
+  Users,
+} from "lucide-react";
 
 // ─── Time range helpers ──────────────────────────────────────────────────────
 
@@ -134,8 +146,257 @@ interface NomayiniBalanceEntry {
   lockedLongTerm: number;
 }
 
+// ─── System Stats Carousel ──────────────────────────────────────────────────
+
+interface GrowthDay {
+  label: string;
+  customers: number;
+  orders: number;
+  listings: number;
+}
+
+interface SystemStatsCarouselProps {
+  totalCustomers: number;
+  activeCustomersToday: number;
+  totalListings: number;
+  ordersToday: number;
+  totalShoppers: number;
+  totalDrivers: number;
+  totalOperators: number;
+  totalRetailers: number;
+  totalPickupPoints: number;
+  growthData: GrowthDay[];
+}
+
+function SystemStatsCarousel({
+  totalCustomers,
+  activeCustomersToday,
+  totalListings,
+  ordersToday,
+  totalShoppers,
+  totalDrivers,
+  totalOperators,
+  totalRetailers,
+  totalPickupPoints,
+  growthData,
+}: SystemStatsCarouselProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (dir: "prev" | "next") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "next" ? 320 : -320, behavior: "smooth" });
+  };
+
+  const statsCards = [
+    {
+      label: "Total Customers",
+      value: totalCustomers,
+      sub: "Registered accounts",
+      icon: <Users className="h-5 w-5" />,
+      accent: "text-primary",
+      bg: "bg-primary/10",
+    },
+    {
+      label: "Active Today",
+      value: activeCustomersToday,
+      sub: "Customers who ordered today",
+      icon: <TrendingUp className="h-5 w-5" />,
+      accent: "text-green-600",
+      bg: "bg-green-50",
+    },
+    {
+      label: "Total Listings",
+      value: totalListings,
+      sub: "Active product listings",
+      icon: <Package className="h-5 w-5" />,
+      accent: "text-blue-600",
+      bg: "bg-blue-50",
+    },
+    {
+      label: "Orders Today",
+      value: ordersToday,
+      sub: "Placed in last 24 hours",
+      icon: <ShoppingBag className="h-5 w-5" />,
+      accent: "text-[oklch(0.55_0.17_42)]",
+      bg: "bg-amber-50",
+    },
+    {
+      label: "Shoppers",
+      value: totalShoppers,
+      sub: "Approved & active",
+      icon: <ShoppingBag className="h-5 w-5" />,
+      accent: "text-purple-600",
+      bg: "bg-purple-50",
+    },
+    {
+      label: "Drivers",
+      value: totalDrivers,
+      sub: "Approved & active",
+      icon: <Truck className="h-5 w-5" />,
+      accent: "text-[oklch(0.5_0.18_260)]",
+      bg: "bg-indigo-50",
+    },
+    {
+      label: "Operators",
+      value: totalOperators,
+      sub: "Pick-up point staff",
+      icon: <MapPin className="h-5 w-5" />,
+      accent: "text-rose-600",
+      bg: "bg-rose-50",
+    },
+    {
+      label: "Retailers",
+      value: totalRetailers,
+      sub: "Stores on platform",
+      icon: <Store className="h-5 w-5" />,
+      accent: "text-teal-600",
+      bg: "bg-teal-50",
+    },
+    {
+      label: "Pick-up Points",
+      value: totalPickupPoints,
+      sub: "Community collection spots",
+      icon: <MapPin className="h-5 w-5" />,
+      accent: "text-orange-600",
+      bg: "bg-orange-50",
+    },
+  ];
+
+  return (
+    <div className="space-y-4" data-ocid="analytics.system_stats.section">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-lg font-bold">
+            📊 System Stats &amp; Growth
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Platform-wide metrics and activity overview
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => scroll("prev")}
+            className="w-8 h-8 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scroll("next")}
+            className="w-8 h-8 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable stat cards */}
+      <div
+        ref={scrollRef}
+        className="flex gap-4 overflow-x-auto pb-2 scroll-smooth"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {statsCards.map((s, i) => (
+          <Card
+            key={s.label}
+            className="card-glow border-border/50 shrink-0 w-52"
+            data-ocid={`analytics.stat_card.${i}`}
+          >
+            <CardContent className="pt-5 pb-4">
+              <div
+                className={`w-9 h-9 rounded-full ${s.bg} flex items-center justify-center mb-3 ${s.accent}`}
+              >
+                {s.icon}
+              </div>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                {s.label}
+              </p>
+              <p className={`font-display text-2xl font-bold mt-1 ${s.accent}`}>
+                {s.value}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* 14-day growth chart */}
+      <Card className="card-glow border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display text-base">
+            📈 14-Day Growth Trend
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {growthData.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No data yet
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={growthData}
+                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="oklch(0.88 0.025 60)"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 9, fill: "oklch(0.5 0.04 55)" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "oklch(0.5 0.04 55)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: "1px solid oklch(0.88 0.025 60)",
+                  }}
+                />
+                <Bar
+                  dataKey="customers"
+                  name="Active Customers"
+                  fill="oklch(0.55 0.17 150)"
+                  radius={[3, 3, 0, 0]}
+                />
+                <Bar
+                  dataKey="orders"
+                  name="Orders"
+                  fill="oklch(0.55 0.17 42)"
+                  radius={[3, 3, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+      <style>{`[data-ocid="analytics.system_stats.section"] > div:nth-child(2)::-webkit-scrollbar { display: none; }`}</style>
+    </div>
+  );
+}
+
 export function AdminAnalyticsPage() {
-  const { orders, staffUsers, towns, products } = useApp();
+  const {
+    orders,
+    staffUsers,
+    towns,
+    products,
+    retailers,
+    listings,
+    pickupPoints,
+  } = useApp();
   const { actor } = useActor();
   const [nomayiniBalances, setNomayiniBalances] = useState<
     NomayiniBalanceEntry[]
@@ -346,6 +607,91 @@ export function AdminAnalyticsPage() {
     };
   }, [nomayiniBalances]);
 
+  // ── System stats (platform-wide counts & growth) ────────────────────────────
+  const totalCustomers = useMemo(
+    () =>
+      staffUsers.filter(
+        (u) =>
+          u.role === "customer" ||
+          u.status === "pending" ||
+          u.role === "shopper" ||
+          u.role === "driver" ||
+          u.role === "operator",
+      ).length,
+    [staffUsers],
+  );
+  const activeCustomersToday = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayOrders = orders.filter(
+      (o) => new Date(o.createdAt) >= todayStart,
+    );
+    return new Set(todayOrders.map((o) => o.customerId)).size;
+  }, [orders]);
+  const ordersToday = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return orders.filter((o) => new Date(o.createdAt) >= todayStart).length;
+  }, [orders]);
+  const totalShoppers = useMemo(
+    () =>
+      staffUsers.filter((u) => u.role === "shopper" && u.status === "approved")
+        .length,
+    [staffUsers],
+  );
+  const totalDrivers = useMemo(
+    () =>
+      staffUsers.filter((u) => u.role === "driver" && u.status === "approved")
+        .length,
+    [staffUsers],
+  );
+  const totalOperators = useMemo(
+    () =>
+      staffUsers.filter((u) => u.role === "operator" && u.status === "approved")
+        .length,
+    [staffUsers],
+  );
+
+  // Daily growth data for last 14 days
+  const growthData = useMemo(() => {
+    const days = 14;
+    const result: Array<{
+      label: string;
+      customers: number;
+      orders: number;
+      listings: number;
+    }> = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(d);
+      dayEnd.setHours(23, 59, 59, 999);
+      const dayOrders = orders.filter((o) => {
+        const t = new Date(o.createdAt);
+        return t >= d && t <= dayEnd;
+      }).length;
+      const uniqueCustomers = new Set(
+        orders
+          .filter((o) => {
+            const t = new Date(o.createdAt);
+            return t >= d && t <= dayEnd;
+          })
+          .map((o) => o.customerId),
+      ).size;
+      result.push({
+        label: d.toLocaleDateString("en-ZA", {
+          day: "numeric",
+          month: "short",
+        }),
+        customers: uniqueCustomers,
+        orders: dayOrders,
+        listings: listings.length,
+      });
+    }
+    return result;
+  }, [orders, listings]);
+
   // ── Order history (filtered + paginated) ──────────────────────────────────
   const historyFiltered = useMemo(() => {
     return filteredOrders.filter((o) => {
@@ -450,6 +796,20 @@ export function AdminAnalyticsPage() {
           accent="text-[oklch(0.5_0.18_260)]"
         />
       </div>
+
+      {/* ── System Stats Carousel ────────────────────────────────────────────── */}
+      <SystemStatsCarousel
+        totalCustomers={totalCustomers}
+        activeCustomersToday={activeCustomersToday}
+        totalListings={listings.length}
+        ordersToday={ordersToday}
+        totalShoppers={totalShoppers}
+        totalDrivers={totalDrivers}
+        totalOperators={totalOperators}
+        totalRetailers={retailers.length}
+        totalPickupPoints={pickupPoints.length}
+        growthData={growthData}
+      />
 
       {/* Order Volume Chart */}
       <Card className="card-glow border-border/50">

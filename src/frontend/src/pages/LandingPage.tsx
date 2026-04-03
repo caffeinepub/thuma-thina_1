@@ -524,23 +524,43 @@ function PopularInTownSection() {
       });
   }, [retailerProducts, retailers, townRetailerIds, businessAreas]);
 
-  // Shuffle carousel so customers see different products each visit
-  const universalSlice = useMemo(() => {
-    const arr = [...productsWithListings];
-    for (let i = arr.length - 1; i > 0; i--) {
+  // Merge universal products and exclusive retailer products into one pool, then shuffle
+  const combinedCarouselItems = useMemo(() => {
+    type CarouselItem =
+      | {
+          kind: "universal";
+          product: (typeof productsWithListings)[0]["product"];
+          townListings: (typeof productsWithListings)[0]["townListings"];
+        }
+      | {
+          kind: "exclusive";
+          retailerProduct: (typeof exclusiveProductsInTown)[0]["retailerProduct"];
+          retailer: (typeof exclusiveProductsInTown)[0]["retailer"];
+          areaName: string;
+        };
+
+    const pool: CarouselItem[] = [
+      ...productsWithListings.map(({ product, townListings }) => ({
+        kind: "universal" as const,
+        product,
+        townListings,
+      })),
+      ...exclusiveProductsInTown.map(
+        ({ retailerProduct, retailer, areaName }) => ({
+          kind: "exclusive" as const,
+          retailerProduct,
+          retailer,
+          areaName,
+        }),
+      ),
+    ];
+    // Fisher-Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    return arr.slice(0, 20);
-  }, [productsWithListings]);
-  const exclusiveSlice = useMemo(() => {
-    const arr = [...exclusiveProductsInTown];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr.slice(0, Math.max(0, 20 - universalSlice.length));
-  }, [exclusiveProductsInTown, universalSlice.length]);
+    return pool.slice(0, 20);
+  }, [productsWithListings, exclusiveProductsInTown]);
 
   // Total count for display
   const totalCarouselCount =
@@ -691,23 +711,22 @@ function PopularInTownSection() {
             className="flex gap-4 overflow-x-auto pb-3 scroll-smooth"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            {universalSlice.map(({ product, townListings }, idx) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                townListings={townListings}
-                index={idx + 1}
-                onAddToCart={handleAddToCart}
-              />
-            ))}
-            {exclusiveSlice.map(
-              ({ retailerProduct, retailer, areaName }, idx) => (
+            {combinedCarouselItems.map((item, idx) =>
+              item.kind === "universal" ? (
+                <ProductCard
+                  key={item.product.id}
+                  product={item.product}
+                  townListings={item.townListings}
+                  index={idx + 1}
+                  onAddToCart={handleAddToCart}
+                />
+              ) : (
                 <ExclusiveProductCard
-                  key={retailerProduct.id}
-                  retailerProduct={retailerProduct}
-                  retailer={retailer}
-                  areaName={areaName}
-                  index={universalSlice.length + idx + 1}
+                  key={item.retailerProduct.id}
+                  retailerProduct={item.retailerProduct}
+                  retailer={item.retailer}
+                  areaName={item.areaName}
+                  index={idx + 1}
                   onAddToCart={handleAddExclusiveToCart}
                 />
               ),

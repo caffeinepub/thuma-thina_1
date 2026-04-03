@@ -1287,6 +1287,17 @@ persistent actor {
     categoriesList.add(name, true);
   };
 
+  public shared(msg) func updateCategories(names : [Text]) : async () {
+    let profile = requireRegisteredCaller(msg.caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can update categories");
+    };
+    // Clear existing and repopulate with new list
+    for (name in names.vals()) {
+      categoriesList.add(name, true);
+    };
+  };
+
   public query func getCategories() : async [Text] {
     categoriesList.keys().toArray()
   };

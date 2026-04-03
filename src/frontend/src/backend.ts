@@ -1317,6 +1317,11 @@ export class Backend implements backendInterface {
         const actor = this.actor as any;
         return actor.getCategories();
     }
+    async updateCategories(names: string[]): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const actor = this.actor as any;
+        await actor.updateCategories(names);
+    }
 
     async addArticle(id: string, title: string, body: string, categoryId: string, imagesJson: string | null, published: boolean): Promise<void> {
         const actor = this.actor as any;
