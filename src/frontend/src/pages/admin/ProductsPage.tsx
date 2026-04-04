@@ -795,7 +795,7 @@ export function AdminProductsPage() {
                 <SelectTrigger data-ocid="admin.product_category.select">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   {[
                     ...CATEGORIES,
                     ...customCategories.filter(
