@@ -22,22 +22,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
-import type { ProductCategory } from "../../data/mockData";
 import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
-
-const CATEGORIES: {
-  value: ProductCategory | "All";
-  label: string;
-  emoji: string;
-}[] = [
-  { value: "All", label: "All", emoji: "🏪" },
-  { value: "Groceries", label: "Groceries", emoji: "🌾" },
-  { value: "Household", label: "Household", emoji: "🏠" },
-  { value: "Fast Food", label: "Fast Food", emoji: "🍔" },
-  { value: "Beverages", label: "Beverages", emoji: "🥤" },
-  { value: "Personal Care", label: "Personal Care", emoji: "🧴" },
-  { value: "Baby & Kids", label: "Baby & Kids", emoji: "👶" },
-];
 
 export function CataloguePage() {
   const { isAuthenticated } = useAuth();
@@ -53,9 +38,10 @@ export function CataloguePage() {
     businessAreas,
     retailerProducts,
     towns,
+    customCategories,
   } = useApp();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ProductCategory | "All">("All");
+  const [category, setCategory] = useState<string>("All");
   const [selectedRetailerId, setSelectedRetailerId] = useState<string>("all");
   // Track selected listing per product
   const [selectedListings, setSelectedListings] = useState<
@@ -63,6 +49,27 @@ export function CataloguePage() {
   >({});
   // Town filter — default to Osizweni (or first town)
   const [selectedTownId, setSelectedTownId] = useState<string>("_all");
+  // Category search
+  const [catSearch, setCatSearch] = useState("");
+
+  // Build dynamic categories list from backend
+  const dynamicCategories = useMemo(() => {
+    const all = [{ value: "All", label: "All" }];
+    const custom = (customCategories ?? []).map((c: string) => ({
+      value: c,
+      label: c,
+    }));
+    return [...all, ...custom];
+  }, [customCategories]);
+
+  // Filtered category chips based on category search
+  const visibleCategories = useMemo(() => {
+    if (!catSearch) return dynamicCategories;
+    const lower = catSearch.toLowerCase();
+    return dynamicCategories.filter((c) =>
+      c.label.toLowerCase().includes(lower),
+    );
+  }, [dynamicCategories, catSearch]);
 
   const available = products.filter((p) => !p.isSuggestion || p.approved);
 
@@ -141,6 +148,28 @@ export function CataloguePage() {
     selectedTownId,
     retailers,
   ]);
+
+  // Shuffle universal products on each filter change (new order every page load / filter)
+  const shuffledUniversal = useMemo(() => {
+    const arr = [...filteredUniversal];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredUniversal]);
+
+  // Shuffle retailer exclusive products on each filter change
+  const shuffledRetailerProducts = useMemo(() => {
+    const arr = [...filteredRetailerProducts];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredRetailerProducts]);
 
   // Retailers that have listings or exclusive products, filtered by selected town
   const activeRetailers = useMemo(() => {
@@ -309,7 +338,7 @@ export function CataloguePage() {
       )}
 
       {/* Search */}
-      <div className="relative mb-4">
+      <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={search}
@@ -320,24 +349,40 @@ export function CataloguePage() {
         />
       </div>
 
-      {/* Category filter */}
-      <div className="flex gap-2 mb-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-        {CATEGORIES.map((cat) => (
-          <button
-            type="button"
-            key={cat.value}
-            onClick={() => setCategory(cat.value)}
-            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-              category === cat.value
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            }`}
-            data-ocid="catalogue.filter.tab"
-          >
-            <span>{cat.emoji}</span>
-            <span>{cat.label}</span>
-          </button>
-        ))}
+      {/* Category search + scrollable chips */}
+      <div className="mb-3">
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={catSearch}
+            onChange={(e) => setCatSearch(e.target.value)}
+            placeholder="Filter categories…"
+            className="pl-8 h-8 text-xs"
+            data-ocid="catalogue.category_search_input"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+          {visibleCategories.map((cat) => (
+            <button
+              type="button"
+              key={cat.value}
+              onClick={() => setCategory(cat.value)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                category === cat.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid="catalogue.filter.tab"
+            >
+              <span>{cat.label}</span>
+            </button>
+          ))}
+          {visibleCategories.length === 0 && (
+            <p className="text-xs text-muted-foreground py-1.5 px-1">
+              No matching categories
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Retailer filter chips */}
@@ -405,8 +450,8 @@ export function CataloguePage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {/* Universal products */}
-          {filteredUniversal.map((product, i) => {
+          {/* Universal products — shuffled */}
+          {shuffledUniversal.map((product, i) => {
             const qty = getCartQty(product.id);
             const inCart = qty > 0;
             const productListingList = getProductListings(product.id);
@@ -687,8 +732,8 @@ export function CataloguePage() {
             );
           })}
 
-          {/* Retailer exclusive products */}
-          {filteredRetailerProducts.map((rp, i) => {
+          {/* Retailer exclusive products — shuffled */}
+          {shuffledRetailerProducts.map((rp, i) => {
             const retailer = retailers.find((r) => r.id === rp.retailerId);
             const area = businessAreas.find(
               (a) => a.id === retailer?.businessAreaId,
