@@ -410,7 +410,31 @@ persistent actor {
     inStock : Bool;
   };
 
-  type ShopperRetailerAssignments = {
+  type RetailerExtended = {
+    id : Text;
+    name : Text;
+    townId : Text;
+    businessAreaId : Text;
+    address : Text;
+    operatingHoursJson : ?Text;
+    parentRetailerId : ?Text;
+  };
+
+  type RetailerProductExtended = {
+    id : Text;
+    retailerId : Text;
+    name : Text;
+    description : Text;
+    category : Text;
+    price : Float;
+    imageEmoji : Text;
+    imagesJson : ?Text;
+    inStock : Bool;
+    availableSizes : ?Text;
+    availableColors : ?Text;
+  };
+
+    type ShopperRetailerAssignments = {
     assignments : Map.Map<Principal, [Text]>;
   };
 
@@ -499,6 +523,10 @@ persistent actor {
   let productIsSpecial = Map.empty<Text, Bool>();
   let productServiceFee = Map.empty<Text, Float>();
   let orderProofImages = Map.empty<Text, Text>();
+  // Separate maps for retailer/retailerProduct new fields -- kept separate to avoid stable var migrations
+  let retailerParentId = Map.empty<Text, Text>();
+  let retailerProductSizes = Map.empty<Text, Text>();
+  let retailerProductColors = Map.empty<Text, Text>();
 
 
 
@@ -601,6 +629,23 @@ persistent actor {
     retailers.add(id, retailer);
   };
 
+  public shared ({ caller }) func exportRetailerToTown(newId : Text, sourceRetailerId : Text, name : Text, townId : Text, businessAreaId : Text, address : Text) : async () {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    let retailer : Retailer = {
+      id = newId;
+      name;
+      townId;
+      businessAreaId;
+      address;
+      operatingHoursJson = null;
+    };
+    retailers.add(newId, retailer);
+    retailerParentId.add(newId, sourceRetailerId);
+  };
+
   public shared ({ caller }) func updateRetailerHours(id : Text, operatingHoursJson : Text) : async () {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
@@ -621,8 +666,18 @@ persistent actor {
     retailers.remove(id);
   };
 
-  public query ({ caller }) func getRetailers() : async [Retailer] {
-    retailers.values().toArray();
+  public query ({ caller }) func getRetailers() : async [RetailerExtended] {
+    retailers.values().toArray().map(func (r : Retailer) : RetailerExtended {
+      {
+        id = r.id;
+        name = r.name;
+        townId = r.townId;
+        businessAreaId = r.businessAreaId;
+        address = r.address;
+        operatingHoursJson = r.operatingHoursJson;
+        parentRetailerId = retailerParentId.get(r.id);
+      }
+    });
   };
 
   // Products
@@ -796,7 +851,7 @@ persistent actor {
   };
 
   // RetailerProducts
-  public shared ({ caller }) func addRetailerProduct(id : Text, retailerId : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text) : async () {
+  public shared ({ caller }) func addRetailerProduct(id : Text, retailerId : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text) : async () {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -812,6 +867,8 @@ persistent actor {
       inStock = true;
     };
     retailerProducts.add(id, product);
+    switch (availableSizes) { case (?s) { retailerProductSizes.add(id, s) }; case null {} };
+    switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null {} };
   };
 
   public shared ({ caller }) func deleteRetailerProduct(id : Text) : async () {
@@ -821,7 +878,7 @@ persistent actor {
     retailerProducts.remove(id);
   };
 
-  public shared ({ caller }) func updateRetailerProduct(id : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text) : async () {
+  public shared ({ caller }) func updateRetailerProduct(id : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text) : async () {
     let callerProfile = requireRegisteredCaller(caller);
     if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
@@ -833,6 +890,8 @@ persistent actor {
         retailerProducts.add(id, updated);
       };
     };
+    switch (availableSizes) { case (?s) { retailerProductSizes.add(id, s) }; case null {} };
+    switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null {} };
   };
 
   public shared ({ caller }) func setRetailerProductStock(id : Text, inStock : Bool) : async () {
@@ -852,8 +911,22 @@ persistent actor {
     retailerProducts.add(id, updatedProduct);
   };
 
-  public query ({ caller }) func getRetailerProducts() : async [RetailerProduct] {
-    retailerProducts.values().toArray();
+  public query ({ caller }) func getRetailerProducts() : async [RetailerProductExtended] {
+    retailerProducts.values().toArray().map(func (rp : RetailerProduct) : RetailerProductExtended {
+      {
+        id = rp.id;
+        retailerId = rp.retailerId;
+        name = rp.name;
+        description = rp.description;
+        category = rp.category;
+        price = rp.price;
+        imageEmoji = rp.imageEmoji;
+        imagesJson = rp.imagesJson;
+        inStock = rp.inStock;
+        availableSizes = retailerProductSizes.get(rp.id);
+        availableColors = retailerProductColors.get(rp.id);
+      }
+    });
   };
 
   // ShopperRetailerAssignments

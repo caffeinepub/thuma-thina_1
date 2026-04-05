@@ -1017,14 +1017,14 @@ export function AdminProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Edit Product Dialog */}
+      {/* Manage Product Dialog */}
       <Dialog open={editProductDialog} onOpenChange={setEditProductDialog}>
         <DialogContent
           className="max-w-md"
           data-ocid="admin.edit_product.dialog"
         >
           <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
+            <DialogTitle>Manage Product</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -1188,14 +1188,14 @@ export function AdminProductsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Listing Dialog */}
+      {/* Manage Listing Dialog */}
       <Dialog open={editListingDialog} onOpenChange={setEditListingDialog}>
         <DialogContent
           className="max-w-sm"
           data-ocid="admin.edit_listing.dialog"
         >
           <DialogHeader>
-            <DialogTitle>Edit Listing Price</DialogTitle>
+            <DialogTitle>Manage Listing Price</DialogTitle>
           </DialogHeader>
           {editListing && (
             <div className="space-y-3 py-2">

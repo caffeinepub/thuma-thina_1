@@ -120,6 +120,8 @@ export interface RetailerProduct {
     price: number;
     imagesJson?: string;
     retailerId: string;
+    availableSizes?: string;
+    availableColors?: string;
 }
 export interface _CaffeineStorageCreateCertificateResult {
     method: string;
@@ -185,6 +187,8 @@ export interface Product {
     approved: boolean;
     category: string;
     imagesJson?: string;
+    isSpecial: boolean;
+    serviceFee: number;
 }
 export interface Retailer {
     id: string;
@@ -193,6 +197,7 @@ export interface Retailer {
     townId: string;
     address: string;
     businessAreaId: string;
+    parentRetailerId?: string;
 }
 export enum AppUserRole {
     admin = "admin",
@@ -230,7 +235,7 @@ export interface backendInterface {
     addPickupPoint(id: string, name: string, townId: string, address: string, profileImageUrl: string | null): Promise<void>;
     addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     addRetailer(id: string, name: string, townId: string, businessAreaId: string, address: string, operatingHoursJson: string | null): Promise<void>;
-    addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null): Promise<void>;
     /**
      * / *********************************************************
      * /    * Persistence API Endpoints
@@ -293,11 +298,12 @@ export interface backendInterface {
     updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
     updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
-    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null): Promise<void>;
+    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null): Promise<void>;
     getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }>;
     getNomayiniTransactions(): Promise<Array<{ id: string; txType: string; amount: number; description: string; date: string; unlockDate?: string }>>;
     sendNomayiniTokens(recipientPhone: string, amount: number, now: string): Promise<void>;
-    addCategory(name: string): Promise<void>;
+    exportRetailerToTown(newId: string, sourceRetailerId: string, name: string, townId: string, businessAreaId: string, address: string): Promise<void>;
+        addCategory(name: string): Promise<void>;
     getCategories(): Promise<Array<string>>;
 }
 import type { AppUserRole as _AppUserRole, ApprovalStatus as _ApprovalStatus, Order as _Order, PickupPoint as _PickupPoint, Product as _Product, Retailer as _Retailer, RetailerProduct as _RetailerProduct, UserApprovalInfo as _UserApprovalInfo, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
@@ -471,17 +477,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addRetailerProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: number, arg6: string, arg7: string | null): Promise<void> {
+    async addRetailerProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: number, arg6: string, arg7: string | null, arg8: string | null, arg9: string | null): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.addRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, arg6, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7));
+                const result = await this.actor.addRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, arg6, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg8), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg9));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, arg6, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7));
+            const result = await this.actor.addRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, arg6, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg8), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg9));
             return result;
         }
     }
@@ -1269,21 +1275,37 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateRetailerProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: number, arg5: string, arg6: string | null): Promise<void> {
+    async updateRetailerProduct(arg0: string, arg1: string, arg2: string, arg3: string, arg4: number, arg5: string, arg6: string | null, arg7: string | null, arg8: string | null): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6));
+                const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg8));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6));
+            const result = await this.actor.updateRetailerProduct(arg0, arg1, arg2, arg3, arg4, arg5, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg6), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg7), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg8));
             return result;
         }
     }
-    async getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }> {
+    async exportRetailerToTown(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const actor = this.actor as any;
+                const result = await actor.exportRetailerToTown(arg0, arg1, arg2, arg3, arg4, arg5);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const actor = this.actor as any;
+            const result = await actor.exportRetailerToTown(arg0, arg1, arg2, arg3, arg4, arg5);
+            return result;
+        }
+    }
+        async getNomayiniBalance(): Promise<{ totalEarned: number; unlockedBalance: number; lockedShortTerm: number; lockedLongTerm: number }> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const actor = this.actor as any;
         const result = await actor.getNomayiniBalance();
@@ -1647,6 +1669,8 @@ function from_candid_record_n33(_uploadFile: (file: ExternalBlob) => Promise<Uin
     price: number;
     imagesJson: [] | [string];
     retailerId: string;
+    availableSizes?: [] | [string];
+    availableColors?: [] | [string];
 }): {
     id: string;
     inStock: boolean;
@@ -1657,6 +1681,8 @@ function from_candid_record_n33(_uploadFile: (file: ExternalBlob) => Promise<Uin
     price: number;
     imagesJson?: string;
     retailerId: string;
+    availableSizes?: string;
+    availableColors?: string;
 } {
     return {
         id: value.id,
@@ -1667,7 +1693,9 @@ function from_candid_record_n33(_uploadFile: (file: ExternalBlob) => Promise<Uin
         category: value.category,
         price: value.price,
         imagesJson: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.imagesJson)),
-        retailerId: value.retailerId
+        retailerId: value.retailerId,
+        availableSizes: value.availableSizes ? record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.availableSizes)) : undefined,
+        availableColors: value.availableColors ? record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.availableColors)) : undefined,
     };
 }
 function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -1677,6 +1705,7 @@ function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uin
     townId: string;
     address: string;
     businessAreaId: string;
+    parentRetailerId?: [] | [string];
 }): {
     id: string;
     name: string;
@@ -1684,6 +1713,7 @@ function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uin
     townId: string;
     address: string;
     businessAreaId: string;
+    parentRetailerId?: string;
 } {
     return {
         id: value.id,
@@ -1691,7 +1721,8 @@ function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uin
         operatingHoursJson: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.operatingHoursJson)),
         townId: value.townId,
         address: value.address,
-        businessAreaId: value.businessAreaId
+        businessAreaId: value.businessAreaId,
+        parentRetailerId: value.parentRetailerId ? record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.parentRetailerId)) : undefined,
     };
 }
 function from_candid_record_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {

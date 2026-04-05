@@ -1,7 +1,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertTriangle,
   Check,
   Clock,
+  MapPin,
   Search,
   Share2,
   ShoppingCart,
@@ -22,7 +32,30 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+import type { RetailerProduct } from "../../data/mockData";
 import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
+
+// Keywords that trigger beverage/alcohol 18+ warning
+const BEVERAGE_KEYWORDS = [
+  "beverage",
+  "alcohol",
+  "liquor",
+  "beer",
+  "wine",
+  "spirits",
+  "drink",
+  "cider",
+  "brandy",
+  "whiskey",
+  "vodka",
+  "rum",
+];
+
+function isBeverageCategory(cat?: string): boolean {
+  if (!cat) return false;
+  const lower = cat.toLowerCase();
+  return BEVERAGE_KEYWORDS.some((kw) => lower.includes(kw));
+}
 
 export function CataloguePage() {
   const { isAuthenticated } = useAuth();
@@ -47,10 +80,16 @@ export function CataloguePage() {
   const [selectedListings, setSelectedListings] = useState<
     Record<string, string>
   >({});
-  // Town filter — default to Osizweni (or first town)
+  // Town filter—default to _all
   const [selectedTownId, setSelectedTownId] = useState<string>("_all");
   // Category search
   const [catSearch, setCatSearch] = useState("");
+
+  // Size/color selection dialog for exclusive products
+  const [sizeColorDialog, setSizeColorDialog] = useState(false);
+  const [pendingRP, setPendingRP] = useState<RetailerProduct | null>(null);
+  const [chosenSize, setChosenSize] = useState("");
+  const [chosenColor, setChosenColor] = useState("");
 
   // Build dynamic categories list from backend
   const dynamicCategories = useMemo(() => {
@@ -149,7 +188,7 @@ export function CataloguePage() {
     retailers,
   ]);
 
-  // Shuffle universal products on each filter change (new order every page load / filter)
+  // Shuffle universal products on each filter change
   const shuffledUniversal = useMemo(() => {
     const arr = [...filteredUniversal];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -277,6 +316,47 @@ export function CataloguePage() {
     if (!chosenListingId) return null;
     const listing = listings.find((l) => l.id === chosenListingId);
     return listing?.price ?? null;
+  };
+
+  // Handle add exclusive product to cart (with size/color if required)
+  const handleAddRetailerProduct = (rp: RetailerProduct) => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to add items to your cart");
+      return;
+    }
+    const needsSizeColor = !!(rp.availableSizes || rp.availableColors);
+    if (needsSizeColor) {
+      setPendingRP(rp);
+      setChosenSize("");
+      setChosenColor("");
+      setSizeColorDialog(true);
+      return;
+    }
+    addRetailerProductToCart(rp.id, rp.retailerId, rp.price, rp.name);
+    toast.success(`${rp.name} added to cart`);
+  };
+
+  const confirmSizeColorAdd = () => {
+    if (!pendingRP) return;
+    if (pendingRP.availableSizes && !chosenSize) {
+      toast.error("Please select a size");
+      return;
+    }
+    if (pendingRP.availableColors && !chosenColor) {
+      toast.error("Please select a colour");
+      return;
+    }
+    addRetailerProductToCart(
+      pendingRP.id,
+      pendingRP.retailerId,
+      pendingRP.price,
+      pendingRP.name,
+      chosenSize || undefined,
+      chosenColor || undefined,
+    );
+    toast.success(`${pendingRP.name} added to cart`);
+    setSizeColorDialog(false);
+    setPendingRP(null);
   };
 
   const totalCount = filteredUniversal.length + filteredRetailerProducts.length;
@@ -467,6 +547,7 @@ export function CataloguePage() {
               : false;
             const canAdd =
               hasListings && !!chosenListingId && !selectedIsDisabled;
+            const isBeverage = isBeverageCategory(product.category);
 
             // Special service product — render separately
             if (product.isSpecial) {
@@ -551,7 +632,7 @@ export function CataloguePage() {
                 }`}
                 data-ocid={`catalogue.item.${i + 1}`}
               >
-                <div className="bg-muted/40 flex items-center justify-center h-24 sm:h-32 text-4xl sm:text-5xl overflow-hidden">
+                <div className="bg-muted/40 flex items-center justify-center h-24 sm:h-32 text-4xl sm:text-5xl overflow-hidden relative">
                   {product.images?.[0] ? (
                     <img
                       src={product.images[0]}
@@ -560,6 +641,15 @@ export function CataloguePage() {
                     />
                   ) : (
                     product.imageEmoji
+                  )}
+                  {/* 18+ badge */}
+                  {isBeverage && (
+                    <div className="absolute top-1.5 left-1.5">
+                      <Badge className="text-[9px] px-1.5 py-0 bg-red-600 text-white border-0 gap-0.5 shadow-sm">
+                        <AlertTriangle className="h-2 w-2" />
+                        18+
+                      </Badge>
+                    </div>
                   )}
                 </div>
                 <CardContent className="p-3 relative">
@@ -586,6 +676,14 @@ export function CataloguePage() {
                   <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                     {product.description}
                   </p>
+
+                  {/* Age restriction warning */}
+                  {isBeverage && (
+                    <p className="text-[10px] text-red-600 font-medium mb-1.5 flex items-center gap-0.5">
+                      <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                      Age restriction: 18+ only
+                    </p>
+                  )}
 
                   {/* Price display */}
                   <div className="mb-2">
@@ -738,12 +836,16 @@ export function CataloguePage() {
             const area = businessAreas.find(
               (a) => a.id === retailer?.businessAreaId,
             );
+            const town = retailer
+              ? towns.find((t) => t.id === retailer.townId)
+              : null;
             const rpQty = getRetailerProductCartQty(rp.id);
             const rpInCart = rpQty > 0;
             const rpRetailerClosed = retailer
               ? !isRetailerOpen(retailer)
               : false;
             const rpUnavailable = !rp.inStock || rpRetailerClosed;
+            const isBeverage = isBeverageCategory(rp.category);
 
             return (
               <Card
@@ -779,6 +881,15 @@ export function CataloguePage() {
                       </Badge>
                     )}
                   </div>
+                  {/* 18+ badge for beverages */}
+                  {isBeverage && (
+                    <div className="absolute top-1.5 left-1.5">
+                      <Badge className="text-[9px] px-1.5 py-0 bg-red-600 text-white border-0 gap-0.5 shadow-sm">
+                        <AlertTriangle className="h-2 w-2" />
+                        18+
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-3">
                   <h3 className="font-semibold text-xs sm:text-sm leading-tight mb-1 line-clamp-2">
@@ -787,10 +898,35 @@ export function CataloguePage() {
                   <p className="text-xs text-muted-foreground mb-1.5 line-clamp-1">
                     {rp.description}
                   </p>
+                  {/* Retailer + area info */}
                   {retailer && (
-                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-1 truncate">
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-0.5 truncate">
                       {retailer.name}
                       {area ? ` (${area.name})` : ""}
+                    </p>
+                  )}
+                  {/* Town badge */}
+                  {town && (
+                    <div className="flex items-center gap-0.5 mb-1">
+                      <MapPin className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                      <span className="text-[10px] text-muted-foreground">
+                        {town.name}
+                      </span>
+                    </div>
+                  )}
+                  {/* Size/color badges if available */}
+                  {(rp.availableSizes || rp.availableColors) && (
+                    <p className="text-[10px] text-muted-foreground mb-1">
+                      {rp.availableSizes && `Sizes: ${rp.availableSizes}`}
+                      {rp.availableSizes && rp.availableColors && " · "}
+                      {rp.availableColors && `Colors: ${rp.availableColors}`}
+                    </p>
+                  )}
+                  {/* Age restriction */}
+                  {isBeverage && (
+                    <p className="text-[10px] text-red-600 font-medium mb-1 flex items-center gap-0.5">
+                      <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                      Age restriction: 18+ only
                     </p>
                   )}
                   {rpRetailerClosed && retailer && (
@@ -837,14 +973,7 @@ export function CataloguePage() {
                         </span>
                         <button
                           type="button"
-                          onClick={() =>
-                            addRetailerProductToCart(
-                              rp.id,
-                              rp.retailerId,
-                              rp.price,
-                              rp.name,
-                            )
-                          }
+                          onClick={() => handleAddRetailerProduct(rp)}
                           className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs"
                           data-ocid={`catalogue.exclusive.add.button.${i + 1}`}
                         >
@@ -854,14 +983,7 @@ export function CataloguePage() {
                     ) : (
                       <Button
                         size="sm"
-                        onClick={() =>
-                          addRetailerProductToCart(
-                            rp.id,
-                            rp.retailerId,
-                            rp.price,
-                            rp.name,
-                          )
-                        }
+                        onClick={() => handleAddRetailerProduct(rp)}
                         className="h-7 w-full text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white border-0"
                         data-ocid={`catalogue.exclusive.add.button.${i + 1}`}
                       >
@@ -876,6 +998,100 @@ export function CataloguePage() {
           })}
         </div>
       )}
+
+      {/* Size/Color Selection Dialog */}
+      <Dialog open={sizeColorDialog} onOpenChange={setSizeColorDialog}>
+        <DialogContent
+          className="max-w-sm"
+          data-ocid="catalogue.size_color.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Choose Options</DialogTitle>
+          </DialogHeader>
+          {pendingRP && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-muted/40 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                  {pendingRP.images?.[0] ? (
+                    <img
+                      src={pendingRP.images[0]}
+                      alt={pendingRP.name}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    pendingRP.imageEmoji
+                  )}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{pendingRP.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    R{pendingRP.price.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              {pendingRP.availableSizes && (
+                <div className="space-y-1.5">
+                  <Label>Size</Label>
+                  <Select value={chosenSize} onValueChange={setChosenSize}>
+                    <SelectTrigger data-ocid="catalogue.size.select">
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pendingRP.availableSizes
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                        .map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {pendingRP.availableColors && (
+                <div className="space-y-1.5">
+                  <Label>Colour</Label>
+                  <Select value={chosenColor} onValueChange={setChosenColor}>
+                    <SelectTrigger data-ocid="catalogue.color.select">
+                      <SelectValue placeholder="Select colour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pendingRP.availableColors
+                        .split(",")
+                        .map((c) => c.trim())
+                        .filter(Boolean)
+                        .map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSizeColorDialog(false)}
+              data-ocid="catalogue.size_color.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmSizeColorAdd}
+              data-ocid="catalogue.size_color.confirm_button"
+            >
+              Add to Cart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

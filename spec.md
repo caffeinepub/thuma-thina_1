@@ -1,37 +1,63 @@
-# Thuma Thina
+# Thuma Thina - Build 1: Catalogue & Admin UX
 
 ## Current State
-Fully functional community personal-shopper and delivery platform on ICP. Orders start as `awaiting_payment`, operators mark them paid, shoppers pick them up, drivers deliver. The system has news/blog, Nomayini wallet, staff roles, product catalogue, and reviews.
+
+- Products, Retailers, Listings, Exclusive Products (RetailerProducts), Pick-up Points all exist in backend
+- `addProduct`/`updateProduct` take 8 params including `isSpecial` and `serviceFee`
+- `isSpecial`/`serviceFee` ARE in the IDL `Product` record and `backend.did.d.ts` Product type
+- BUT `backend.ts` `Product` interface is MISSING `isSpecial` and `serviceFee` fields -- they are silently dropped by `from_candid_vec_n28` conversion
+- Retailers are already grouped by town in LocationsPage retailers tab
+- Exclusive product (RetailerProduct) category dropdown in LocationsPage uses hardcoded 6-category array, NOT shared backend categories
+- CataloguePage shows exclusive product area name but NOT town name on tile
+- No size/color attribute system exists
+- No under-18 warning on beverages
+- No `exportRetailer` function in backend or frontend
+- `updateRetailerProduct` takes 7 params (id, name, desc, cat, price, emoji, imagesJson) -- matches backend and all IDL files
+- `updateProduct`, `updateListingPrice`, `updatePickupPoint` are all in the idlFactory and working
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Platform-wide Nomayini analytics** on admin analytics page: total tokens distributed today/week/month across all users; total locked in 3-month pool; total locked in 4-year pool; chart of daily distributions
-- **Admin data management section** (new tab on admin approvals or separate page): delete individual user accounts; bulk wipe sections (all orders, all Nomayini data, all users)
-- **Junior admin roles**: three new scoped roles `products_admin`, `listings_admin`, `approvals_admin` stored on `StaffUser`. Admin can assign these in the Approvals → Admins tab. Junior admins see only their scoped section in the sidebar
-- **Reviews on staff profile pages**: shopper, driver, and operator profile pages each show a reviews section with average rating, total reviews, and individual review cards
-- **Operator all-orders tracking tab**: third tab "All Orders" on operator dashboard showing every order that passed through their pick-up point (any status), so they can answer customer enquiries
-- Backend: `deleteUser`, `getAllNomayiniBalances`, `wipeAllOrders`, `wipeAllNomayini`, `wipeAllUsers` functions
+- `exportRetailer` backend function: takes sourceRetailerId, new retailer name, targetTownId, targetBusinessAreaId, targetAddress -- creates a new independent Retailer record linked to target town/area, but whose exclusive products share the same RetailerProduct records as the source (via a `parentRetailerId` field on the new retailer). New backend function `exportRetailerToTown`.
+- `parentRetailerId` optional field on `Retailer` type in backend -- exported retailers store the source retailer ID so exclusive products can be resolved from the parent
+- Export Retailer UI in LocationsPage: button on each retailer card to export to another town; dialog to select target town, business area, and optionally override name/address
+- Category-specific product attributes: `availableSizes` and `availableColors` optional fields on `RetailerProduct` type. Auto-detect which categories need these (footwear, clothing, apparel, shoes, jeans, t-shirt, shirts, dresses). When admin adds/edits exclusive product in a size/color category, show size and color input fields. Customer must select size/color before adding to cart.
+- Under-18 warning badge: auto-detect beverage/alcohol/liquor/beer/wine/spirits categories; show warning label on product tile in catalogue and on listing detail page
+- `exportRetailerToTown` to IDL files (backend.did.js idlFactory, backend.did.d.ts, backend.ts)
+- `availableSizes`/`availableColors` fields to `RetailerProduct` in IDL and backend.ts
 
 ### Modify
-- **Order persistence for drivers**: `completedDeliveries` filter in `MyDeliveriesPage` already includes `delivered`/`collected` — but orders vanish because `loadOrdersFromBackend` fetches ALL orders and the driver's completed orders are included. Root cause: `getOrdersByArea` in backend filters to `status == "pending"` only. Fix: load all orders for admins; for staff, load all orders they are associated with regardless of status
-- **Order persistence for shoppers**: `completedOrders` filter in `MyShopperOrdersPage` already includes post-delivery statuses — same root cause as above. Fix alongside driver fix
-- **Operator dashboard**: orders disappear after `handleMarkPaymentReceived` because the backend `getOrdersByPickupPoint` returns ALL statuses already, but the frontend `incoming` filter only shows `out_for_delivery`, `delivered`, `accepted_by_driver`. Add `pending`, `accepted_by_shopper`, `shopping_in_progress`, `ready_for_collection`, `collected` to the tracking view
-- **Category persistence**: `addCategory` in AppContext calls backend but may fail silently; ensure error is surfaced and category is not added locally if backend call fails
-- **Nomayini analytics section** in admin analytics: replace current single-wallet stats with platform-wide aggregated stats pulled from all users' balances
+- `backend.ts` `Product` interface: add `isSpecial: boolean` and `serviceFee: number` fields (currently missing, causing silent drop)
+- `backend.ts` `from_candid_record_n30` (or equivalent): include `isSpecial` and `serviceFee` in the conversion output
+- LocationsPage exclusive product "Add" and "Edit" dialogs: replace hardcoded 6-category array with shared `customCategories` from `useApp()` context; add size/color fields for relevant categories
+- CataloguePage exclusive product tile: show town name alongside area name (e.g. "Osizweni - KwaMashu Mall")
+- Rename all "Edit" buttons to "Manage" across LocationsPage (retailers, listings, pick-up points) and ProductsPage
+- ProductsPage "Manage" (was Edit) dialog: allow editing the product name field so admin can correct typos; use delete+re-add pattern (delete old ID, create new with same data + corrected name)
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
 
-1. **Backend (`main.mo`)**: Add `deleteUser(principal)`, `getAllNomayiniBalances()`, `wipeAllOrders()`, `wipeAllNomayini()`, `wipeAllUsers()` functions. All require admin auth.
-2. **IDL (`declarations/backend.did.js`, `backend.did.d.ts`, `backend.ts`)**: Add declarations and wrappers for the 5 new backend functions.
-3. **AppContext**: Add `deleteUser`, `getAllNomayiniBalances`, wipe functions to context interface and implementations.
-4. **Order loading fix**: Change `loadOrdersFromBackend` so it loads all orders for admin, and for staff loads orders where they are shopper/driver/operator regardless of status (use `getOrders` for admin, keep current area-based approach but remove status filter from backend `getOrdersByArea`).
-5. **Backend `getOrdersByArea` fix**: Remove the `status == "pending"` filter so all statuses are returned for the area.
-6. **Operator dashboard**: Add "All Orders" tab showing every order at their pick-up point sorted by date.
-7. **Admin analytics**: Replace Nomayini section with platform-wide aggregated view: distributed today/week/month, total locked short-term, total locked long-term.
-8. **Admin data management**: New "Data Management" tab in ApprovalsPage (or separate page linked from admin nav) with delete user buttons and bulk wipe sections.
-9. **Junior admin roles**: Add `juniorAdminRole?: 'products_admin' | 'listings_admin' | 'approvals_admin'` to `StaffUser` type. Admin Admins tab gets role assignment dropdown. App.tsx checks this role for routing/sidebar visibility.
-10. **Staff profile review sections**: Wire `ReviewsSection` component into `DriverProfilePage`, `OperatorProfilePage`, and a new `ShopperProfilePage`. Load reviews from AppContext `getReviewsForTarget` using staff member's principal/id.
+1. **Backend (`main.mo`)**:
+   - Add `parentRetailerId: ?Text` optional field to `Retailer` type
+   - Add `availableSizes: ?Text` and `availableColors: ?Text` to `RetailerProduct` type
+   - Add `exportRetailerToTown` function: takes `newId, sourceRetailerId, name, townId, businessAreaId, address` -- creates new Retailer with `parentRetailerId = ?sourceRetailerId`
+   - Update `getRetailerProducts` (or add query logic): when fetching exclusive products for an exported retailer, also return products where `retailerId == parentRetailerId`
+   - Add `addRetailerProductWithAttributes` function taking 10 params (adds `availableSizes` and `availableColors`)
+   - Update `updateRetailerProduct` to accept `availableSizes` and `availableColors` (2 new optional Text params) -- now 9 params total
+
+2. **IDL files** (`declarations/backend.did.js`, `declarations/backend.did.d.ts`, `backend.ts`):
+   - Add `parentRetailerId` to `Retailer` IDL record
+   - Add `availableSizes`, `availableColors` to `RetailerProduct` IDL record
+   - Add `exportRetailerToTown` function entry
+   - Update `updateRetailerProduct` from 7 to 9 params (add 2 optional Text)
+   - Fix `backend.ts` `Product` interface to include `isSpecial: boolean` and `serviceFee: number`
+   - Fix `backend.ts` product conversion function to pass through `isSpecial` and `serviceFee`
+
+3. **Frontend**:
+   - `LocationsPage.tsx`: Replace hardcoded category list in exclusive product dialogs with `customCategories` from context; add size/color input fields for relevant categories; add Export Retailer button + dialog per retailer; rename Edit→Manage everywhere
+   - `ProductsPage.tsx`: Rename Edit→Manage; make product name editable in manage dialog (delete+re-add pattern)
+   - `CataloguePage.tsx`: Show town name on exclusive product tiles; add under-18 warning badge for beverage/alcohol categories
+   - `ListingDetailPage.tsx`: Add under-18 warning for beverage products
+   - `CartPage.tsx`/`CataloguePage.tsx`: Require size/color selection before adding exclusive products with those attributes to cart

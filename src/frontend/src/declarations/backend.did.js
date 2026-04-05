@@ -429,6 +429,8 @@ export const idlFactory = ({ IDL }) => {
     'price' : IDL.Float64,
     'imagesJson' : IDL.Opt(IDL.Text),
     'retailerId' : IDL.Text,
+    'availableSizes' : IDL.Opt(IDL.Text),
+    'availableColors' : IDL.Opt(IDL.Text),
   });
   const Retailer = IDL.Record({
     'id' : IDL.Text,
@@ -437,6 +439,7 @@ export const idlFactory = ({ IDL }) => {
     'townId' : IDL.Text,
     'address' : IDL.Text,
     'businessAreaId' : IDL.Text,
+    'parentRetailerId' : IDL.Opt(IDL.Text),
   });
   const Town = IDL.Record({
     'id' : IDL.Text,
@@ -515,6 +518,8 @@ export const idlFactory = ({ IDL }) => {
           IDL.Text,
           IDL.Float64,
           IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
         ],
         [],
@@ -632,7 +637,8 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
-    'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'exportRetailerToTown' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [], []),
+        'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
     'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
     'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64], [], []),
@@ -649,7 +655,7 @@ export const idlFactory = ({ IDL }) => {
     'getReviewsForTarget' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'targetId': IDL.Text, 'targetType': IDL.Text, 'reviewerId': IDL.Principal, 'rating': IDL.Nat, 'comment': IDL.Text, 'orderId': IDL.Text, 'createdAt': IDL.Int }))], ['query']),
     'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
     'updateArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
-    'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+    'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)], [], []),
     'deleteUser' : IDL.Func([IDL.Principal], [], []),
     'getAllNomayiniBalances' : IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Record({ 'totalEarned': IDL.Float64, 'unlockedBalance': IDL.Float64, 'lockedShortTerm': IDL.Float64, 'lockedLongTerm': IDL.Float64 })))], ['query']),
     'wipeAllOrders' : IDL.Func([], [], []),

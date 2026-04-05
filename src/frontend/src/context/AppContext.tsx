@@ -84,6 +84,8 @@ interface AppContextValue {
     retailerId: string,
     price: number,
     productName: string,
+    selectedSize?: string,
+    selectedColor?: string,
   ) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
@@ -796,6 +798,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       retailerId: string,
       price: number,
       _productName: string,
+      selectedSize?: string,
+      selectedColor?: string,
     ) => {
       setCart((prev) => {
         const hasSpecial = prev.some((i) => i.meterInputs !== undefined);
@@ -818,6 +822,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             retailerProductId,
             chosenRetailerId: retailerId,
             chosenPrice: price,
+            selectedSize,
+            selectedColor,
           },
         ];
       });

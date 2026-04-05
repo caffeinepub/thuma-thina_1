@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ArrowRightLeft,
   Building2,
   ChevronDown,
   ChevronUp,
@@ -43,6 +44,7 @@ import {
   Package,
   Pencil,
   Plus,
+  Search,
   Settings,
   Store,
   Trash2,
@@ -66,15 +68,6 @@ import type {
 } from "../../data/mockData";
 import { DEFAULT_OPERATING_HOURS } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
-
-const CATEGORIES: ProductCategory[] = [
-  "Groceries",
-  "Household",
-  "Fast Food",
-  "Beverages",
-  "Personal Care",
-  "Baby & Kids",
-];
 
 const DAY_LABELS: { key: keyof OperatingHours; label: string }[] = [
   { key: "mon", label: "Monday" },
@@ -100,6 +93,7 @@ export function AdminLocationsPage() {
     setRetailerProducts,
     staffUsers,
     setStaffUsers,
+    customCategories,
   } = useApp();
   const { actor } = useActor();
 
@@ -144,6 +138,8 @@ export function AdminLocationsPage() {
     category: "Groceries" as ProductCategory,
     price: "",
     images: [] as string[],
+    availableSizes: "",
+    availableColors: "",
   });
   // Operating hours edit state (local draft while sheet is open)
   const [hoursOpen, setHoursOpen] = useState(false);
@@ -166,7 +162,41 @@ export function AdminLocationsPage() {
     price: "",
     imageEmoji: "📦",
     images: [] as string[],
+    availableSizes: "",
+    availableColors: "",
   });
+
+  // Export retailer dialog
+  const [exportDialog, setExportDialog] = useState(false);
+  const [exportRetailer, setExportRetailer] = useState<Retailer | null>(null);
+  const [exportForm, setExportForm] = useState({
+    townId: "",
+    businessAreaId: "",
+    nameOverride: "",
+    addressOverride: "",
+  });
+
+  // Category search for exclusive product dialogs
+  const [productCatSearch, setProductCatSearch] = useState("");
+  const [editRPCatSearch, setEditRPCatSearch] = useState("");
+
+  // Also add availableSizes/Colors to addProductDialog form
+  // Keyword detection for size/color attributes
+  const APPAREL_KEYWORDS = [
+    "shoe",
+    "footwear",
+    "clothing",
+    "apparel",
+    "jeans",
+    "shirt",
+    "dress",
+    "wear",
+    "fashion",
+    "pants",
+    "trouser",
+  ];
+  const needsSizeColor = (cat: string) =>
+    APPAREL_KEYWORDS.some((kw) => cat.toLowerCase().includes(kw));
 
   const openManageRetailer = (retailer: Retailer) => {
     setManageRetailer(retailer);
@@ -396,6 +426,14 @@ export function AdminLocationsPage() {
     const id = `rp${Date.now()}`;
     const imagesJson =
       productForm.images.length > 0 ? JSON.stringify(productForm.images) : null;
+    const sizes =
+      needsSizeColor(productForm.category) && productForm.availableSizes.trim()
+        ? productForm.availableSizes.trim()
+        : null;
+    const colors =
+      needsSizeColor(productForm.category) && productForm.availableColors.trim()
+        ? productForm.availableColors.trim()
+        : null;
     setSaving(true);
     try {
       if (actor) {
@@ -408,6 +446,8 @@ export function AdminLocationsPage() {
           price,
           "🏪",
           imagesJson,
+          sizes,
+          colors,
         );
       }
       const newProduct: RetailerProduct = {
@@ -420,6 +460,8 @@ export function AdminLocationsPage() {
         imageEmoji: "🏪",
         images: productForm.images.length > 0 ? productForm.images : undefined,
         inStock: true,
+        availableSizes: sizes || undefined,
+        availableColors: colors || undefined,
       };
       setRetailerProducts((prev) => [...prev, newProduct]);
       toast.success("Product added");
@@ -430,6 +472,8 @@ export function AdminLocationsPage() {
         category: "Groceries",
         price: "",
         images: [],
+        availableSizes: "",
+        availableColors: "",
       });
     } catch (err) {
       console.error(err);
@@ -521,6 +565,55 @@ export function AdminLocationsPage() {
     } catch (err) {
       console.error(err);
       toast.error("Failed to remove shopper");
+    }
+  };
+
+  // Export retailer to another town
+  const handleExportRetailer = async () => {
+    if (!exportRetailer || !exportForm.townId || !exportForm.businessAreaId) {
+      toast.error("Please select a target town and business area");
+      return;
+    }
+    const newId = `r${Date.now()}`;
+    const name = exportForm.nameOverride.trim() || exportRetailer.name;
+    const address = exportForm.addressOverride.trim() || exportRetailer.address;
+    setSaving(true);
+    try {
+      if (actor) {
+        await actor.exportRetailerToTown(
+          newId,
+          exportRetailer.id,
+          name,
+          exportForm.townId,
+          exportForm.businessAreaId,
+          address,
+        );
+      }
+      const newRetailer: Retailer = {
+        id: newId,
+        name,
+        townId: exportForm.townId,
+        businessAreaId: exportForm.businessAreaId,
+        address,
+        parentRetailerId: exportRetailer.id,
+      };
+      setRetailers((prev) => [...prev, newRetailer]);
+      toast.success(
+        `${name} exported to ${towns.find((t) => t.id === exportForm.townId)?.name}`,
+      );
+      setExportDialog(false);
+      setExportRetailer(null);
+      setExportForm({
+        townId: "",
+        businessAreaId: "",
+        nameOverride: "",
+        addressOverride: "",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export retailer");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -727,7 +820,7 @@ export function AdminLocationsPage() {
                             setEditPPDialog(true);
                           }}
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
-                          data-ocid={`admin.pickup.edit_button.${i + 1}`}
+                          data-ocid={`admin.pickup.manage_button.${i + 1}`}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -821,6 +914,25 @@ export function AdminLocationsPage() {
                               )}
                             </div>
                           </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setExportRetailer(retailer);
+                              setExportForm({
+                                townId: "",
+                                businessAreaId: "",
+                                nameOverride: "",
+                                addressOverride: "",
+                              });
+                              setExportDialog(true);
+                            }}
+                            className="gap-1.5 h-8 text-xs shrink-0"
+                            data-ocid={`admin.retailer.export_button.${i + 1}`}
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                            Export
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -993,7 +1105,10 @@ export function AdminLocationsPage() {
                                 price: String(product.price),
                                 imageEmoji: product.imageEmoji,
                                 images: product.images || [],
+                                availableSizes: product.availableSizes || "",
+                                availableColors: product.availableColors || "",
                               });
+                              setEditRPCatSearch("");
                               setEditRPDialog(true);
                             }}
                             className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
@@ -1284,21 +1399,83 @@ export function AdminLocationsPage() {
                   setProductForm((f) => ({
                     ...f,
                     category: v as ProductCategory,
+                    availableSizes: "",
+                    availableColors: "",
                   }))
                 }
               >
                 <SelectTrigger data-ocid="admin.retailer_product_category.select">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="max-h-60">
+                  <div className="px-2 pb-1 sticky top-0 bg-popover z-10">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <input
+                        className="w-full rounded border border-border bg-background pl-6 pr-2 py-1 text-xs outline-none"
+                        placeholder="Search categories..."
+                        value={productCatSearch}
+                        onChange={(e) => setProductCatSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                  {(customCategories ?? [])
+                    .filter(
+                      (cat) =>
+                        !productCatSearch ||
+                        cat
+                          .toLowerCase()
+                          .includes(productCatSearch.toLowerCase()),
+                    )
+                    .map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
+            {needsSizeColor(productForm.category) && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Available Sizes</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={productForm.availableSizes}
+                    onChange={(e) =>
+                      setProductForm((f) => ({
+                        ...f,
+                        availableSizes: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. S, M, L, XL, XXL"
+                    data-ocid="admin.retailer_product_sizes.input"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated sizes
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Available Colours</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={productForm.availableColors}
+                    onChange={(e) =>
+                      setProductForm((f) => ({
+                        ...f,
+                        availableColors: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Red, Blue, Black, White"
+                    data-ocid="admin.retailer_product_colors.input"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated colours
+                  </p>
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Price (ZAR)</Label>
               <Input
@@ -1643,10 +1820,10 @@ export function AdminLocationsPage() {
       <Dialog open={editPPDialog} onOpenChange={setEditPPDialog}>
         <DialogContent
           className="max-w-md"
-          data-ocid="admin.edit_pickup.dialog"
+          data-ocid="admin.manage_pickup.dialog"
         >
           <DialogHeader>
-            <DialogTitle>Edit Pick-up Point</DialogTitle>
+            <DialogTitle>Manage Pick-up Point</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -1730,6 +1907,143 @@ export function AdminLocationsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Export Retailer Dialog */}
+      <Dialog open={exportDialog} onOpenChange={setExportDialog}>
+        <DialogContent
+          className="max-w-md"
+          data-ocid="admin.export_retailer.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-4 w-4 text-primary" />
+              Export Retailer to Another Town
+            </DialogTitle>
+          </DialogHeader>
+          {exportRetailer && (
+            <div className="space-y-3 py-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+                <p className="font-medium">{exportRetailer.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {exportRetailer.address}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target Town</Label>
+                <Select
+                  value={exportForm.townId}
+                  onValueChange={(v) =>
+                    setExportForm((f) => ({
+                      ...f,
+                      townId: v,
+                      businessAreaId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger data-ocid="admin.export_town.select">
+                    <SelectValue placeholder="Select town" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {towns
+                      .filter((t) => t.id !== exportRetailer.townId)
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target Business Area</Label>
+                <Select
+                  value={exportForm.businessAreaId}
+                  onValueChange={(v) =>
+                    setExportForm((f) => ({ ...f, businessAreaId: v }))
+                  }
+                  disabled={!exportForm.townId}
+                >
+                  <SelectTrigger data-ocid="admin.export_area.select">
+                    <SelectValue
+                      placeholder={
+                        exportForm.townId ? "Select area" : "Select town first"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessAreas
+                      .filter((ba) => ba.townId === exportForm.townId)
+                      .map((ba) => (
+                        <SelectItem key={ba.id} value={ba.id}>
+                          {ba.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Name Override (optional)</Label>
+                <Input
+                  value={exportForm.nameOverride}
+                  onChange={(e) =>
+                    setExportForm((f) => ({
+                      ...f,
+                      nameOverride: e.target.value,
+                    }))
+                  }
+                  placeholder={exportRetailer.name}
+                  data-ocid="admin.export_name.input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to keep original name
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address Override (optional)</Label>
+                <Input
+                  value={exportForm.addressOverride}
+                  onChange={(e) =>
+                    setExportForm((f) => ({
+                      ...f,
+                      addressOverride: e.target.value,
+                    }))
+                  }
+                  placeholder={exportRetailer.address || "Address"}
+                  data-ocid="admin.export_address.input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to keep original address
+                </p>
+              </div>
+              <div className="flex items-start gap-1.5 rounded-md bg-blue-50 dark:bg-blue-950/20 px-3 py-2">
+                <Info className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                  Exclusive products remain linked to the original retailer.
+                  Price changes and new products in the source will apply here
+                  too.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExportDialog(false)}
+              data-ocid="admin.export_retailer.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExportRetailer}
+              disabled={saving}
+              data-ocid="admin.export_retailer.confirm_button"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Export Retailer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Retailer Product Dialog */}
       <Dialog open={editRPDialog} onOpenChange={setEditRPDialog}>
         <DialogContent
@@ -1737,7 +2051,7 @@ export function AdminLocationsPage() {
           data-ocid="admin.edit_retailer_product.dialog"
         >
           <DialogHeader>
-            <DialogTitle>Edit Exclusive Product</DialogTitle>
+            <DialogTitle>Manage Exclusive Product</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -1763,14 +2077,89 @@ export function AdminLocationsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Input
+              <Select
                 value={editRPForm.category}
-                onChange={(e) =>
-                  setEditRPForm((f) => ({ ...f, category: e.target.value }))
+                onValueChange={(v) =>
+                  setEditRPForm((f) => ({
+                    ...f,
+                    category: v,
+                    availableSizes: "",
+                    availableColors: "",
+                  }))
                 }
-                data-ocid="admin.edit_rp_cat.input"
-              />
+              >
+                <SelectTrigger data-ocid="admin.edit_rp_cat.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <div className="px-2 pb-1 sticky top-0 bg-popover z-10">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <input
+                        className="w-full rounded border border-border bg-background pl-6 pr-2 py-1 text-xs outline-none"
+                        placeholder="Search categories..."
+                        value={editRPCatSearch}
+                        onChange={(e) => setEditRPCatSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                  {(customCategories ?? [])
+                    .filter(
+                      (cat) =>
+                        !editRPCatSearch ||
+                        cat
+                          .toLowerCase()
+                          .includes(editRPCatSearch.toLowerCase()),
+                    )
+                    .map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
+            {needsSizeColor(editRPForm.category) && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Available Sizes</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={editRPForm.availableSizes}
+                    onChange={(e) =>
+                      setEditRPForm((f) => ({
+                        ...f,
+                        availableSizes: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. S, M, L, XL, XXL"
+                    data-ocid="admin.edit_rp_sizes.input"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated sizes
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Available Colours</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={editRPForm.availableColors}
+                    onChange={(e) =>
+                      setEditRPForm((f) => ({
+                        ...f,
+                        availableColors: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Red, Blue, Black, White"
+                    data-ocid="admin.edit_rp_colors.input"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated colours
+                  </p>
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Price (ZAR)</Label>
               <Input
@@ -1816,6 +2205,16 @@ export function AdminLocationsPage() {
                     editRPForm.images.length > 0
                       ? JSON.stringify(editRPForm.images)
                       : null;
+                  const editSizes =
+                    needsSizeColor(editRPForm.category) &&
+                    editRPForm.availableSizes.trim()
+                      ? editRPForm.availableSizes.trim()
+                      : null;
+                  const editColors =
+                    needsSizeColor(editRPForm.category) &&
+                    editRPForm.availableColors.trim()
+                      ? editRPForm.availableColors.trim()
+                      : null;
                   if (actor)
                     await actor.updateRetailerProduct(
                       editRP.id,
@@ -1825,6 +2224,8 @@ export function AdminLocationsPage() {
                       price,
                       editRPForm.imageEmoji,
                       imagesJson,
+                      editSizes,
+                      editColors,
                     );
                   setRetailerProducts((prev) =>
                     prev.map((p) =>
@@ -1840,6 +2241,8 @@ export function AdminLocationsPage() {
                               editRPForm.images.length > 0
                                 ? editRPForm.images
                                 : undefined,
+                            availableSizes: editSizes || undefined,
+                            availableColors: editColors || undefined,
                           }
                         : p,
                     ),

@@ -84,6 +84,7 @@ export interface Retailer {
   'townId' : string,
   'address' : string,
   'businessAreaId' : string,
+  'parentRetailerId' : [] | [string],
 }
 export interface RetailerProduct {
   'id' : string,
@@ -95,6 +96,8 @@ export interface RetailerProduct {
   'price' : number,
   'imagesJson' : [] | [string],
   'retailerId' : string,
+  'availableSizes' : [] | [string],
+  'availableColors' : [] | [string],
 }
 export interface Town { 'id' : string, 'province' : string, 'name' : string }
 export interface UserApprovalInfo {
@@ -159,7 +162,7 @@ export interface _SERVICE {
     undefined
   >,
   'addRetailerProduct' : ActorMethod<
-    [string, string, string, string, string, number, string, [] | [string]],
+    [string, string, string, string, string, number, string, [] | [string], [] | [string], [] | [string]],
     undefined
   >,
   /**
@@ -263,7 +266,8 @@ export interface _SERVICE {
     ],
     undefined
   >,
-  'updateRetailerHours' : ActorMethod<[string, string], undefined>,
+  'exportRetailerToTown' : ActorMethod<[string, string, string, string, string, string], undefined>,
+    'updateRetailerHours' : ActorMethod<[string, string], undefined>,
   'updateListingPrice' : ActorMethod<[string, number], undefined>,
   'updatePickupPoint' : ActorMethod<[string, string, string, [] | [string]], undefined>,
   'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string], boolean, number], undefined>,
@@ -280,7 +284,7 @@ export interface _SERVICE {
   'getReviewsForTarget' : ActorMethod<[string], Array<{ id: string; targetId: string; targetType: string; reviewerId: Principal; rating: bigint; comment: string; orderId: string; createdAt: bigint }>>,
   'setLikeDislike' : ActorMethod<[string, string, boolean], undefined>,
   'updateArticle' : ActorMethod<[string, string, string, string, [] | [string], boolean], undefined>,
-  'updateRetailerProduct' : ActorMethod<[string, string, string, string, string, number, string, [] | [string]], undefined>,
+  'updateRetailerProduct' : ActorMethod<[string, string, string, string, number, string, [] | [string], [] | [string], [] | [string]], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

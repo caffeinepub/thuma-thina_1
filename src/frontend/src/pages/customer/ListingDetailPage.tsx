@@ -3,11 +3,40 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, ShoppingBag, Store, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  MapPin,
+  ShoppingBag,
+  Store,
+  Zap,
+} from "lucide-react";
 import { LikeDislikeBar } from "../../components/LikeDislikeBar";
 import { ReviewsSection } from "../../components/ReviewsSection";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+
+// Keywords that trigger beverage/alcohol 18+ warning
+const BEVERAGE_KEYWORDS = [
+  "beverage",
+  "alcohol",
+  "liquor",
+  "beer",
+  "wine",
+  "spirits",
+  "drink",
+  "cider",
+  "brandy",
+  "whiskey",
+  "vodka",
+  "rum",
+];
+
+function isBeverageCategory(cat?: string): boolean {
+  if (!cat) return false;
+  const lower = cat.toLowerCase();
+  return BEVERAGE_KEYWORDS.some((kw) => lower.includes(kw));
+}
 
 export function ListingDetailPage() {
   const { listingId } = useParams({ strict: false }) as { listingId: string };
@@ -60,6 +89,7 @@ export function ListingDetailPage() {
   }
 
   const alreadyInCart = cart.some((ci) => ci.productId === product.id);
+  const isBeverage = isBeverageCategory(product.category);
 
   const handleAddToCart = () => {
     if (!isAuthenticated) {
@@ -104,10 +134,26 @@ export function ListingDetailPage() {
         </Link>
       </div>
 
+      {/* Age restriction banner */}
+      {isBeverage && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-sm text-amber-800 dark:text-amber-300">
+              Age Restriction Applies
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+              You must be 18 years or older to purchase this item. By adding
+              this product to your cart, you confirm that you are of legal age.
+            </p>
+          </div>
+        </div>
+      )}
+
       <Card className="card-glow overflow-hidden">
         {/* Product image */}
         <div
-          className={`flex items-center justify-center h-48 sm:h-64 text-6xl ${
+          className={`flex items-center justify-center h-48 sm:h-64 text-6xl relative ${
             product.isSpecial
               ? "bg-yellow-50 dark:bg-yellow-950/20"
               : "bg-muted/40"
@@ -124,6 +170,15 @@ export function ListingDetailPage() {
               {product.isSpecial ? "⚡" : ((product as any).imageEmoji ?? "📦")}
             </span>
           )}
+          {/* 18+ overlay badge */}
+          {isBeverage && (
+            <div className="absolute top-3 left-3">
+              <Badge className="gap-1 bg-red-600 text-white border-0 shadow">
+                <AlertTriangle className="h-3 w-3" />
+                18+ Only
+              </Badge>
+            </div>
+          )}
         </div>
 
         <CardContent className="p-5 sm:p-6">
@@ -138,6 +193,12 @@ export function ListingDetailPage() {
             {product.category && (
               <Badge variant="secondary" className="text-xs">
                 {product.category}
+              </Badge>
+            )}
+            {isBeverage && (
+              <Badge className="gap-1 bg-red-100 text-red-700 border border-red-200">
+                <AlertTriangle className="h-3 w-3" />
+                Age Restricted
               </Badge>
             )}
           </div>
