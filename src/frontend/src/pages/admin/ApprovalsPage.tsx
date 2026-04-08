@@ -13,9 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckCircle,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Crown,
   Loader2,
+  MapPin,
   RefreshCw,
   ShieldMinus,
   ShieldPlus,
@@ -34,6 +37,7 @@ import {
 } from "../../backend.d";
 import { useApp } from "../../context/AppContext";
 import type { NotificationTargetRole } from "../../context/AppContext";
+import type { BusinessArea, Town } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
 
 const ROLE_EMOJI: Record<string, string> = {
@@ -396,8 +400,155 @@ function AdminUserCard({
   );
 }
 
+// ─── Town-Grouped Applicants Component ───────────────────────────────────────
+
+function TownGroupedApplicants({
+  items,
+  businessAreas,
+  towns,
+  onApprove,
+  onReject,
+  onSuspend,
+  actionLoading,
+  emptyMessage,
+  emptyIcon,
+  ocidPrefix,
+}: {
+  items: ApprovalUserInfo[];
+  businessAreas: BusinessArea[];
+  towns: Town[];
+  onApprove: (p: string) => void;
+  onReject: (p: string) => void;
+  onSuspend?: (p: string) => void;
+  actionLoading: string | null;
+  emptyMessage: string;
+  emptyIcon?: string;
+  ocidPrefix: string;
+}) {
+  const [openTowns, setOpenTowns] = useState<Set<string>>(
+    () => new Set(["_first"]),
+  );
+
+  // Group by town (resolved from businessAreaId on the profile)
+  const grouped = (() => {
+    const map = new Map<
+      string,
+      { townName: string; items: ApprovalUserInfo[] }
+    >();
+    const unassigned: ApprovalUserInfo[] = [];
+
+    for (const item of items) {
+      const profileAreaId = item.profile?.businessAreaId;
+      if (!profileAreaId) {
+        unassigned.push(item);
+        continue;
+      }
+      const area = businessAreas.find((a) => a.id === profileAreaId);
+      if (!area) {
+        unassigned.push(item);
+        continue;
+      }
+      const town = towns.find((t) => t.id === area.townId);
+      const townName = town?.name ?? "Unknown Town";
+      const townId = town?.id ?? "_unknown";
+      if (!map.has(townId)) {
+        map.set(townId, { townName, items: [] });
+      }
+      map.get(townId)!.items.push(item);
+    }
+
+    const result = Array.from(map.entries()).map(([townId, v]) => ({
+      townId,
+      ...v,
+    }));
+    if (unassigned.length > 0) {
+      result.push({
+        townId: "_unassigned",
+        townName: "Unassigned",
+        items: unassigned,
+      });
+    }
+    return result;
+  })();
+
+  if (items.length === 0) {
+    return (
+      <div
+        className="text-center py-12"
+        data-ocid={`${ocidPrefix}.empty_state`}
+      >
+        {emptyIcon && <div className="text-4xl mb-2">{emptyIcon}</div>}
+        <p className="font-display font-semibold text-muted-foreground">
+          {emptyMessage}
+        </p>
+      </div>
+    );
+  }
+
+  const toggleTown = (townId: string) => {
+    setOpenTowns((prev) => {
+      const next = new Set(prev);
+      if (next.has(townId)) next.delete(townId);
+      else next.add(townId);
+      return next;
+    });
+  };
+
+  // Open first town by default
+  return (
+    <div className="space-y-3">
+      {grouped.map((group, gIdx) => {
+        const isOpen =
+          openTowns.has(group.townId) ||
+          (gIdx === 0 && !openTowns.has("_first_closed"));
+        return (
+          <div
+            key={group.townId}
+            className="rounded-xl border border-border/60 overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => toggleTown(group.townId)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              data-ocid={`${ocidPrefix}.town.toggle`}
+            >
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm">{group.townName}</span>
+                <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {group.items.length}
+                </span>
+              </div>
+              {isOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+            {isOpen && (
+              <div className="p-3 space-y-3">
+                {group.items.map((item, i) => (
+                  <ApplicantCard
+                    key={item.approvalInfo.principal.toString()}
+                    item={item}
+                    index={gIdx * 100 + i + 1}
+                    onApprove={onApprove}
+                    onReject={onReject}
+                    onSuspend={onSuspend}
+                    actionLoading={actionLoading}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AdminApprovalsPage() {
-  const { addNotification } = useApp();
+  const { addNotification, businessAreas, towns } = useApp();
   const { actor } = useActor();
 
   const [approvals, setApprovals] = useState<ApprovalUserInfo[]>([]);
@@ -643,79 +794,44 @@ export function AdminApprovalsPage() {
         </TabsList>
 
         <TabsContent value="pending">
-          {pending.length === 0 ? (
-            <div
-              className="text-center py-12"
-              data-ocid="admin.pending.empty_state"
-            >
-              <div className="text-4xl mb-2">✅</div>
-              <p className="font-display font-semibold">
-                No pending applications
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pending.map((item, i) => (
-                <ApplicantCard
-                  key={item.approvalInfo.principal.toString()}
-                  item={item}
-                  index={i + 1}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  actionLoading={actionLoading}
-                />
-              ))}
-            </div>
-          )}
+          <TownGroupedApplicants
+            items={pending}
+            businessAreas={businessAreas}
+            towns={towns}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            actionLoading={actionLoading}
+            emptyMessage="No pending applications"
+            emptyIcon="✅"
+            ocidPrefix="admin.pending"
+          />
         </TabsContent>
 
         <TabsContent value="approved">
-          {approved.length === 0 ? (
-            <div
-              className="text-center py-12"
-              data-ocid="admin.approved.empty_state"
-            >
-              <p className="text-muted-foreground">No approved staff yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {approved.map((item, i) => (
-                <ApplicantCard
-                  key={item.approvalInfo.principal.toString()}
-                  item={item}
-                  index={i + 1}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  onSuspend={handleSuspend}
-                  actionLoading={actionLoading}
-                />
-              ))}
-            </div>
-          )}
+          <TownGroupedApplicants
+            items={approved}
+            businessAreas={businessAreas}
+            towns={towns}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onSuspend={handleSuspend}
+            actionLoading={actionLoading}
+            emptyMessage="No approved staff yet"
+            ocidPrefix="admin.approved"
+          />
         </TabsContent>
 
         <TabsContent value="rejected">
-          {rejected.length === 0 ? (
-            <div
-              className="text-center py-12"
-              data-ocid="admin.rejected.empty_state"
-            >
-              <p className="text-muted-foreground">No rejected applications</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {rejected.map((item, i) => (
-                <ApplicantCard
-                  key={item.approvalInfo.principal.toString()}
-                  item={item}
-                  index={i + 1}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  actionLoading={actionLoading}
-                />
-              ))}
-            </div>
-          )}
+          <TownGroupedApplicants
+            items={rejected}
+            businessAreas={businessAreas}
+            towns={towns}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            actionLoading={actionLoading}
+            emptyMessage="No rejected applications"
+            ocidPrefix="admin.rejected"
+          />
         </TabsContent>
 
         <TabsContent value="admins">

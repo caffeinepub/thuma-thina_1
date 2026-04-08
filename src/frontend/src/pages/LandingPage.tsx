@@ -4,11 +4,13 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   ArrowRight,
   Calendar,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Coins,
   MapPin,
   Newspaper,
@@ -91,6 +93,140 @@ const HOW_IT_WORKS = [
     desc: "Receive your order at the pick-up point or relax at home and wait for your delivery.",
   },
 ];
+
+// ─── Beverage 18+ detection ─────────────────────────────────────────────────
+
+const BEVERAGE_KEYWORDS_HOME = [
+  "beverage",
+  "alcohol",
+  "liquor",
+  "beer",
+  "wine",
+  "spirits",
+  "drink",
+  "cider",
+  "brandy",
+  "whiskey",
+  "vodka",
+  "rum",
+];
+
+function isBeverageHome(cat?: string): boolean {
+  if (!cat) return false;
+  const lower = cat.toLowerCase();
+  return BEVERAGE_KEYWORDS_HOME.some((kw) => lower.includes(kw));
+}
+
+// ─── Countdown timer hook ───────────────────────────────────────────────────
+
+function useCountdown(targetMs: number | null) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (targetMs === null) {
+      setRemaining(null);
+      return;
+    }
+    const tick = () => setRemaining(Math.max(0, targetMs - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+  return remaining;
+}
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// Returns { kind: 'closing', targetMs } | { kind: 'opening', targetMs } | null
+// Only returns a value when within 3 hours of an event
+function getCountdownTarget(
+  retailer: Retailer,
+): { kind: "closing" | "opening"; targetMs: number } | null {
+  if (!retailer.operatingHours) return null;
+  const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  const now = new Date();
+  const todayKey = DAYS[now.getDay()];
+  const schedule = retailer.operatingHours[todayKey];
+  const nowMs = now.getTime();
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+  // Helper: build ms for today at HH:MM
+  const todayAt = (timeStr: string) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+
+  if (!schedule.closed) {
+    const closeMs = todayAt(schedule.close);
+    const openMs = todayAt(schedule.open);
+    // Within 3 hours of closing
+    if (nowMs >= openMs && nowMs < closeMs && closeMs - nowMs <= THREE_HOURS) {
+      return { kind: "closing", targetMs: closeMs };
+    }
+    // Within 3 hours before opening (still before open today)
+    if (nowMs < openMs && openMs - nowMs <= THREE_HOURS) {
+      return { kind: "opening", targetMs: openMs };
+    }
+  } else {
+    // Closed today — check tomorrow
+    const tomorrowKey = DAYS[(now.getDay() + 1) % 7];
+    const tomorrowSchedule = retailer.operatingHours[tomorrowKey];
+    if (!tomorrowSchedule.closed) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const [h, m] = tomorrowSchedule.open.split(":").map(Number);
+      tomorrow.setHours(h, m, 0, 0);
+      const openMs = tomorrow.getTime();
+      if (openMs - nowMs <= THREE_HOURS) {
+        return { kind: "opening", targetMs: openMs };
+      }
+    }
+  }
+  return null;
+}
+
+// ─── Retailer status badge with optional countdown ───────────────────────────
+
+function RetailerStatusBadge({ retailer }: { retailer: Retailer }) {
+  const countdownInfo = useMemo(() => getCountdownTarget(retailer), [retailer]);
+  const remaining = useCountdown(countdownInfo?.targetMs ?? null);
+
+  const isOpen = isRetailerOpen(retailer);
+
+  if (countdownInfo && remaining !== null && remaining > 0) {
+    if (countdownInfo.kind === "closing") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+          <Clock className="h-2.5 w-2.5" />
+          Closes in {formatCountdown(remaining)}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+        <Clock className="h-2.5 w-2.5" />
+        Opens in {formatCountdown(remaining)}
+      </span>
+    );
+  }
+
+  return isOpen ? (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+      Open
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+      Closed
+    </span>
+  );
+}
 
 // ─── Category badge colors ──────────────────────────────────────────────────
 
@@ -225,6 +361,15 @@ function ProductCard({
           >
             {product.category}
           </span>
+          {/* 18+ badge for beverages */}
+          {isBeverageHome(product.category) && (
+            <div className="absolute top-2 right-2">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-0.5 shadow-sm">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                18+
+              </span>
+            </div>
+          )}
         </div>
 
         <CardContent className="p-4">
@@ -233,6 +378,12 @@ function ProductCard({
               <h3 className="font-display font-bold text-sm leading-snug mb-1 line-clamp-2 text-foreground">
                 {product.name}
               </h3>
+              {isBeverageHome(product.category) && (
+                <p className="text-[10px] text-red-600 font-medium mb-1 flex items-center gap-0.5">
+                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                  Age restriction: 18+ only
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mb-3">
                 From{" "}
                 <span className="font-semibold text-primary">
@@ -400,18 +551,38 @@ function ExclusiveProductCard({
           <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-200">
             Exclusive
           </span>
+          {/* 18+ badge for beverages */}
+          {isBeverageHome(retailerProduct.category) && (
+            <div className="absolute top-8 right-2">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-0.5 shadow-sm">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                18+
+              </span>
+            </div>
+          )}
         </div>
 
         <CardContent className="p-4">
           <h3 className="font-display font-bold text-sm leading-snug mb-1 line-clamp-2 text-foreground">
             {retailerProduct.name}
           </h3>
+          {isBeverageHome(retailerProduct.category) && (
+            <p className="text-[10px] text-red-600 font-medium mb-1 flex items-center gap-0.5">
+              <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+              Age restriction: 18+ only
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mb-1">
             <span className="font-semibold text-foreground">
               {retailer?.name ?? "Store"}
             </span>
             {areaName ? ` · ${areaName}` : ""}
           </p>
+          {retailer && (
+            <div className="mb-1">
+              <RetailerStatusBadge retailer={retailer} />
+            </div>
+          )}
           <p className="text-xs text-muted-foreground mb-3">
             <span className="font-semibold text-primary">
               R{retailerProduct.price.toFixed(2)}
@@ -511,18 +682,55 @@ function PopularInTownSection() {
       .filter((item) => item.townListings.length > 0);
   }, [products, listings, retailers, townRetailerIds, businessAreas]);
 
+  // Extend retailer IDs to include originals for exported retailers in this town
+  // Keep this for backward compatibility with any products that still have parentRetailerId
+  const extendedRetailerIds = useMemo(() => {
+    const ids = new Set(townRetailerIds);
+    for (const r of retailers) {
+      if (r.townId === selectedTownId && r.parentRetailerId) {
+        ids.add(r.parentRetailerId);
+      }
+    }
+    return ids;
+  }, [retailers, townRetailerIds, selectedTownId]);
+
   // Build exclusive (retailer-specific) products for the selected town
+  // Products are now stored directly under the exported retailer's ID in the backend
   const exclusiveProductsInTown = useMemo(() => {
     return retailerProducts
-      .filter((rp) => rp.inStock && townRetailerIds.has(rp.retailerId))
+      .filter((rp) => rp.inStock && extendedRetailerIds.has(rp.retailerId))
       .map((rp) => {
-        const retailer = retailers.find((r) => r.id === rp.retailerId);
+        // Find the retailer for this product
+        let displayRetailer = retailers.find((r) => r.id === rp.retailerId);
+        // Legacy: If product belongs to an original retailer, find the exported copy
+        if (displayRetailer && !townRetailerIds.has(rp.retailerId)) {
+          const exportedRetailer = retailers.find(
+            (r) =>
+              r.townId === selectedTownId &&
+              r.parentRetailerId === rp.retailerId,
+          );
+          if (exportedRetailer) displayRetailer = exportedRetailer;
+        }
         const area = businessAreas.find(
-          (a) => a.id === retailer?.businessAreaId,
+          (a) => a.id === displayRetailer?.businessAreaId,
         );
-        return { retailerProduct: rp, retailer, areaName: area?.name ?? "" };
+        return {
+          retailerProduct: {
+            ...rp,
+            retailerId: displayRetailer?.id ?? rp.retailerId,
+          },
+          retailer: displayRetailer,
+          areaName: area?.name ?? "",
+        };
       });
-  }, [retailerProducts, retailers, townRetailerIds, businessAreas]);
+  }, [
+    retailerProducts,
+    retailers,
+    extendedRetailerIds,
+    townRetailerIds,
+    selectedTownId,
+    businessAreas,
+  ]);
 
   // Merge universal products and exclusive retailer products into one pool, then shuffle
   const combinedCarouselItems = useMemo(() => {

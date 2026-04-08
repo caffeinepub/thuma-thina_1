@@ -140,6 +140,9 @@ export function AdminLocationsPage() {
     images: [] as string[],
     availableSizes: "",
     availableColors: "",
+    availableFlavors: "",
+    availableWeights: "",
+    hasAttributes: false,
   });
   // Operating hours edit state (local draft while sheet is open)
   const [hoursOpen, setHoursOpen] = useState(false);
@@ -164,6 +167,13 @@ export function AdminLocationsPage() {
     images: [] as string[],
     availableSizes: "",
     availableColors: "",
+    availableFlavors: "",
+    availableWeights: "",
+    outOfStockSizes: "",
+    outOfStockColors: "",
+    outOfStockFlavors: "",
+    outOfStockWeights: "",
+    hasAttributes: false,
   });
 
   // Export retailer dialog
@@ -179,24 +189,6 @@ export function AdminLocationsPage() {
   // Category search for exclusive product dialogs
   const [productCatSearch, setProductCatSearch] = useState("");
   const [editRPCatSearch, setEditRPCatSearch] = useState("");
-
-  // Also add availableSizes/Colors to addProductDialog form
-  // Keyword detection for size/color attributes
-  const APPAREL_KEYWORDS = [
-    "shoe",
-    "footwear",
-    "clothing",
-    "apparel",
-    "jeans",
-    "shirt",
-    "dress",
-    "wear",
-    "fashion",
-    "pants",
-    "trouser",
-  ];
-  const needsSizeColor = (cat: string) =>
-    APPAREL_KEYWORDS.some((kw) => cat.toLowerCase().includes(kw));
 
   const openManageRetailer = (retailer: Retailer) => {
     setManageRetailer(retailer);
@@ -427,12 +419,20 @@ export function AdminLocationsPage() {
     const imagesJson =
       productForm.images.length > 0 ? JSON.stringify(productForm.images) : null;
     const sizes =
-      needsSizeColor(productForm.category) && productForm.availableSizes.trim()
+      productForm.hasAttributes && productForm.availableSizes.trim()
         ? productForm.availableSizes.trim()
         : null;
     const colors =
-      needsSizeColor(productForm.category) && productForm.availableColors.trim()
+      productForm.hasAttributes && productForm.availableColors.trim()
         ? productForm.availableColors.trim()
+        : null;
+    const flavors =
+      productForm.hasAttributes && productForm.availableFlavors.trim()
+        ? productForm.availableFlavors.trim()
+        : null;
+    const weights =
+      productForm.hasAttributes && productForm.availableWeights.trim()
+        ? productForm.availableWeights.trim()
         : null;
     setSaving(true);
     try {
@@ -462,6 +462,8 @@ export function AdminLocationsPage() {
         inStock: true,
         availableSizes: sizes || undefined,
         availableColors: colors || undefined,
+        availableFlavors: flavors || undefined,
+        availableWeights: weights || undefined,
       };
       setRetailerProducts((prev) => [...prev, newProduct]);
       toast.success("Product added");
@@ -474,6 +476,9 @@ export function AdminLocationsPage() {
         images: [],
         availableSizes: "",
         availableColors: "",
+        availableFlavors: "",
+        availableWeights: "",
+        hasAttributes: false,
       });
     } catch (err) {
       console.error(err);
@@ -1107,6 +1112,24 @@ export function AdminLocationsPage() {
                                 images: product.images || [],
                                 availableSizes: product.availableSizes || "",
                                 availableColors: product.availableColors || "",
+                                availableFlavors:
+                                  (product as any).availableFlavors || "",
+                                availableWeights:
+                                  (product as any).availableWeights || "",
+                                outOfStockSizes:
+                                  (product as any).outOfStockSizes || "",
+                                outOfStockColors:
+                                  (product as any).outOfStockColors || "",
+                                outOfStockFlavors:
+                                  (product as any).outOfStockFlavors || "",
+                                outOfStockWeights:
+                                  (product as any).outOfStockWeights || "",
+                                hasAttributes: !!(
+                                  product.availableSizes ||
+                                  product.availableColors ||
+                                  (product as any).availableFlavors ||
+                                  (product as any).availableWeights
+                                ),
                               });
                               setEditRPCatSearch("");
                               setEditRPDialog(true);
@@ -1436,8 +1459,21 @@ export function AdminLocationsPage() {
                 </SelectContent>
               </Select>
             </div>
-            {needsSizeColor(productForm.category) && (
-              <>
+            {/* Attributes toggle */}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={productForm.hasAttributes}
+                onCheckedChange={(v) =>
+                  setProductForm((f) => ({ ...f, hasAttributes: v }))
+                }
+                data-ocid="admin.retailer_product_attributes.toggle"
+              />
+              <Label className="cursor-pointer text-sm">
+                This product has size/colour/flavour/weight options
+              </Label>
+            </div>
+            {productForm.hasAttributes && (
+              <div className="space-y-3 pl-2 border-l-2 border-primary/20">
                 <div className="space-y-1.5">
                   <Label>Available Sizes</Label>
                   <input
@@ -1452,9 +1488,6 @@ export function AdminLocationsPage() {
                     placeholder="e.g. S, M, L, XL, XXL"
                     data-ocid="admin.retailer_product_sizes.input"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated sizes
-                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Available Colours</Label>
@@ -1470,11 +1503,41 @@ export function AdminLocationsPage() {
                     placeholder="e.g. Red, Blue, Black, White"
                     data-ocid="admin.retailer_product_colors.input"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated colours
-                  </p>
                 </div>
-              </>
+                <div className="space-y-1.5">
+                  <Label>Available Flavours</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={productForm.availableFlavors}
+                    onChange={(e) =>
+                      setProductForm((f) => ({
+                        ...f,
+                        availableFlavors: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Lemon, Orange, Grape"
+                    data-ocid="admin.retailer_product_flavors.input"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Available Weights</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={productForm.availableWeights}
+                    onChange={(e) =>
+                      setProductForm((f) => ({
+                        ...f,
+                        availableWeights: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. 500g, 1kg, 2kg"
+                    data-ocid="admin.retailer_product_weights.input"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated values for each field
+                </p>
+              </div>
             )}
             <div className="space-y-1.5">
               <Label>Price (ZAR)</Label>
@@ -2120,8 +2183,22 @@ export function AdminLocationsPage() {
                 </SelectContent>
               </Select>
             </div>
-            {needsSizeColor(editRPForm.category) && (
-              <>
+            {/* Attributes toggle */}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={editRPForm.hasAttributes}
+                onCheckedChange={(v) =>
+                  setEditRPForm((f) => ({ ...f, hasAttributes: v }))
+                }
+                data-ocid="admin.edit_rp_attributes.toggle"
+              />
+              <Label className="cursor-pointer text-sm">
+                This product has size/colour/flavour/weight options
+              </Label>
+            </div>
+            {editRPForm.hasAttributes && (
+              <div className="space-y-3 pl-2 border-l-2 border-primary/20">
+                {/* Sizes */}
                 <div className="space-y-1.5">
                   <Label>Available Sizes</Label>
                   <input
@@ -2136,10 +2213,47 @@ export function AdminLocationsPage() {
                     placeholder="e.g. S, M, L, XL, XXL"
                     data-ocid="admin.edit_rp_sizes.input"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated sizes
-                  </p>
+                  {editRPForm.availableSizes && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Mark out of stock:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {editRPForm.availableSizes
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                          .map((s) => {
+                            const oosArr = editRPForm.outOfStockSizes
+                              .split(",")
+                              .map((x) => x.trim())
+                              .filter(Boolean);
+                            const isOOS = oosArr.includes(s);
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => {
+                                  const newOOS = isOOS
+                                    ? oosArr.filter((x) => x !== s)
+                                    : [...oosArr, s];
+                                  setEditRPForm((f) => ({
+                                    ...f,
+                                    outOfStockSizes: newOOS.join(", "),
+                                  }));
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs border transition-colors ${isOOS ? "bg-red-100 text-red-700 border-red-300" : "bg-card border-border text-muted-foreground hover:border-red-300"}`}
+                                data-ocid={`admin.edit_rp_oos_size.${s}`}
+                              >
+                                {s} {isOOS ? "✗" : "✓"}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {/* Colours */}
                 <div className="space-y-1.5">
                   <Label>Available Colours</Label>
                   <input
@@ -2154,11 +2268,161 @@ export function AdminLocationsPage() {
                     placeholder="e.g. Red, Blue, Black, White"
                     data-ocid="admin.edit_rp_colors.input"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated colours
-                  </p>
+                  {editRPForm.availableColors && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Mark out of stock:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {editRPForm.availableColors
+                          .split(",")
+                          .map((c) => c.trim())
+                          .filter(Boolean)
+                          .map((c) => {
+                            const oosArr = editRPForm.outOfStockColors
+                              .split(",")
+                              .map((x) => x.trim())
+                              .filter(Boolean);
+                            const isOOS = oosArr.includes(c);
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => {
+                                  const newOOS = isOOS
+                                    ? oosArr.filter((x) => x !== c)
+                                    : [...oosArr, c];
+                                  setEditRPForm((f) => ({
+                                    ...f,
+                                    outOfStockColors: newOOS.join(", "),
+                                  }));
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs border transition-colors ${isOOS ? "bg-red-100 text-red-700 border-red-300" : "bg-card border-border text-muted-foreground hover:border-red-300"}`}
+                                data-ocid={`admin.edit_rp_oos_color.${c}`}
+                              >
+                                {c} {isOOS ? "✗" : "✓"}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </>
+                {/* Flavours */}
+                <div className="space-y-1.5">
+                  <Label>Available Flavours</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={editRPForm.availableFlavors}
+                    onChange={(e) =>
+                      setEditRPForm((f) => ({
+                        ...f,
+                        availableFlavors: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Lemon, Orange, Grape"
+                    data-ocid="admin.edit_rp_flavors.input"
+                  />
+                  {editRPForm.availableFlavors && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Mark out of stock:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {editRPForm.availableFlavors
+                          .split(",")
+                          .map((f) => f.trim())
+                          .filter(Boolean)
+                          .map((fl) => {
+                            const oosArr = editRPForm.outOfStockFlavors
+                              .split(",")
+                              .map((x) => x.trim())
+                              .filter(Boolean);
+                            const isOOS = oosArr.includes(fl);
+                            return (
+                              <button
+                                key={fl}
+                                type="button"
+                                onClick={() => {
+                                  const newOOS = isOOS
+                                    ? oosArr.filter((x) => x !== fl)
+                                    : [...oosArr, fl];
+                                  setEditRPForm((f) => ({
+                                    ...f,
+                                    outOfStockFlavors: newOOS.join(", "),
+                                  }));
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs border transition-colors ${isOOS ? "bg-red-100 text-red-700 border-red-300" : "bg-card border-border text-muted-foreground hover:border-red-300"}`}
+                                data-ocid={`admin.edit_rp_oos_flavor.${fl}`}
+                              >
+                                {fl} {isOOS ? "✗" : "✓"}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Weights */}
+                <div className="space-y-1.5">
+                  <Label>Available Weights</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    value={editRPForm.availableWeights}
+                    onChange={(e) =>
+                      setEditRPForm((f) => ({
+                        ...f,
+                        availableWeights: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. 500g, 1kg, 2kg"
+                    data-ocid="admin.edit_rp_weights.input"
+                  />
+                  {editRPForm.availableWeights && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Mark out of stock:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {editRPForm.availableWeights
+                          .split(",")
+                          .map((w) => w.trim())
+                          .filter(Boolean)
+                          .map((wt) => {
+                            const oosArr = editRPForm.outOfStockWeights
+                              .split(",")
+                              .map((x) => x.trim())
+                              .filter(Boolean);
+                            const isOOS = oosArr.includes(wt);
+                            return (
+                              <button
+                                key={wt}
+                                type="button"
+                                onClick={() => {
+                                  const newOOS = isOOS
+                                    ? oosArr.filter((x) => x !== wt)
+                                    : [...oosArr, wt];
+                                  setEditRPForm((f) => ({
+                                    ...f,
+                                    outOfStockWeights: newOOS.join(", "),
+                                  }));
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs border transition-colors ${isOOS ? "bg-red-100 text-red-700 border-red-300" : "bg-card border-border text-muted-foreground hover:border-red-300"}`}
+                                data-ocid={`admin.edit_rp_oos_weight.${wt}`}
+                              >
+                                {wt} {isOOS ? "✗" : "✓"}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated values. Click options above to toggle
+                  out-of-stock.
+                </p>
+              </div>
             )}
             <div className="space-y-1.5">
               <Label>Price (ZAR)</Label>
@@ -2206,14 +2470,23 @@ export function AdminLocationsPage() {
                       ? JSON.stringify(editRPForm.images)
                       : null;
                   const editSizes =
-                    needsSizeColor(editRPForm.category) &&
-                    editRPForm.availableSizes.trim()
+                    editRPForm.hasAttributes && editRPForm.availableSizes.trim()
                       ? editRPForm.availableSizes.trim()
                       : null;
                   const editColors =
-                    needsSizeColor(editRPForm.category) &&
+                    editRPForm.hasAttributes &&
                     editRPForm.availableColors.trim()
                       ? editRPForm.availableColors.trim()
+                      : null;
+                  const editFlavors =
+                    editRPForm.hasAttributes &&
+                    editRPForm.availableFlavors.trim()
+                      ? editRPForm.availableFlavors.trim()
+                      : null;
+                  const editWeights =
+                    editRPForm.hasAttributes &&
+                    editRPForm.availableWeights.trim()
+                      ? editRPForm.availableWeights.trim()
                       : null;
                   if (actor)
                     await actor.updateRetailerProduct(
@@ -2227,6 +2500,20 @@ export function AdminLocationsPage() {
                       editSizes,
                       editColors,
                     );
+                  // Update out-of-stock attribute options
+                  if (actor && editRPForm.hasAttributes) {
+                    try {
+                      await (actor as any).setRetailerProductAttributeStock(
+                        editRP.id,
+                        editRPForm.outOfStockSizes || null,
+                        editRPForm.outOfStockColors || null,
+                        editRPForm.outOfStockFlavors || null,
+                        editRPForm.outOfStockWeights || null,
+                      );
+                    } catch {
+                      // Non-critical if backend doesn't support yet
+                    }
+                  }
                   setRetailerProducts((prev) =>
                     prev.map((p) =>
                       p.id === editRP.id
@@ -2243,6 +2530,16 @@ export function AdminLocationsPage() {
                                 : undefined,
                             availableSizes: editSizes || undefined,
                             availableColors: editColors || undefined,
+                            availableFlavors: editFlavors || undefined,
+                            availableWeights: editWeights || undefined,
+                            outOfStockSizes:
+                              editRPForm.outOfStockSizes || undefined,
+                            outOfStockColors:
+                              editRPForm.outOfStockColors || undefined,
+                            outOfStockFlavors:
+                              editRPForm.outOfStockFlavors || undefined,
+                            outOfStockWeights:
+                              editRPForm.outOfStockWeights || undefined,
                           }
                         : p,
                     ),

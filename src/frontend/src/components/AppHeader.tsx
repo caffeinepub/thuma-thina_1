@@ -118,6 +118,23 @@ const ROLE_COLORS: Record<string, string> = {
   [AppUserRole.admin]: "bg-red-100 text-red-800",
 };
 
+function getJuniorAdminRoleFromStorage(
+  principalText: string | null | undefined,
+): string {
+  if (!principalText) return "";
+  try {
+    return localStorage.getItem(`junior_admin_role_${principalText}`) || "";
+  } catch {
+    return "";
+  }
+}
+
+const JUNIOR_ADMIN_NAV: Record<string, string[]> = {
+  products_admin: ["/admin/products"],
+  listings_admin: ["/admin/products"],
+  approvals_admin: ["/admin/approvals"],
+};
+
 export function AppHeader() {
   const { isAuthenticated, userRole, userProfile, logout, principalText } =
     useAuth();
@@ -125,7 +142,17 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navigate = useNavigate();
-  const navLinks = (userRole ? NAV_LINKS[userRole] : null) || [];
+
+  // Junior admin role filtering
+  const juniorRole = getJuniorAdminRoleFromStorage(principalText);
+  const allowedPaths = juniorRole ? JUNIOR_ADMIN_NAV[juniorRole] : null;
+
+  const allNavLinks = (userRole ? NAV_LINKS[userRole] : null) || [];
+  const navLinks = allowedPaths
+    ? allNavLinks.filter((link) =>
+        allowedPaths.some((p) => link.to.startsWith(p)),
+      )
+    : allNavLinks;
   // While pending approval, customers keep their shopping nav + a pending badge
   const isPendingApproval =
     userProfile?.registrationStatus === "pending" &&
@@ -280,7 +307,7 @@ export function AppHeader() {
         </div>
 
         {/* Mobile nav */}
-        {mobileOpen && navLinks.length > 0 && (
+        {mobileOpen && allNavLinks.length > 0 && (
           <nav className="md:hidden border-t border-border/60 py-3 space-y-1">
             {effectiveNavLinks.map((link) => (
               <Link

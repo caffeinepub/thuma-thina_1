@@ -18,11 +18,42 @@ export type AppUserRole = { 'admin' : null } |
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface Article {
+  'id' : string,
+  'categoryId' : string,
+  'title' : string,
+  'body' : string,
+  'published' : boolean,
+  'createdAt' : bigint,
+  'imagesJson' : [] | [string],
+  'authorPrincipal' : Principal,
+}
+export interface ArticleCategory { 'id' : string, 'name' : string }
 export interface BusinessArea {
   'id' : string,
   'name' : string,
   'townId' : string,
   'areaType' : string,
+}
+export interface LikeDislike {
+  'userId' : Principal,
+  'isLike' : boolean,
+  'targetType' : string,
+  'targetId' : string,
+}
+export interface NomayiniBalance {
+  'totalEarned' : number,
+  'unlockedBalance' : number,
+  'lockedLongTerm' : number,
+  'lockedShortTerm' : number,
+}
+export interface NomayiniTransaction {
+  'id' : string,
+  'unlockDate' : [] | [string],
+  'date' : string,
+  'description' : string,
+  'txType' : string,
+  'amount' : number,
 }
 export interface Order {
   'id' : string,
@@ -49,6 +80,32 @@ export interface Order {
   'businessAreaId' : string,
   'shopperName' : [] | [string],
 }
+export interface OrderExtended {
+  'id' : string,
+  'customerName' : string,
+  'status' : string,
+  'driverId' : [] | [string],
+  'isWalkIn' : boolean,
+  'shopperProofImagesJson' : [] | [string],
+  'total' : number,
+  'customerPhone' : string,
+  'pickupPointId' : string,
+  'pickupPointName' : string,
+  'dedicatedRetailerId' : [] | [string],
+  'createdAt' : string,
+  'deliveryType' : string,
+  'deliveryAreasJson' : [] | [string],
+  'parentOrderId' : [] | [string],
+  'updatedAt' : string,
+  'homeAddress' : [] | [string],
+  'shopperId' : [] | [string],
+  'townId' : string,
+  'customerId' : string,
+  'itemsJson' : string,
+  'driverName' : [] | [string],
+  'businessAreaId' : string,
+  'shopperName' : [] | [string],
+}
 export interface PickupPoint {
   'id' : string,
   'name' : string,
@@ -56,7 +113,7 @@ export interface PickupPoint {
   'address' : string,
   'profileImageUrl' : [] | [string],
 }
-export interface Product {
+export interface ProductExtended {
   'id' : string,
   'suggestedBy' : [] | [string],
   'inStock' : boolean,
@@ -64,11 +121,11 @@ export interface Product {
   'name' : string,
   'description' : string,
   'imageEmoji' : string,
+  'serviceFee' : number,
   'approved' : boolean,
   'category' : string,
   'imagesJson' : [] | [string],
   'isSpecial' : boolean,
-  'serviceFee' : number,
 }
 export interface ProductListing {
   'id' : string,
@@ -77,27 +134,44 @@ export interface ProductListing {
   'price' : number,
   'retailerId' : string,
 }
-export interface Retailer {
+export interface RetailerExtended {
   'id' : string,
   'name' : string,
+  'parentRetailerId' : [] | [string],
   'operatingHoursJson' : [] | [string],
   'townId' : string,
   'address' : string,
   'businessAreaId' : string,
-  'parentRetailerId' : [] | [string],
 }
-export interface RetailerProduct {
+export interface RetailerProductExtended {
   'id' : string,
+  'availableColors' : [] | [string],
   'inStock' : boolean,
+  'outOfStockColors' : [] | [string],
   'name' : string,
   'description' : string,
+  'inheritedFrom' : [] | [string],
+  'outOfStockSizes' : [] | [string],
+  'outOfStockFlavors' : [] | [string],
   'imageEmoji' : string,
+  'availableWeights' : [] | [string],
+  'availableSizes' : [] | [string],
   'category' : string,
   'price' : number,
   'imagesJson' : [] | [string],
   'retailerId' : string,
-  'availableSizes' : [] | [string],
-  'availableColors' : [] | [string],
+  'availableFlavors' : [] | [string],
+  'outOfStockWeights' : [] | [string],
+}
+export interface Review {
+  'id' : string,
+  'createdAt' : bigint,
+  'reviewerId' : Principal,
+  'orderId' : string,
+  'comment' : string,
+  'targetType' : string,
+  'rating' : bigint,
+  'targetId' : string,
 }
 export interface Town { 'id' : string, 'province' : string, 'name' : string }
 export interface UserApprovalInfo {
@@ -119,35 +193,44 @@ export interface UserProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
-export interface _CaffeineStorageCreateCertificateResult {
+export interface _ImmutableObjectStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
 }
-export interface _CaffeineStorageRefillInformation {
+export interface _ImmutableObjectStorageRefillInformation {
   'proposed_top_up_amount' : [] | [bigint],
 }
-export interface _CaffeineStorageRefillResult {
+export interface _ImmutableObjectStorageRefillResult {
   'success' : [] | [boolean],
   'topped_up_amount' : [] | [bigint],
 }
 export interface _SERVICE {
-  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
-  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
-  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+  '_immutableObjectStorageBlobsAreLive' : ActorMethod<
+    [Array<Uint8Array>],
+    Array<boolean>
+  >,
+  '_immutableObjectStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_immutableObjectStorageConfirmBlobDeletion' : ActorMethod<
     [Array<Uint8Array>],
     undefined
   >,
-  '_caffeineStorageCreateCertificate' : ActorMethod<
+  '_immutableObjectStorageCreateCertificate' : ActorMethod<
     [string],
-    _CaffeineStorageCreateCertificateResult
+    _ImmutableObjectStorageCreateCertificateResult
   >,
-  '_caffeineStorageRefillCashier' : ActorMethod<
-    [[] | [_CaffeineStorageRefillInformation]],
-    _CaffeineStorageRefillResult
+  '_immutableObjectStorageRefillCashier' : ActorMethod<
+    [[] | [_ImmutableObjectStorageRefillInformation]],
+    _ImmutableObjectStorageRefillResult
   >,
-  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  '_initializeAccessControl' : ActorMethod<[], undefined>,
+  'addArticle' : ActorMethod<
+    [string, string, string, string, [] | [string], boolean],
+    undefined
+  >,
+  'addArticleCategory' : ActorMethod<[string, string], undefined>,
   'addBusinessArea' : ActorMethod<[string, string, string, string], undefined>,
+  'addCategory' : ActorMethod<[string], undefined>,
   'addListing' : ActorMethod<[string, string, string, number], undefined>,
   'addPickupPoint' : ActorMethod<
     [string, string, string, string, [] | [string]],
@@ -162,9 +245,25 @@ export interface _SERVICE {
     undefined
   >,
   'addRetailerProduct' : ActorMethod<
-    [string, string, string, string, string, number, string, [] | [string], [] | [string], [] | [string]],
+    [
+      string,
+      string,
+      string,
+      string,
+      string,
+      number,
+      string,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+    ],
     undefined
   >,
+  'addReview' : ActorMethod<
+    [string, string, string, bigint, string, string],
+    undefined
+  >,
+  'addShopperProof' : ActorMethod<[string, string], undefined>,
   /**
    * / *********************************************************
    * /    * Persistence API Endpoints
@@ -174,37 +273,55 @@ export interface _SERVICE {
   'approveSuggestion' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'assignShopperToRetailer' : ActorMethod<[Principal, string], undefined>,
+  'deleteArticle' : ActorMethod<[string], undefined>,
+  'deleteArticleCategory' : ActorMethod<[string], undefined>,
   'deleteBusinessArea' : ActorMethod<[string], undefined>,
+  'deleteCategory' : ActorMethod<[string], undefined>,
   'deleteListing' : ActorMethod<[string], undefined>,
   'deleteOrder' : ActorMethod<[string], undefined>,
   'deletePickupPoint' : ActorMethod<[string], undefined>,
   'deleteProduct' : ActorMethod<[string], undefined>,
+  'deleteProductAttributes' : ActorMethod<[string], undefined>,
   'deleteRetailer' : ActorMethod<[string], undefined>,
   'deleteRetailerProduct' : ActorMethod<[string], undefined>,
   'deleteTown' : ActorMethod<[string], undefined>,
+  'deleteUser' : ActorMethod<[Principal], undefined>,
+  'exportRetailerToTown' : ActorMethod<
+    [string, string, string, string, string, string],
+    undefined
+  >,
+  'getAllNomayiniBalances' : ActorMethod<[], Array<[string, NomayiniBalance]>>,
   'getAllShopperAssignments' : ActorMethod<
     [],
     Array<[Principal, Array<string>]>
   >,
   'getAllUsers' : ActorMethod<[], Array<UserProfile>>,
+  'getArticleCategories' : ActorMethod<[], Array<ArticleCategory>>,
+  'getArticles' : ActorMethod<[], Array<Article>>,
   'getBusinessAreas' : ActorMethod<[], Array<BusinessArea>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCategories' : ActorMethod<[], Array<string>>,
+  'getLikesDislikesForTarget' : ActorMethod<[string], Array<LikeDislike>>,
   'getListings' : ActorMethod<[], Array<ProductListing>>,
-  'getMyOrders' : ActorMethod<[string], Array<Order>>,
-  'getMyShopperOrders' : ActorMethod<[], Array<Order>>,
-  'getMyDriverOrders' : ActorMethod<[], Array<Order>>,
+  'getMyDriverOrders' : ActorMethod<[], Array<OrderExtended>>,
+  'getMyOrders' : ActorMethod<[string], Array<OrderExtended>>,
   'getMyProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getMyShopperOrders' : ActorMethod<[], Array<OrderExtended>>,
+  'getNomayiniBalance' : ActorMethod<[], NomayiniBalance>,
+  'getNomayiniTransactions' : ActorMethod<[], Array<NomayiniTransaction>>,
   'getOrderById' : ActorMethod<[string], [] | [Order]>,
-  'getOrders' : ActorMethod<[], Array<Order>>,
-  'getOrdersByArea' : ActorMethod<[string], Array<Order>>,
-  'getOrdersByCustomerId' : ActorMethod<[string], Array<Order>>,
-  'getOrdersByPickupPoint' : ActorMethod<[string], Array<Order>>,
-  'getOrdersByStatus' : ActorMethod<[string], Array<Order>>,
+  'getOrders' : ActorMethod<[], Array<OrderExtended>>,
+  'getOrdersByArea' : ActorMethod<[string], Array<OrderExtended>>,
+  'getOrdersByCustomerId' : ActorMethod<[string], Array<OrderExtended>>,
+  'getOrdersByPickupPoint' : ActorMethod<[string], Array<OrderExtended>>,
+  'getOrdersByStatus' : ActorMethod<[string], Array<OrderExtended>>,
   'getPickupPoints' : ActorMethod<[], Array<PickupPoint>>,
-  'getProducts' : ActorMethod<[], Array<Product>>,
-  'getRetailerProducts' : ActorMethod<[], Array<RetailerProduct>>,
-  'getRetailers' : ActorMethod<[], Array<Retailer>>,
+  'getProductAttributes' : ActorMethod<[], Array<[string, string]>>,
+  'getProducts' : ActorMethod<[], Array<ProductExtended>>,
+  'getRetailerProducts' : ActorMethod<[], Array<RetailerProductExtended>>,
+  'getRetailers' : ActorMethod<[], Array<RetailerExtended>>,
+  'getReviewsForTarget' : ActorMethod<[string], Array<Review>>,
   'getShopperRetailerIds' : ActorMethod<[Principal], Array<string>>,
   'getStaffBusinessArea' : ActorMethod<[Principal], [] | [string]>,
   'getTowns' : ActorMethod<[], Array<Town>>,
@@ -241,19 +358,34 @@ export interface _SERVICE {
     undefined
   >,
   'rejectSuggestion' : ActorMethod<[string], undefined>,
+  'renameCategory' : ActorMethod<[string, string], undefined>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<
     [string, string, [] | [string]],
     undefined
   >,
+  'sendNomayiniTokens' : ActorMethod<[string, number, string], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
+  'setLikeDislike' : ActorMethod<[string, string, boolean], undefined>,
   'setListingStock' : ActorMethod<[string, boolean], undefined>,
+  'setProductAttributes' : ActorMethod<[string, string], undefined>,
+  'setRetailerProductAttributeStock' : ActorMethod<
+    [string, [] | [string], [] | [string], [] | [string], [] | [string]],
+    undefined
+  >,
   'setRetailerProductStock' : ActorMethod<[string, boolean], undefined>,
   'suggestProduct' : ActorMethod<
     [string, string, string, string, string, string],
     undefined
   >,
   'unassignShopperFromRetailer' : ActorMethod<[Principal, string], undefined>,
+  'updateArticle' : ActorMethod<
+    [string, string, string, string, [] | [string], boolean],
+    undefined
+  >,
+  'updateArticleCategory' : ActorMethod<[string, string], undefined>,
+  'updateCategories' : ActorMethod<[Array<string>], undefined>,
+  'updateListingPrice' : ActorMethod<[string, number], undefined>,
   'updateOrderStatus' : ActorMethod<
     [
       string,
@@ -266,25 +398,32 @@ export interface _SERVICE {
     ],
     undefined
   >,
-  'exportRetailerToTown' : ActorMethod<[string, string, string, string, string, string], undefined>,
-    'updateRetailerHours' : ActorMethod<[string, string], undefined>,
-  'updateListingPrice' : ActorMethod<[string, number], undefined>,
-  'updatePickupPoint' : ActorMethod<[string, string, string, [] | [string]], undefined>,
-  'updateProduct' : ActorMethod<[string, string, string, string, string, [] | [string], boolean, number], undefined>,
-  'addCategory' : ActorMethod<[string], undefined>,
-  'getCategories' : ActorMethod<[], Array<string>>,
-  'updateCategories' : ActorMethod<[Array<string>], undefined>,
-  'addArticle' : ActorMethod<[string, string, string, string, [] | [string], boolean], undefined>,
-  'addArticleCategory' : ActorMethod<[string, string], undefined>,
-  'addReview' : ActorMethod<[string, string, string, bigint, string, string], undefined>,
-  'deleteArticle' : ActorMethod<[string], undefined>,
-  'getArticleCategories' : ActorMethod<[], Array<{ id: string; name: string }>>,
-  'getArticles' : ActorMethod<[], Array<{ id: string; title: string; body: string; categoryId: string; imagesJson: [] | [string]; authorPrincipal: Principal; createdAt: bigint; published: boolean }>>,
-  'getLikesDislikesForTarget' : ActorMethod<[string], Array<{ targetId: string; targetType: string; userId: Principal; isLike: boolean }>>,
-  'getReviewsForTarget' : ActorMethod<[string], Array<{ id: string; targetId: string; targetType: string; reviewerId: Principal; rating: bigint; comment: string; orderId: string; createdAt: bigint }>>,
-  'setLikeDislike' : ActorMethod<[string, string, boolean], undefined>,
-  'updateArticle' : ActorMethod<[string, string, string, string, [] | [string], boolean], undefined>,
-  'updateRetailerProduct' : ActorMethod<[string, string, string, string, number, string, [] | [string], [] | [string], [] | [string]], undefined>,
+  'updatePickupPoint' : ActorMethod<
+    [string, string, string, [] | [string]],
+    undefined
+  >,
+  'updateProduct' : ActorMethod<
+    [string, string, string, string, string, [] | [string], boolean, number],
+    undefined
+  >,
+  'updateRetailerHours' : ActorMethod<[string, string], undefined>,
+  'updateRetailerProduct' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      number,
+      string,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+    ],
+    undefined
+  >,
+  'wipeAllNomayini' : ActorMethod<[], undefined>,
+  'wipeAllOrders' : ActorMethod<[], undefined>,
+  'wipeAllUsers' : ActorMethod<[], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

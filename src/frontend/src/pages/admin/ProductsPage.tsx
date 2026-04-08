@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +46,6 @@ import type {
 } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
 import { SPECIAL_SHOPPER_MARKER } from "../../utils/orderSplit";
-import { getSecretParameter } from "../../utils/urlParams";
 
 const CATEGORIES: ProductCategory[] = [
   "Groceries",
@@ -87,6 +87,147 @@ const EMOJIS: Record<string, string> = {
   "Detergents & Soaps": "🧼",
 };
 
+// ─── Categories Manager Component ────────────────────────────────────────────
+
+function ProductCategoriesManager({
+  customCategories,
+  actor,
+}: {
+  customCategories: string[];
+  actor: any;
+}) {
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editCatValue, setEditCatValue] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
+
+  const handleRename = async (oldName: string) => {
+    if (!editCatValue.trim() || editCatValue.trim() === oldName) {
+      setEditingCat(null);
+      return;
+    }
+    setSavingCat(true);
+    try {
+      if (actor) {
+        await actor
+          .renameCategory(oldName, editCatValue.trim())
+          .catch(() => {});
+      }
+      toast.success(`Renamed to "${editCatValue.trim()}"`);
+      setEditingCat(null);
+    } catch {
+      toast.error("Failed to rename category");
+    } finally {
+      setSavingCat(false);
+    }
+  };
+
+  const handleDelete = async (name: string) => {
+    if (
+      !confirm(
+        `Delete category "${name}"? Products in this category will keep their current category.`,
+      )
+    )
+      return;
+    try {
+      if (actor) {
+        await actor.deleteCategory(name).catch(() => {});
+      }
+      toast.success(`Category "${name}" deleted`);
+    } catch {
+      toast.error("Failed to delete category");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground mb-3">
+        Manage product categories. Rename or delete as needed.
+      </p>
+      {customCategories.length === 0 ? (
+        <div
+          className="text-center py-8"
+          data-ocid="admin.categories.empty_state"
+        >
+          <p className="text-muted-foreground text-sm">No categories found</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {customCategories.map((cat, i) => (
+            <div
+              key={cat}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-card"
+              data-ocid={`admin.category.item.${i + 1}`}
+            >
+              {editingCat === cat ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <Input
+                    value={editCatValue}
+                    onChange={(e) => setEditCatValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(cat);
+                      if (e.key === "Escape") setEditingCat(null);
+                    }}
+                    className="h-7 text-sm flex-1"
+                    autoFocus
+                    data-ocid="admin.category.rename.input"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() => handleRename(cat)}
+                    disabled={savingCat}
+                    data-ocid="admin.category.save.save_button"
+                  >
+                    {savingCat ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Save"
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs px-2"
+                    onClick={() => setEditingCat(null)}
+                    data-ocid="admin.category.cancel.cancel_button"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm">{cat}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      setEditingCat(cat);
+                      setEditCatValue(cat);
+                    }}
+                    data-ocid={`admin.category.edit_button.${i + 1}`}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(cat)}
+                    data-ocid={`admin.category.delete_button.${i + 1}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminProductsPage() {
   const {
     products,
@@ -114,6 +255,17 @@ export function AdminProductsPage() {
     images: [] as string[],
     isSpecial: false,
     serviceFee: 20,
+    hasAttributes: false,
+    attrTypes: {
+      Size: false,
+      Color: false,
+      Flavor: false,
+      Weight: false,
+    } as Record<string, boolean>,
+    attrOptions: { Size: "", Color: "", Flavor: "", Weight: "" } as Record<
+      string,
+      string
+    >,
   });
   const [listingForm, setListingForm] = useState({
     productId: "",
@@ -131,6 +283,17 @@ export function AdminProductsPage() {
     images: [] as string[],
     isSpecial: false,
     serviceFee: 20,
+    hasAttributes: false,
+    attrTypes: {
+      Size: false,
+      Color: false,
+      Flavor: false,
+      Weight: false,
+    } as Record<string, boolean>,
+    attrOptions: { Size: "", Color: "", Flavor: "", Weight: "" } as Record<
+      string,
+      string
+    >,
   });
   const [editListingDialog, setEditListingDialog] = useState(false);
   const [editListing, setEditListing] = useState<ProductListing | null>(null);
@@ -139,8 +302,7 @@ export function AdminProductsPage() {
   // Re-register admin in access control after each deployment (accessControlState resets on canister upgrade)
   useEffect(() => {
     if (actor) {
-      const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      actor._initializeAccessControlWithSecret(adminToken).catch(console.error);
+      actor._initializeAccessControl().catch(console.error);
     }
   }, [actor]);
 
@@ -169,8 +331,7 @@ export function AdminProductsPage() {
     try {
       if (actor) {
         // Re-register admin before write in case accessControlState reset after deploy
-        const adminTok = getSecretParameter("caffeineAdminToken") || "";
-        await actor._initializeAccessControlWithSecret(adminTok);
+        await actor._initializeAccessControl();
         await (actor as any).addProduct(
           id,
           form.name,
@@ -181,7 +342,40 @@ export function AdminProductsPage() {
           form.isSpecial,
           form.isSpecial ? form.serviceFee : 0,
         );
+        // Save attributes if enabled
+        if (form.hasAttributes) {
+          const attrsObj: Record<string, string[]> = {};
+          for (const [type, enabled] of Object.entries(form.attrTypes)) {
+            if (enabled && form.attrOptions[type]?.trim()) {
+              attrsObj[type] = form.attrOptions[type]
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+            }
+          }
+          if (Object.keys(attrsObj).length > 0) {
+            await (actor as any)
+              .setProductAttributes(id, JSON.stringify(attrsObj))
+              .catch(() => {});
+          }
+        }
       }
+      const attrsJson = form.hasAttributes
+        ? (() => {
+            const attrsObj: Record<string, string[]> = {};
+            for (const [type, enabled] of Object.entries(form.attrTypes)) {
+              if (enabled && form.attrOptions[type]?.trim()) {
+                attrsObj[type] = form.attrOptions[type]
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              }
+            }
+            return Object.keys(attrsObj).length > 0
+              ? JSON.stringify(attrsObj)
+              : undefined;
+          })()
+        : undefined;
       const newProduct: Product = {
         id,
         name: form.name,
@@ -192,6 +386,7 @@ export function AdminProductsPage() {
         inStock: true,
         isSpecial: form.isSpecial || undefined,
         serviceFee: form.isSpecial ? form.serviceFee : undefined,
+        attributes: attrsJson,
       };
       setProducts((prev) => [newProduct, ...prev]);
       toast.success("Product added to catalogue");
@@ -212,6 +407,9 @@ export function AdminProductsPage() {
         images: [],
         isSpecial: false,
         serviceFee: 20,
+        hasAttributes: false,
+        attrTypes: { Size: false, Color: false, Flavor: false, Weight: false },
+        attrOptions: { Size: "", Color: "", Flavor: "", Weight: "" },
       });
     } catch (err) {
       console.error(err);
@@ -372,6 +570,10 @@ export function AdminProductsPage() {
             <Zap className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
             Special Shoppers
           </TabsTrigger>
+          <TabsTrigger value="categories" data-ocid="admin.categories.tab">
+            <Star className="h-3.5 w-3.5 mr-1.5" />
+            Categories
+          </TabsTrigger>
         </TabsList>
 
         {/* Catalogue Tab */}
@@ -452,6 +654,38 @@ export function AdminProductsPage() {
                         size="icon"
                         onClick={() => {
                           setEditProduct(product);
+                          // Parse existing attributes if any
+                          let parsedAttrTypes = {
+                            Size: false,
+                            Color: false,
+                            Flavor: false,
+                            Weight: false,
+                          } as Record<string, boolean>;
+                          let parsedAttrOptions = {
+                            Size: "",
+                            Color: "",
+                            Flavor: "",
+                            Weight: "",
+                          } as Record<string, string>;
+                          let hasAttrs = false;
+                          if (product.attributes) {
+                            try {
+                              const parsed = JSON.parse(product.attributes);
+                              hasAttrs = Object.keys(parsed).length > 0;
+                              for (const [type, vals] of Object.entries(
+                                parsed,
+                              )) {
+                                if (type in parsedAttrTypes) {
+                                  parsedAttrTypes[type] = true;
+                                  parsedAttrOptions[type] = (
+                                    vals as string[]
+                                  ).join(", ");
+                                }
+                              }
+                            } catch {
+                              /* ignore */
+                            }
+                          }
                           setEditProductForm({
                             name: product.name,
                             description: product.description || "",
@@ -460,6 +694,9 @@ export function AdminProductsPage() {
                             images: product.images || [],
                             isSpecial: product.isSpecial ?? false,
                             serviceFee: product.serviceFee ?? 20,
+                            hasAttributes: hasAttrs,
+                            attrTypes: parsedAttrTypes,
+                            attrOptions: parsedAttrOptions,
                           });
                           setEditProductDialog(true);
                         }}
@@ -746,6 +983,14 @@ export function AdminProductsPage() {
             </div>
           )}
         </TabsContent>
+
+        {/* Categories Tab */}
+        <TabsContent value="categories">
+          <ProductCategoriesManager
+            customCategories={customCategories}
+            actor={actor as any}
+          />
+        </TabsContent>
       </Tabs>
 
       {/* Add Product Dialog */}
@@ -877,6 +1122,71 @@ export function AdminProductsPage() {
                 <p className="text-xs text-muted-foreground">
                   Flat fee charged per meter entry
                 </p>
+              </div>
+            )}
+            {/* Attributes toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold">Product Attributes</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Size, color, flavor etc. — customer must choose before
+                  checkout
+                </p>
+              </div>
+              <Switch
+                checked={form.hasAttributes}
+                onCheckedChange={(v) =>
+                  setForm((f) => ({ ...f, hasAttributes: v }))
+                }
+                data-ocid="admin.product_attributes.switch"
+              />
+            </div>
+            {form.hasAttributes && (
+              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Attribute Types
+                </p>
+                {(["Size", "Color", "Flavor", "Weight"] as const).map(
+                  (type) => (
+                    <div key={type} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`attr-${type}`}
+                          checked={!!form.attrTypes[type]}
+                          onCheckedChange={(checked) =>
+                            setForm((f) => ({
+                              ...f,
+                              attrTypes: { ...f.attrTypes, [type]: !!checked },
+                            }))
+                          }
+                        />
+                        <label
+                          htmlFor={`attr-${type}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {type}
+                        </label>
+                      </div>
+                      {form.attrTypes[type] && (
+                        <Input
+                          placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange, Grape" : "250g, 500g, 1kg"}`}
+                          value={form.attrOptions[type] || ""}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              attrOptions: {
+                                ...f.attrOptions,
+                                [type]: e.target.value,
+                              },
+                            }))
+                          }
+                          className="h-7 text-xs ml-6"
+                          data-ocid={`admin.product_attr_${type.toLowerCase()}.input`}
+                        />
+                      )}
+                    </div>
+                  ),
+                )}
               </div>
             )}
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
@@ -1108,6 +1418,70 @@ export function AdminProductsPage() {
                 />
               </div>
             )}
+            {/* Attributes toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold">Product Attributes</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Size, color, flavor etc.
+                </p>
+              </div>
+              <Switch
+                checked={editProductForm.hasAttributes}
+                onCheckedChange={(v) =>
+                  setEditProductForm((f) => ({ ...f, hasAttributes: v }))
+                }
+                data-ocid="admin.edit_product_attributes.switch"
+              />
+            </div>
+            {editProductForm.hasAttributes && (
+              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Attribute Types
+                </p>
+                {(["Size", "Color", "Flavor", "Weight"] as const).map(
+                  (type) => (
+                    <div key={type} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`edit-attr-${type}`}
+                          checked={!!editProductForm.attrTypes[type]}
+                          onCheckedChange={(checked) =>
+                            setEditProductForm((f) => ({
+                              ...f,
+                              attrTypes: { ...f.attrTypes, [type]: !!checked },
+                            }))
+                          }
+                        />
+                        <label
+                          htmlFor={`edit-attr-${type}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {type}
+                        </label>
+                      </div>
+                      {editProductForm.attrTypes[type] && (
+                        <Input
+                          placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange" : "250g, 500g"}`}
+                          value={editProductForm.attrOptions[type] || ""}
+                          onChange={(e) =>
+                            setEditProductForm((f) => ({
+                              ...f,
+                              attrOptions: {
+                                ...f.attrOptions,
+                                [type]: e.target.value,
+                              },
+                            }))
+                          }
+                          className="h-7 text-xs ml-6"
+                          data-ocid={`admin.edit_product_attr_${type.toLowerCase()}.input`}
+                        />
+                      )}
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -1131,9 +1505,7 @@ export function AdminProductsPage() {
                       : null;
                   if (actor) {
                     // Re-register admin before update in case accessControlState reset after deploy
-                    const adminTok =
-                      getSecretParameter("caffeineAdminToken") || "";
-                    await actor._initializeAccessControlWithSecret(adminTok);
+                    await actor._initializeAccessControl();
                     await (actor as any).updateProduct(
                       editProduct.id,
                       editProductForm.name,
@@ -1147,6 +1519,52 @@ export function AdminProductsPage() {
                         : 0,
                     );
                   }
+                  // Save attributes if enabled
+                  if (editProductForm.hasAttributes) {
+                    const attrsObj: Record<string, string[]> = {};
+                    for (const [type, enabled] of Object.entries(
+                      editProductForm.attrTypes,
+                    )) {
+                      if (
+                        enabled &&
+                        editProductForm.attrOptions[type]?.trim()
+                      ) {
+                        attrsObj[type] = editProductForm.attrOptions[type]
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean);
+                      }
+                    }
+                    if (Object.keys(attrsObj).length > 0 && actor) {
+                      await (actor as any)
+                        .setProductAttributes(
+                          editProduct.id,
+                          JSON.stringify(attrsObj),
+                        )
+                        .catch(() => {});
+                    }
+                  }
+                  const editAttrsJson = editProductForm.hasAttributes
+                    ? (() => {
+                        const attrsObj: Record<string, string[]> = {};
+                        for (const [type, enabled] of Object.entries(
+                          editProductForm.attrTypes,
+                        )) {
+                          if (
+                            enabled &&
+                            editProductForm.attrOptions[type]?.trim()
+                          ) {
+                            attrsObj[type] = editProductForm.attrOptions[type]
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                          }
+                        }
+                        return Object.keys(attrsObj).length > 0
+                          ? JSON.stringify(attrsObj)
+                          : undefined;
+                      })()
+                    : undefined;
                   setProducts((prev) =>
                     prev.map((p) =>
                       p.id === editProduct.id
@@ -1165,6 +1583,7 @@ export function AdminProductsPage() {
                             serviceFee: editProductForm.isSpecial
                               ? editProductForm.serviceFee
                               : undefined,
+                            attributes: editAttrsJson,
                           }
                         : p,
                     ),

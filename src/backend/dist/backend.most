@@ -1,0 +1,267 @@
+// Version: 1.0.0
+type AppUserRole__230886658 =
+  {#admin; #customer; #driver; #operator; #shopper};
+type ApprovalStatus__575141016 = {#approved; #pending; #rejected};
+type ArticleCategory__1012068321 = {id : Text; name : Text};
+type Article__693132840 =
+  {
+    authorPrincipal : Principal;
+    body : Text;
+    categoryId : Text;
+    createdAt : Int;
+    id : Text;
+    imagesJson : ?Text;
+    published : Bool;
+    title : Text
+  };
+type BusinessArea__940090044 =
+  {areaType : Text; id : Text; name : Text; townId : Text};
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type LikeDislike__264720338 =
+  {isLike : Bool; targetId : Text; targetType : Text; userId : Principal};
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type NomayiniBalance__613238210 =
+  {
+    lockedLongTerm : Float;
+    lockedShortTerm : Float;
+    totalEarned : Float;
+    unlockedBalance : Float
+  };
+type NomayiniTransaction__1071440209 =
+  {
+    amount : Float;
+    date : Text;
+    description : Text;
+    id : Text;
+    txType : Text;
+    unlockDate : ?Text
+  };
+type Order__762448211 =
+  {
+    businessAreaId : Text;
+    createdAt : Text;
+    customerId : Text;
+    customerName : Text;
+    customerPhone : Text;
+    dedicatedRetailerId : ?Text;
+    deliveryAreasJson : ?Text;
+    deliveryType : Text;
+    driverId : ?Text;
+    driverName : ?Text;
+    homeAddress : ?Text;
+    id : Text;
+    isWalkIn : Bool;
+    itemsJson : Text;
+    parentOrderId : ?Text;
+    pickupPointId : Text;
+    pickupPointName : Text;
+    shopperId : ?Text;
+    shopperName : ?Text;
+    status : Text;
+    total : Float;
+    townId : Text;
+    updatedAt : Text
+  };
+type PickupPoint__743205916 =
+  {
+    address : Text;
+    id : Text;
+    name : Text;
+    profileImageUrl : ?Text;
+    townId : Text
+  };
+type ProductListing__938014182 =
+  {
+    id : Text;
+    outOfStock : Bool;
+    price : Float;
+    productId : Text;
+    retailerId : Text
+  };
+type Product__853085059 =
+  {
+    approved : Bool;
+    category : Text;
+    description : Text;
+    id : Text;
+    imageEmoji : Text;
+    imagesJson : ?Text;
+    inStock : Bool;
+    isSuggestion : Bool;
+    name : Text;
+    suggestedBy : ?Text
+  };
+type RetailerProduct__212559232 =
+  {
+    category : Text;
+    description : Text;
+    id : Text;
+    imageEmoji : Text;
+    imagesJson : ?Text;
+    inStock : Bool;
+    name : Text;
+    price : Float;
+    retailerId : Text
+  };
+type Retailer__110769534 =
+  {
+    address : Text;
+    businessAreaId : Text;
+    id : Text;
+    name : Text;
+    operatingHoursJson : ?Text;
+    townId : Text
+  };
+type Review__422344017 =
+  {
+    comment : Text;
+    createdAt : Int;
+    id : Text;
+    orderId : Text;
+    rating : Nat;
+    reviewerId : Principal;
+    targetId : Text;
+    targetType : Text
+  };
+type Town__265282092 = {id : Text; name : Text; province : Text};
+type UserProfile__491224006 =
+  {
+    businessAreaId : ?Text;
+    displayName : Text;
+    phone : Text;
+    principal : Principal;
+    registeredAt : Int;
+    registrationStatus : {#active; #pending; #rejected; #updateNeeded};
+    role : AppUserRole__230886658
+  };
+type UserRole__1054455867 = {#admin; #guest; #user};
+actor {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable approvalState :
+    {
+      var approvalStatus :
+        Map__605269027<Principal, ApprovalStatus__575141016>
+    };
+  stable articleCategories :
+    {
+      var root : Node__46230540<Text, ArticleCategory__1012068321>;
+      var size : Nat__490723111
+    };
+  stable articles :
+    {
+      var root : Node__46230540<Text, Article__693132840>;
+      var size : Nat__490723111
+    };
+  stable businessAreas :
+    {
+      var root : Node__46230540<Text, BusinessArea__940090044>;
+      var size : Nat__490723111
+    };
+  stable categoriesList :
+    {var root : Node__46230540<Text, Bool>; var size : Nat__490723111};
+  stable likeDislikes :
+    {
+      var root : Node__46230540<Text, LikeDislike__264720338>;
+      var size : Nat__490723111
+    };
+  stable nomayiniBalances :
+    {
+      var root : Node__46230540<Text, NomayiniBalance__613238210>;
+      var size : Nat__490723111
+    };
+  stable nomayiniTransactions :
+    {
+      var root : Node__46230540<Text, [NomayiniTransaction__1071440209]>;
+      var size : Nat__490723111
+    };
+  stable orderProofImages :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable orders :
+    {
+      var root : Node__46230540<Text, Order__762448211>;
+      var size : Nat__490723111
+    };
+  stable pickupPoints :
+    {
+      var root : Node__46230540<Text, PickupPoint__743205916>;
+      var size : Nat__490723111
+    };
+  stable productAttributesMap :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable productIsSpecial :
+    {var root : Node__46230540<Text, Bool>; var size : Nat__490723111};
+  stable productListings :
+    {
+      var root : Node__46230540<Text, ProductListing__938014182>;
+      var size : Nat__490723111
+    };
+  stable productServiceFee :
+    {var root : Node__46230540<Text, Float>; var size : Nat__490723111};
+  stable products :
+    {
+      var root : Node__46230540<Text, Product__853085059>;
+      var size : Nat__490723111
+    };
+  stable retailerParentId :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductColors :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductFlavors :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductInheritedFrom :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductOosColors :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductOosFlavors :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductOosSizes :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductOosWeights :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductSizes :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProductWeights :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable retailerProducts :
+    {
+      var root : Node__46230540<Text, RetailerProduct__212559232>;
+      var size : Nat__490723111
+    };
+  stable retailers :
+    {
+      var root : Node__46230540<Text, Retailer__110769534>;
+      var size : Nat__490723111
+    };
+  stable reviews :
+    {
+      var root : Node__46230540<Text, Review__422344017>;
+      var size : Nat__490723111
+    };
+  stable shopperAssignments :
+    {var root : Node__46230540<Principal, [Text]>; var size : Nat__490723111};
+  stable towns :
+    {
+      var root : Node__46230540<Text, Town__265282092>;
+      var size : Nat__490723111
+    };
+  stable users :
+    {
+      var root : Node__46230540<Principal, UserProfile__491224006>;
+      var size : Nat__490723111
+    }
+};

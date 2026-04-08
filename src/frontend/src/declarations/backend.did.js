@@ -8,14 +8,14 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+export const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
   'method' : IDL.Text,
   'blob_hash' : IDL.Text,
 });
-export const _CaffeineStorageRefillInformation = IDL.Record({
+export const _ImmutableObjectStorageRefillInformation = IDL.Record({
   'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
 });
-export const _CaffeineStorageRefillResult = IDL.Record({
+export const _ImmutableObjectStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
@@ -23,6 +23,12 @@ export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
+});
+export const NomayiniBalance = IDL.Record({
+  'totalEarned' : IDL.Float64,
+  'unlockedBalance' : IDL.Float64,
+  'lockedLongTerm' : IDL.Float64,
+  'lockedShortTerm' : IDL.Float64,
 });
 export const AppUserRole = IDL.Variant({
   'admin' : IDL.Null,
@@ -45,11 +51,31 @@ export const UserProfile = IDL.Record({
   'registeredAt' : IDL.Int,
   'businessAreaId' : IDL.Opt(IDL.Text),
 });
+export const ArticleCategory = IDL.Record({
+  'id' : IDL.Text,
+  'name' : IDL.Text,
+});
+export const Article = IDL.Record({
+  'id' : IDL.Text,
+  'categoryId' : IDL.Text,
+  'title' : IDL.Text,
+  'body' : IDL.Text,
+  'published' : IDL.Bool,
+  'createdAt' : IDL.Int,
+  'imagesJson' : IDL.Opt(IDL.Text),
+  'authorPrincipal' : IDL.Principal,
+});
 export const BusinessArea = IDL.Record({
   'id' : IDL.Text,
   'name' : IDL.Text,
   'townId' : IDL.Text,
   'areaType' : IDL.Text,
+});
+export const LikeDislike = IDL.Record({
+  'userId' : IDL.Principal,
+  'isLike' : IDL.Bool,
+  'targetType' : IDL.Text,
+  'targetId' : IDL.Text,
 });
 export const ProductListing = IDL.Record({
   'id' : IDL.Text,
@@ -57,6 +83,40 @@ export const ProductListing = IDL.Record({
   'outOfStock' : IDL.Bool,
   'price' : IDL.Float64,
   'retailerId' : IDL.Text,
+});
+export const OrderExtended = IDL.Record({
+  'id' : IDL.Text,
+  'customerName' : IDL.Text,
+  'status' : IDL.Text,
+  'driverId' : IDL.Opt(IDL.Text),
+  'isWalkIn' : IDL.Bool,
+  'shopperProofImagesJson' : IDL.Opt(IDL.Text),
+  'total' : IDL.Float64,
+  'customerPhone' : IDL.Text,
+  'pickupPointId' : IDL.Text,
+  'pickupPointName' : IDL.Text,
+  'dedicatedRetailerId' : IDL.Opt(IDL.Text),
+  'createdAt' : IDL.Text,
+  'deliveryType' : IDL.Text,
+  'deliveryAreasJson' : IDL.Opt(IDL.Text),
+  'parentOrderId' : IDL.Opt(IDL.Text),
+  'updatedAt' : IDL.Text,
+  'homeAddress' : IDL.Opt(IDL.Text),
+  'shopperId' : IDL.Opt(IDL.Text),
+  'townId' : IDL.Text,
+  'customerId' : IDL.Text,
+  'itemsJson' : IDL.Text,
+  'driverName' : IDL.Opt(IDL.Text),
+  'businessAreaId' : IDL.Text,
+  'shopperName' : IDL.Opt(IDL.Text),
+});
+export const NomayiniTransaction = IDL.Record({
+  'id' : IDL.Text,
+  'unlockDate' : IDL.Opt(IDL.Text),
+  'date' : IDL.Text,
+  'description' : IDL.Text,
+  'txType' : IDL.Text,
+  'amount' : IDL.Float64,
 });
 export const Order = IDL.Record({
   'id' : IDL.Text,
@@ -90,7 +150,7 @@ export const PickupPoint = IDL.Record({
   'address' : IDL.Text,
   'profileImageUrl' : IDL.Opt(IDL.Text),
 });
-export const Product = IDL.Record({
+export const ProductExtended = IDL.Record({
   'id' : IDL.Text,
   'suggestedBy' : IDL.Opt(IDL.Text),
   'inStock' : IDL.Bool,
@@ -98,30 +158,50 @@ export const Product = IDL.Record({
   'name' : IDL.Text,
   'description' : IDL.Text,
   'imageEmoji' : IDL.Text,
+  'serviceFee' : IDL.Float64,
   'approved' : IDL.Bool,
   'category' : IDL.Text,
   'imagesJson' : IDL.Opt(IDL.Text),
   'isSpecial' : IDL.Bool,
-  'serviceFee' : IDL.Float64,
 });
-export const RetailerProduct = IDL.Record({
+export const RetailerProductExtended = IDL.Record({
   'id' : IDL.Text,
+  'availableColors' : IDL.Opt(IDL.Text),
   'inStock' : IDL.Bool,
+  'outOfStockColors' : IDL.Opt(IDL.Text),
   'name' : IDL.Text,
   'description' : IDL.Text,
+  'inheritedFrom' : IDL.Opt(IDL.Text),
+  'outOfStockSizes' : IDL.Opt(IDL.Text),
+  'outOfStockFlavors' : IDL.Opt(IDL.Text),
   'imageEmoji' : IDL.Text,
+  'availableWeights' : IDL.Opt(IDL.Text),
+  'availableSizes' : IDL.Opt(IDL.Text),
   'category' : IDL.Text,
   'price' : IDL.Float64,
   'imagesJson' : IDL.Opt(IDL.Text),
   'retailerId' : IDL.Text,
+  'availableFlavors' : IDL.Opt(IDL.Text),
+  'outOfStockWeights' : IDL.Opt(IDL.Text),
 });
-export const Retailer = IDL.Record({
+export const RetailerExtended = IDL.Record({
   'id' : IDL.Text,
   'name' : IDL.Text,
+  'parentRetailerId' : IDL.Opt(IDL.Text),
   'operatingHoursJson' : IDL.Opt(IDL.Text),
   'townId' : IDL.Text,
   'address' : IDL.Text,
   'businessAreaId' : IDL.Text,
+});
+export const Review = IDL.Record({
+  'id' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'reviewerId' : IDL.Principal,
+  'orderId' : IDL.Text,
+  'comment' : IDL.Text,
+  'targetType' : IDL.Text,
+  'rating' : IDL.Nat,
+  'targetId' : IDL.Text,
 });
 export const Town = IDL.Record({
   'id' : IDL.Text,
@@ -139,38 +219,45 @@ export const UserApprovalInfo = IDL.Record({
 });
 
 export const idlService = IDL.Service({
-  '_caffeineStorageBlobIsLive' : IDL.Func(
-      [IDL.Vec(IDL.Nat8)],
-      [IDL.Bool],
+  '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [IDL.Vec(IDL.Bool)],
       ['query'],
     ),
-  '_caffeineStorageBlobsToDelete' : IDL.Func(
+  '_immutableObjectStorageBlobsToDelete' : IDL.Func(
       [],
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       ['query'],
     ),
-  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+  '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       [],
       [],
     ),
-  '_caffeineStorageCreateCertificate' : IDL.Func(
+  '_immutableObjectStorageCreateCertificate' : IDL.Func(
       [IDL.Text],
-      [_CaffeineStorageCreateCertificateResult],
+      [_ImmutableObjectStorageCreateCertificateResult],
       [],
     ),
-  '_caffeineStorageRefillCashier' : IDL.Func(
-      [IDL.Opt(_CaffeineStorageRefillInformation)],
-      [_CaffeineStorageRefillResult],
+  '_immutableObjectStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+      [_ImmutableObjectStorageRefillResult],
       [],
     ),
-  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+  '_initializeAccessControl' : IDL.Func([], [], []),
+  'addArticle' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool],
+      [],
+      [],
+    ),
+  'addArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'addBusinessArea' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
       [],
     ),
+  'addCategory' : IDL.Func([IDL.Text], [], []),
   'addListing' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Float64], [], []),
   'addPickupPoint' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
@@ -178,7 +265,16 @@ export const idlService = IDL.Service({
       [],
     ),
   'addProduct' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64],
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Bool,
+        IDL.Float64,
+      ],
       [],
       [],
     ),
@@ -197,44 +293,105 @@ export const idlService = IDL.Service({
         IDL.Float64,
         IDL.Text,
         IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
       ],
       [],
       [],
     ),
+  'addReview' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Text],
+      [],
+      [],
+    ),
+  'addShopperProof' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'addTown' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
   'approveSuggestion' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'assignShopperToRetailer' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+  'deleteArticle' : IDL.Func([IDL.Text], [], []),
+  'deleteArticleCategory' : IDL.Func([IDL.Text], [], []),
   'deleteBusinessArea' : IDL.Func([IDL.Text], [], []),
+  'deleteCategory' : IDL.Func([IDL.Text], [], []),
   'deleteListing' : IDL.Func([IDL.Text], [], []),
   'deleteOrder' : IDL.Func([IDL.Text], [], []),
   'deletePickupPoint' : IDL.Func([IDL.Text], [], []),
   'deleteProduct' : IDL.Func([IDL.Text], [], []),
+  'deleteProductAttributes' : IDL.Func([IDL.Text], [], []),
   'deleteRetailer' : IDL.Func([IDL.Text], [], []),
   'deleteRetailerProduct' : IDL.Func([IDL.Text], [], []),
   'deleteTown' : IDL.Func([IDL.Text], [], []),
+  'deleteUser' : IDL.Func([IDL.Principal], [], []),
+  'exportRetailerToTown' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [],
+      [],
+    ),
+  'getAllNomayiniBalances' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Text, NomayiniBalance))],
+      ['query'],
+    ),
   'getAllShopperAssignments' : IDL.Func(
       [],
       [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Text)))],
       ['query'],
     ),
   'getAllUsers' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
+  'getArticleCategories' : IDL.Func([], [IDL.Vec(ArticleCategory)], ['query']),
+  'getArticles' : IDL.Func([], [IDL.Vec(Article)], ['query']),
   'getBusinessAreas' : IDL.Func([], [IDL.Vec(BusinessArea)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCategories' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
+  'getLikesDislikesForTarget' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(LikeDislike)],
+      ['query'],
+    ),
   'getListings' : IDL.Func([], [IDL.Vec(ProductListing)], ['query']),
-  'getMyOrders' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
+  'getMyDriverOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+  'getMyOrders' : IDL.Func([IDL.Text], [IDL.Vec(OrderExtended)], ['query']),
   'getMyProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getMyShopperOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+  'getNomayiniBalance' : IDL.Func([], [NomayiniBalance], ['query']),
+  'getNomayiniTransactions' : IDL.Func(
+      [],
+      [IDL.Vec(NomayiniTransaction)],
+      ['query'],
+    ),
   'getOrderById' : IDL.Func([IDL.Text], [IDL.Opt(Order)], ['query']),
-  'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
-  'getOrdersByArea' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-  'getOrdersByCustomerId' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-  'getOrdersByPickupPoint' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-  'getOrdersByStatus' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
+  'getOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+  'getOrdersByArea' : IDL.Func([IDL.Text], [IDL.Vec(OrderExtended)], ['query']),
+  'getOrdersByCustomerId' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(OrderExtended)],
+      ['query'],
+    ),
+  'getOrdersByPickupPoint' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(OrderExtended)],
+      ['query'],
+    ),
+  'getOrdersByStatus' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(OrderExtended)],
+      ['query'],
+    ),
   'getPickupPoints' : IDL.Func([], [IDL.Vec(PickupPoint)], ['query']),
-  'getProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
-  'getRetailerProducts' : IDL.Func([], [IDL.Vec(RetailerProduct)], ['query']),
-  'getRetailers' : IDL.Func([], [IDL.Vec(Retailer)], ['query']),
+  'getProductAttributes' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+      ['query'],
+    ),
+  'getProducts' : IDL.Func([], [IDL.Vec(ProductExtended)], ['query']),
+  'getRetailerProducts' : IDL.Func(
+      [],
+      [IDL.Vec(RetailerProductExtended)],
+      ['query'],
+    ),
+  'getRetailers' : IDL.Func([], [IDL.Vec(RetailerExtended)], ['query']),
+  'getReviewsForTarget' : IDL.Func([IDL.Text], [IDL.Vec(Review)], ['query']),
   'getShopperRetailerIds' : IDL.Func(
       [IDL.Principal],
       [IDL.Vec(IDL.Text)],
@@ -285,14 +442,29 @@ export const idlService = IDL.Service({
       [],
     ),
   'rejectSuggestion' : IDL.Func([IDL.Text], [], []),
+  'renameCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'requestApproval' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
       [],
       [],
     ),
+  'sendNomayiniTokens' : IDL.Func([IDL.Text, IDL.Float64, IDL.Text], [], []),
   'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
+  'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
   'setListingStock' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+  'setProductAttributes' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'setRetailerProductAttributeStock' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+      ],
+      [],
+      [],
+    ),
   'setRetailerProductStock' : IDL.Func([IDL.Text, IDL.Bool], [], []),
   'suggestProduct' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -300,6 +472,14 @@ export const idlService = IDL.Service({
       [],
     ),
   'unassignShopperFromRetailer' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+  'updateArticle' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool],
+      [],
+      [],
+    ),
+  'updateArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'updateCategories' : IDL.Func([IDL.Vec(IDL.Text)], [], []),
+  'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
   'updateOrderStatus' : IDL.Func(
       [
         IDL.Text,
@@ -313,24 +493,57 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'updatePickupPoint' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
+      [],
+      [],
+    ),
+  'updateProduct' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Bool,
+        IDL.Float64,
+      ],
+      [],
+      [],
+    ),
   'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
-  'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64], [], []),
-  'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'updateRetailerProduct' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Float64,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+      ],
+      [],
+      [],
+    ),
+  'wipeAllNomayini' : IDL.Func([], [], []),
+  'wipeAllOrders' : IDL.Func([], [], []),
+  'wipeAllUsers' : IDL.Func([], [], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
     'method' : IDL.Text,
     'blob_hash' : IDL.Text,
   });
-  const _CaffeineStorageRefillInformation = IDL.Record({
+  const _ImmutableObjectStorageRefillInformation = IDL.Record({
     'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
   });
-  const _CaffeineStorageRefillResult = IDL.Record({
+  const _ImmutableObjectStorageRefillResult = IDL.Record({
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
@@ -338,6 +551,12 @@ export const idlFactory = ({ IDL }) => {
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const NomayiniBalance = IDL.Record({
+    'totalEarned' : IDL.Float64,
+    'unlockedBalance' : IDL.Float64,
+    'lockedLongTerm' : IDL.Float64,
+    'lockedShortTerm' : IDL.Float64,
   });
   const AppUserRole = IDL.Variant({
     'admin' : IDL.Null,
@@ -360,11 +579,28 @@ export const idlFactory = ({ IDL }) => {
     'registeredAt' : IDL.Int,
     'businessAreaId' : IDL.Opt(IDL.Text),
   });
+  const ArticleCategory = IDL.Record({ 'id' : IDL.Text, 'name' : IDL.Text });
+  const Article = IDL.Record({
+    'id' : IDL.Text,
+    'categoryId' : IDL.Text,
+    'title' : IDL.Text,
+    'body' : IDL.Text,
+    'published' : IDL.Bool,
+    'createdAt' : IDL.Int,
+    'imagesJson' : IDL.Opt(IDL.Text),
+    'authorPrincipal' : IDL.Principal,
+  });
   const BusinessArea = IDL.Record({
     'id' : IDL.Text,
     'name' : IDL.Text,
     'townId' : IDL.Text,
     'areaType' : IDL.Text,
+  });
+  const LikeDislike = IDL.Record({
+    'userId' : IDL.Principal,
+    'isLike' : IDL.Bool,
+    'targetType' : IDL.Text,
+    'targetId' : IDL.Text,
   });
   const ProductListing = IDL.Record({
     'id' : IDL.Text,
@@ -372,6 +608,40 @@ export const idlFactory = ({ IDL }) => {
     'outOfStock' : IDL.Bool,
     'price' : IDL.Float64,
     'retailerId' : IDL.Text,
+  });
+  const OrderExtended = IDL.Record({
+    'id' : IDL.Text,
+    'customerName' : IDL.Text,
+    'status' : IDL.Text,
+    'driverId' : IDL.Opt(IDL.Text),
+    'isWalkIn' : IDL.Bool,
+    'shopperProofImagesJson' : IDL.Opt(IDL.Text),
+    'total' : IDL.Float64,
+    'customerPhone' : IDL.Text,
+    'pickupPointId' : IDL.Text,
+    'pickupPointName' : IDL.Text,
+    'dedicatedRetailerId' : IDL.Opt(IDL.Text),
+    'createdAt' : IDL.Text,
+    'deliveryType' : IDL.Text,
+    'deliveryAreasJson' : IDL.Opt(IDL.Text),
+    'parentOrderId' : IDL.Opt(IDL.Text),
+    'updatedAt' : IDL.Text,
+    'homeAddress' : IDL.Opt(IDL.Text),
+    'shopperId' : IDL.Opt(IDL.Text),
+    'townId' : IDL.Text,
+    'customerId' : IDL.Text,
+    'itemsJson' : IDL.Text,
+    'driverName' : IDL.Opt(IDL.Text),
+    'businessAreaId' : IDL.Text,
+    'shopperName' : IDL.Opt(IDL.Text),
+  });
+  const NomayiniTransaction = IDL.Record({
+    'id' : IDL.Text,
+    'unlockDate' : IDL.Opt(IDL.Text),
+    'date' : IDL.Text,
+    'description' : IDL.Text,
+    'txType' : IDL.Text,
+    'amount' : IDL.Float64,
   });
   const Order = IDL.Record({
     'id' : IDL.Text,
@@ -405,7 +675,7 @@ export const idlFactory = ({ IDL }) => {
     'address' : IDL.Text,
     'profileImageUrl' : IDL.Opt(IDL.Text),
   });
-  const Product = IDL.Record({
+  const ProductExtended = IDL.Record({
     'id' : IDL.Text,
     'suggestedBy' : IDL.Opt(IDL.Text),
     'inStock' : IDL.Bool,
@@ -413,33 +683,50 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'description' : IDL.Text,
     'imageEmoji' : IDL.Text,
+    'serviceFee' : IDL.Float64,
     'approved' : IDL.Bool,
     'category' : IDL.Text,
     'imagesJson' : IDL.Opt(IDL.Text),
     'isSpecial' : IDL.Bool,
-    'serviceFee' : IDL.Float64,
   });
-  const RetailerProduct = IDL.Record({
+  const RetailerProductExtended = IDL.Record({
     'id' : IDL.Text,
+    'availableColors' : IDL.Opt(IDL.Text),
     'inStock' : IDL.Bool,
+    'outOfStockColors' : IDL.Opt(IDL.Text),
     'name' : IDL.Text,
     'description' : IDL.Text,
+    'inheritedFrom' : IDL.Opt(IDL.Text),
+    'outOfStockSizes' : IDL.Opt(IDL.Text),
+    'outOfStockFlavors' : IDL.Opt(IDL.Text),
     'imageEmoji' : IDL.Text,
+    'availableWeights' : IDL.Opt(IDL.Text),
+    'availableSizes' : IDL.Opt(IDL.Text),
     'category' : IDL.Text,
     'price' : IDL.Float64,
     'imagesJson' : IDL.Opt(IDL.Text),
     'retailerId' : IDL.Text,
-    'availableSizes' : IDL.Opt(IDL.Text),
-    'availableColors' : IDL.Opt(IDL.Text),
+    'availableFlavors' : IDL.Opt(IDL.Text),
+    'outOfStockWeights' : IDL.Opt(IDL.Text),
   });
-  const Retailer = IDL.Record({
+  const RetailerExtended = IDL.Record({
     'id' : IDL.Text,
     'name' : IDL.Text,
+    'parentRetailerId' : IDL.Opt(IDL.Text),
     'operatingHoursJson' : IDL.Opt(IDL.Text),
     'townId' : IDL.Text,
     'address' : IDL.Text,
     'businessAreaId' : IDL.Text,
-    'parentRetailerId' : IDL.Opt(IDL.Text),
+  });
+  const Review = IDL.Record({
+    'id' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'reviewerId' : IDL.Principal,
+    'orderId' : IDL.Text,
+    'comment' : IDL.Text,
+    'targetType' : IDL.Text,
+    'rating' : IDL.Nat,
+    'targetId' : IDL.Text,
   });
   const Town = IDL.Record({
     'id' : IDL.Text,
@@ -457,38 +744,45 @@ export const idlFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
-    '_caffeineStorageBlobIsLive' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
-        [IDL.Bool],
+    '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [IDL.Vec(IDL.Bool)],
         ['query'],
       ),
-    '_caffeineStorageBlobsToDelete' : IDL.Func(
+    '_immutableObjectStorageBlobsToDelete' : IDL.Func(
         [],
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         ['query'],
       ),
-    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+    '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         [],
         [],
       ),
-    '_caffeineStorageCreateCertificate' : IDL.Func(
+    '_immutableObjectStorageCreateCertificate' : IDL.Func(
         [IDL.Text],
-        [_CaffeineStorageCreateCertificateResult],
+        [_ImmutableObjectStorageCreateCertificateResult],
         [],
       ),
-    '_caffeineStorageRefillCashier' : IDL.Func(
-        [IDL.Opt(_CaffeineStorageRefillInformation)],
-        [_CaffeineStorageRefillResult],
+    '_immutableObjectStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+        [_ImmutableObjectStorageRefillResult],
         [],
       ),
-    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_initializeAccessControl' : IDL.Func([], [], []),
+    'addArticle' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool],
+        [],
+        [],
+      ),
+    'addArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'addBusinessArea' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],
         [],
       ),
+    'addCategory' : IDL.Func([IDL.Text], [], []),
     'addListing' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Float64],
         [],
@@ -500,7 +794,16 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'addProduct' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64],
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Bool,
+          IDL.Float64,
+        ],
         [],
         [],
       ),
@@ -525,40 +828,107 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'addReview' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Text],
+        [],
+        [],
+      ),
+    'addShopperProof' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'addTown' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
     'approveSuggestion' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'assignShopperToRetailer' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+    'deleteArticle' : IDL.Func([IDL.Text], [], []),
+    'deleteArticleCategory' : IDL.Func([IDL.Text], [], []),
     'deleteBusinessArea' : IDL.Func([IDL.Text], [], []),
+    'deleteCategory' : IDL.Func([IDL.Text], [], []),
     'deleteListing' : IDL.Func([IDL.Text], [], []),
     'deleteOrder' : IDL.Func([IDL.Text], [], []),
     'deletePickupPoint' : IDL.Func([IDL.Text], [], []),
     'deleteProduct' : IDL.Func([IDL.Text], [], []),
+    'deleteProductAttributes' : IDL.Func([IDL.Text], [], []),
     'deleteRetailer' : IDL.Func([IDL.Text], [], []),
     'deleteRetailerProduct' : IDL.Func([IDL.Text], [], []),
     'deleteTown' : IDL.Func([IDL.Text], [], []),
+    'deleteUser' : IDL.Func([IDL.Principal], [], []),
+    'exportRetailerToTown' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [],
+        [],
+      ),
+    'getAllNomayiniBalances' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, NomayiniBalance))],
+        ['query'],
+      ),
     'getAllShopperAssignments' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Text)))],
         ['query'],
       ),
     'getAllUsers' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
+    'getArticleCategories' : IDL.Func(
+        [],
+        [IDL.Vec(ArticleCategory)],
+        ['query'],
+      ),
+    'getArticles' : IDL.Func([], [IDL.Vec(Article)], ['query']),
     'getBusinessAreas' : IDL.Func([], [IDL.Vec(BusinessArea)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCategories' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
+    'getLikesDislikesForTarget' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(LikeDislike)],
+        ['query'],
+      ),
     'getListings' : IDL.Func([], [IDL.Vec(ProductListing)], ['query']),
-    'getMyOrders' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
+    'getMyDriverOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+    'getMyOrders' : IDL.Func([IDL.Text], [IDL.Vec(OrderExtended)], ['query']),
     'getMyProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getMyShopperOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+    'getNomayiniBalance' : IDL.Func([], [NomayiniBalance], ['query']),
+    'getNomayiniTransactions' : IDL.Func(
+        [],
+        [IDL.Vec(NomayiniTransaction)],
+        ['query'],
+      ),
     'getOrderById' : IDL.Func([IDL.Text], [IDL.Opt(Order)], ['query']),
-    'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
-    'getOrdersByArea' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-    'getOrdersByCustomerId' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-    'getOrdersByPickupPoint' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
-    'getOrdersByStatus' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
+    'getOrders' : IDL.Func([], [IDL.Vec(OrderExtended)], ['query']),
+    'getOrdersByArea' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(OrderExtended)],
+        ['query'],
+      ),
+    'getOrdersByCustomerId' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(OrderExtended)],
+        ['query'],
+      ),
+    'getOrdersByPickupPoint' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(OrderExtended)],
+        ['query'],
+      ),
+    'getOrdersByStatus' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(OrderExtended)],
+        ['query'],
+      ),
     'getPickupPoints' : IDL.Func([], [IDL.Vec(PickupPoint)], ['query']),
-    'getProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
-    'getRetailerProducts' : IDL.Func([], [IDL.Vec(RetailerProduct)], ['query']),
-    'getRetailers' : IDL.Func([], [IDL.Vec(Retailer)], ['query']),
+    'getProductAttributes' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+        ['query'],
+      ),
+    'getProducts' : IDL.Func([], [IDL.Vec(ProductExtended)], ['query']),
+    'getRetailerProducts' : IDL.Func(
+        [],
+        [IDL.Vec(RetailerProductExtended)],
+        ['query'],
+      ),
+    'getRetailers' : IDL.Func([], [IDL.Vec(RetailerExtended)], ['query']),
+    'getReviewsForTarget' : IDL.Func([IDL.Text], [IDL.Vec(Review)], ['query']),
     'getShopperRetailerIds' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(IDL.Text)],
@@ -609,14 +979,29 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'rejectSuggestion' : IDL.Func([IDL.Text], [], []),
+    'renameCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'requestApproval' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
         [],
         [],
       ),
+    'sendNomayiniTokens' : IDL.Func([IDL.Text, IDL.Float64, IDL.Text], [], []),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
+    'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
     'setListingStock' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+    'setProductAttributes' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'setRetailerProductAttributeStock' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
+        [],
+        [],
+      ),
     'setRetailerProductStock' : IDL.Func([IDL.Text, IDL.Bool], [], []),
     'suggestProduct' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -624,6 +1009,14 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'unassignShopperFromRetailer' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+    'updateArticle' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool],
+        [],
+        [],
+      ),
+    'updateArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'updateCategories' : IDL.Func([IDL.Vec(IDL.Text)], [], []),
+    'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
     'updateOrderStatus' : IDL.Func(
         [
           IDL.Text,
@@ -637,33 +1030,45 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
-    'exportRetailerToTown' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [], []),
-        'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'updateListingPrice' : IDL.Func([IDL.Text, IDL.Float64], [], []),
-    'updatePickupPoint' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-    'updateProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool, IDL.Float64], [], []),
-    'addCategory' : IDL.Func([IDL.Text], [], []),
-    'getCategories' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
-    'updateCategories' : IDL.Func([IDL.Vec(IDL.Text)], [], []),
-    'addArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
-    'addArticleCategory' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'addReview' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Text], [], []),
-    'deleteArticle' : IDL.Func([IDL.Text], [], []),
-    'getArticleCategories' : IDL.Func([], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'name': IDL.Text }))], ['query']),
-    'getArticles' : IDL.Func([], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'title': IDL.Text, 'body': IDL.Text, 'categoryId': IDL.Text, 'imagesJson': IDL.Opt(IDL.Text), 'authorPrincipal': IDL.Principal, 'createdAt': IDL.Int, 'published': IDL.Bool }))], ['query']),
-    'getLikesDislikesForTarget' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'targetId': IDL.Text, 'targetType': IDL.Text, 'userId': IDL.Principal, 'isLike': IDL.Bool }))], ['query']),
-    'getReviewsForTarget' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'id': IDL.Text, 'targetId': IDL.Text, 'targetType': IDL.Text, 'reviewerId': IDL.Principal, 'rating': IDL.Nat, 'comment': IDL.Text, 'orderId': IDL.Text, 'createdAt': IDL.Int }))], ['query']),
-    'setLikeDislike' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [], []),
-    'updateArticle' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Bool], [], []),
-    'updateRetailerProduct' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Float64, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)], [], []),
-    'deleteUser' : IDL.Func([IDL.Principal], [], []),
-    'getAllNomayiniBalances' : IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Record({ 'totalEarned': IDL.Float64, 'unlockedBalance': IDL.Float64, 'lockedShortTerm': IDL.Float64, 'lockedLongTerm': IDL.Float64 })))], ['query']),
-    'wipeAllOrders' : IDL.Func([], [], []),
+    'updatePickupPoint' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
+        [],
+        [],
+      ),
+    'updateProduct' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Bool,
+          IDL.Float64,
+        ],
+        [],
+        [],
+      ),
+    'updateRetailerHours' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'updateRetailerProduct' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Float64,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
+        [],
+        [],
+      ),
     'wipeAllNomayini' : IDL.Func([], [], []),
+    'wipeAllOrders' : IDL.Func([], [], []),
     'wipeAllUsers' : IDL.Func([], [], []),
-      'getMyShopperOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
-    'getMyDriverOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
-});
+  });
 };
 
 export const init = ({ IDL }) => { return []; };

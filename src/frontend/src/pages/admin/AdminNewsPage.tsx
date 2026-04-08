@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Edit, Loader2, Newspaper, Plus, Trash2 } from "lucide-react";
+import { Edit, Loader2, Newspaper, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../../hooks/useActor";
@@ -80,6 +80,8 @@ export function AdminNewsPage() {
   // Category form
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCat, setSavingCat] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatValue, setEditCatValue] = useState("");
 
   const fetchData = async () => {
     if (!actor) return;
@@ -237,6 +239,38 @@ export function AdminNewsPage() {
       toast.error("Failed to add category");
     } finally {
       setSavingCat(false);
+    }
+  };
+
+  const handleRenameCategory = async (id: string) => {
+    if (!actor || !editCatValue.trim()) {
+      setEditingCatId(null);
+      return;
+    }
+    try {
+      await (actor as any).updateArticleCategory(id, editCatValue.trim());
+      toast.success("Category renamed");
+      setEditingCatId(null);
+      await fetchData();
+    } catch {
+      toast.error("Failed to rename category");
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!actor) return;
+    if (
+      !confirm(
+        `Delete category "${name}"? Articles in this category won't be affected.`,
+      )
+    )
+      return;
+    try {
+      await (actor as any).deleteArticleCategory(id);
+      toast.success("Category deleted");
+      await fetchData();
+    } catch {
+      toast.error("Failed to delete category");
     }
   };
 
@@ -411,10 +445,68 @@ export function AdminNewsPage() {
                 {categories.map((cat, idx) => (
                   <div
                     key={cat.id}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-border/60 bg-muted/20"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/60 bg-muted/20"
                     data-ocid={`admin.news.category.item.${idx + 1}`}
                   >
-                    <span className="text-sm font-medium">{cat.name}</span>
+                    {editingCatId === cat.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          value={editCatValue}
+                          onChange={(e) => setEditCatValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameCategory(cat.id);
+                            if (e.key === "Escape") setEditingCatId(null);
+                          }}
+                          className="h-7 text-sm flex-1"
+                          autoFocus
+                          data-ocid="admin.news.category.rename_input"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs px-2"
+                          onClick={() => handleRenameCategory(cat.id)}
+                          data-ocid="admin.news.category.save_button"
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs px-2"
+                          onClick={() => setEditingCatId(null)}
+                          data-ocid="admin.news.category.cancel_button"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-sm font-medium">
+                          {cat.name}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            setEditingCatId(cat.id);
+                            setEditCatValue(cat.name);
+                          }}
+                          data-ocid={`admin.news.category.edit_button.${idx + 1}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                          data-ocid={`admin.news.category.delete_button.${idx + 1}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

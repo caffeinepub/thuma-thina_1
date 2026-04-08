@@ -8,15 +8,15 @@ import Runtime "mo:core/Runtime";
 import Int "mo:core/Int";
 import Time "mo:base/Time";
 import Nat "mo:core/Nat";
-import MixinStorage "blob-storage/Mixin";
-import UserApproval "user-approval/approval";
-import Authorization "authorization/access-control";
-import MixinAuthorization "authorization/MixinAuthorization";
+import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
+import UserApproval "mo:caffeineai-user-approval/approval";
+import Authorization "mo:caffeineai-authorization/access-control";
+import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
 
 
 
 persistent actor {
-  include MixinStorage();
+  include MixinObjectStorage();
 
   let accessControlState = Authorization.initState();
   include MixinAuthorization(accessControlState);
@@ -432,6 +432,13 @@ persistent actor {
     inStock : Bool;
     availableSizes : ?Text;
     availableColors : ?Text;
+    availableFlavors : ?Text;
+    availableWeights : ?Text;
+    outOfStockSizes : ?Text;
+    outOfStockColors : ?Text;
+    outOfStockFlavors : ?Text;
+    outOfStockWeights : ?Text;
+    inheritedFrom : ?Text;
   };
 
     type ShopperRetailerAssignments = {
@@ -527,6 +534,16 @@ persistent actor {
   let retailerParentId = Map.empty<Text, Text>();
   let retailerProductSizes = Map.empty<Text, Text>();
   let retailerProductColors = Map.empty<Text, Text>();
+  let retailerProductFlavors = Map.empty<Text, Text>();
+  let retailerProductWeights = Map.empty<Text, Text>();
+  // Out-of-stock attribute maps -- comma-separated lists of OOS options per product
+  let retailerProductOosSizes = Map.empty<Text, Text>();
+  let retailerProductOosColors = Map.empty<Text, Text>();
+  let retailerProductOosFlavors = Map.empty<Text, Text>();
+  let retailerProductOosWeights = Map.empty<Text, Text>();
+  // Track which exported retailer products were inherited from which source product
+  let retailerProductInheritedFrom = Map.empty<Text, Text>();
+  let productAttributesMap = Map.empty<Text, Text>();
 
 
 
@@ -644,6 +661,27 @@ persistent actor {
     };
     retailers.add(newId, retailer);
     retailerParentId.add(newId, sourceRetailerId);
+
+    // Copy all exclusive products from the source retailer to the exported retailer
+    let sourceProducts = retailerProducts.values().toArray().filter(
+      func(rp : RetailerProduct) : Bool { rp.retailerId == sourceRetailerId }
+    );
+    for (rp in sourceProducts.vals()) {
+      let exportedProductId = newId # "_" # rp.id;
+      let exportedProduct : RetailerProduct = {
+        rp with
+        id = exportedProductId;
+        retailerId = newId;
+      };
+      retailerProducts.add(exportedProductId, exportedProduct);
+      // Mark as inherited from original product so frontend can resolve pricing from source
+      retailerProductInheritedFrom.add(exportedProductId, rp.id);
+      // Copy attribute maps if they exist
+      switch (retailerProductSizes.get(rp.id)) { case (?s) { retailerProductSizes.add(exportedProductId, s) }; case null {} };
+      switch (retailerProductColors.get(rp.id)) { case (?c) { retailerProductColors.add(exportedProductId, c) }; case null {} };
+      switch (retailerProductFlavors.get(rp.id)) { case (?f) { retailerProductFlavors.add(exportedProductId, f) }; case null {} };
+      switch (retailerProductWeights.get(rp.id)) { case (?w) { retailerProductWeights.add(exportedProductId, w) }; case null {} };
+    };
   };
 
   public shared ({ caller }) func updateRetailerHours(id : Text, operatingHoursJson : Text) : async () {
@@ -894,6 +932,22 @@ persistent actor {
     switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null {} };
   };
 
+  // Update which attribute options are out of stock for a specific retailer product
+  public shared ({ caller }) func setRetailerProductAttributeStock(id : Text, outOfStockSizes : ?Text, outOfStockColors : ?Text, outOfStockFlavors : ?Text, outOfStockWeights : ?Text) : async () {
+    let callerProfile = requireRegisteredCaller(caller);
+    if (callerProfile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can update attribute stock");
+    };
+    switch (retailerProducts.get(id)) {
+      case (null) { Runtime.trap("RetailerProduct not found") };
+      case (?_) {};
+    };
+    switch (outOfStockSizes) { case (?s) { retailerProductOosSizes.add(id, s) }; case null { retailerProductOosSizes.remove(id) } };
+    switch (outOfStockColors) { case (?c) { retailerProductOosColors.add(id, c) }; case null { retailerProductOosColors.remove(id) } };
+    switch (outOfStockFlavors) { case (?f) { retailerProductOosFlavors.add(id, f) }; case null { retailerProductOosFlavors.remove(id) } };
+    switch (outOfStockWeights) { case (?w) { retailerProductOosWeights.add(id, w) }; case null { retailerProductOosWeights.remove(id) } };
+  };
+
   public shared ({ caller }) func setRetailerProductStock(id : Text, inStock : Bool) : async () {
     if (isAnonymous(caller)) {
       Runtime.trap("Unauthorized: Anonymous users cannot update products");
@@ -925,6 +979,13 @@ persistent actor {
         inStock = rp.inStock;
         availableSizes = retailerProductSizes.get(rp.id);
         availableColors = retailerProductColors.get(rp.id);
+        availableFlavors = retailerProductFlavors.get(rp.id);
+        availableWeights = retailerProductWeights.get(rp.id);
+        outOfStockSizes = retailerProductOosSizes.get(rp.id);
+        outOfStockColors = retailerProductOosColors.get(rp.id);
+        outOfStockFlavors = retailerProductOosFlavors.get(rp.id);
+        outOfStockWeights = retailerProductOosWeights.get(rp.id);
+        inheritedFrom = retailerProductInheritedFrom.get(rp.id);
       }
     });
   };
@@ -1375,6 +1436,23 @@ persistent actor {
     categoriesList.keys().toArray()
   };
 
+  public shared(msg) func deleteCategory(name : Text) : async () {
+    let profile = requireRegisteredCaller(msg.caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can delete categories");
+    };
+    categoriesList.remove(name);
+  };
+
+  public shared(msg) func renameCategory(oldName : Text, newName : Text) : async () {
+    let profile = requireRegisteredCaller(msg.caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can rename categories");
+    };
+    categoriesList.remove(oldName);
+    categoriesList.add(newName, true);
+  };
+
 
   // ─── Articles / Blog ─────────────────────────────────────────────────────
 
@@ -1428,7 +1506,7 @@ persistent actor {
     if (profile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can delete articles");
     };
-    ignore articles.remove(id);
+    articles.remove(id);
   };
 
   public query ({ caller }) func getArticles() : async [Article] {
@@ -1455,6 +1533,27 @@ persistent actor {
 
   public query func getArticleCategories() : async [ArticleCategory] {
     articleCategories.values().toArray()
+  };
+
+  public shared ({ caller }) func updateArticleCategory(id : Text, name : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can update article categories");
+    };
+    switch (articleCategories.get(id)) {
+      case (null) { Runtime.trap("Article category not found") };
+      case (?existing) {
+        articleCategories.add(id, { existing with name });
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteArticleCategory(id : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can delete article categories");
+    };
+    articleCategories.remove(id);
   };
 
   // ─── Reviews & Likes/Dislikes ─────────────────────────────────────────────
@@ -1510,6 +1609,28 @@ persistent actor {
   };
 
 
+  // ─── Product Attributes ───────────────────────────────────────────────
+
+  public shared ({ caller }) func setProductAttributes(productId : Text, attributesJson : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can set product attributes");
+    };
+    productAttributesMap.add(productId, attributesJson);
+  };
+
+  public shared ({ caller }) func deleteProductAttributes(productId : Text) : async () {
+    let profile = requireRegisteredCaller(caller);
+    if (profile.role != #admin) {
+      Runtime.trap("Unauthorized: Only admins can delete product attributes");
+    };
+    productAttributesMap.remove(productId);
+  };
+
+  public query func getProductAttributes() : async [(Text, Text)] {
+    productAttributesMap.entries().toArray()
+  };
+
   // ─── Admin Data Management ─────────────────────────────────────────────────
 
   public shared ({ caller }) func deleteUser(userPrincipal : Principal) : async () {
@@ -1517,10 +1638,10 @@ persistent actor {
     if (profile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can delete users");
     };
-    ignore users.remove(userPrincipal);
+    users.remove(userPrincipal);
     let key = userPrincipal.toText();
-    ignore nomayiniBalances.remove(key);
-    ignore nomayiniTransactions.remove(key);
+    nomayiniBalances.remove(key);
+    nomayiniTransactions.remove(key);
   };
 
   public query ({ caller }) func getAllNomayiniBalances() : async [(Text, NomayiniBalance)] {
@@ -1538,8 +1659,8 @@ persistent actor {
     };
     let ids = orders.keys().toArray();
     for (id in ids.vals()) {
-      ignore orders.remove(id);
-      ignore orderProofImages.remove(id);
+      orders.remove(id);
+      orderProofImages.remove(id);
     };
   };
 
@@ -1549,9 +1670,9 @@ persistent actor {
       Runtime.trap("Unauthorized: Only admins can wipe data");
     };
     let bkeys = nomayiniBalances.keys().toArray();
-    for (k in bkeys.vals()) { ignore nomayiniBalances.remove(k) };
+    for (k in bkeys.vals()) { nomayiniBalances.remove(k) };
     let tkeys = nomayiniTransactions.keys().toArray();
-    for (k in tkeys.vals()) { ignore nomayiniTransactions.remove(k) };
+    for (k in tkeys.vals()) { nomayiniTransactions.remove(k) };
   };
 
   public shared ({ caller }) func wipeAllUsers() : async () {
@@ -1562,7 +1683,7 @@ persistent actor {
     let allUsersList = users.entries().toArray();
     for ((p, userProfile) in allUsersList.vals()) {
       if (userProfile.role != #admin) {
-        ignore users.remove(p);
+        users.remove(p);
       };
     };
   };

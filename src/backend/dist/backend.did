@@ -1,0 +1,380 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   businessAreaId: opt text;
+   displayName: text;
+   phone: text;
+   "principal": principal;
+   registeredAt: int;
+   registrationStatus: variant {
+                         active;
+                         pending;
+                         rejected;
+                         updateNeeded;
+                       };
+   role: AppUserRole;
+ };
+type UserApprovalInfo = 
+ record {
+   "principal": principal;
+   status: ApprovalStatus;
+ };
+type Town = 
+ record {
+   id: text;
+   name: text;
+   province: text;
+ };
+type Review = 
+ record {
+   comment: text;
+   createdAt: int;
+   id: text;
+   orderId: text;
+   rating: nat;
+   reviewerId: principal;
+   targetId: text;
+   targetType: text;
+ };
+type RetailerProductExtended = 
+ record {
+   availableColors: opt text;
+   availableFlavors: opt text;
+   availableSizes: opt text;
+   availableWeights: opt text;
+   category: text;
+   description: text;
+   id: text;
+   imageEmoji: text;
+   imagesJson: opt text;
+   inStock: bool;
+   inheritedFrom: opt text;
+   name: text;
+   outOfStockColors: opt text;
+   outOfStockFlavors: opt text;
+   outOfStockSizes: opt text;
+   outOfStockWeights: opt text;
+   price: float64;
+   retailerId: text;
+ };
+type RetailerExtended = 
+ record {
+   address: text;
+   businessAreaId: text;
+   id: text;
+   name: text;
+   operatingHoursJson: opt text;
+   parentRetailerId: opt text;
+   townId: text;
+ };
+type ProductListing = 
+ record {
+   id: text;
+   outOfStock: bool;
+   price: float64;
+   productId: text;
+   retailerId: text;
+ };
+type ProductExtended = 
+ record {
+   approved: bool;
+   category: text;
+   description: text;
+   id: text;
+   imageEmoji: text;
+   imagesJson: opt text;
+   inStock: bool;
+   isSpecial: bool;
+   isSuggestion: bool;
+   name: text;
+   serviceFee: float64;
+   suggestedBy: opt text;
+ };
+type PickupPoint = 
+ record {
+   address: text;
+   id: text;
+   name: text;
+   profileImageUrl: opt text;
+   townId: text;
+ };
+type OrderExtended = 
+ record {
+   businessAreaId: text;
+   createdAt: text;
+   customerId: text;
+   customerName: text;
+   customerPhone: text;
+   dedicatedRetailerId: opt text;
+   deliveryAreasJson: opt text;
+   deliveryType: text;
+   driverId: opt text;
+   driverName: opt text;
+   homeAddress: opt text;
+   id: text;
+   isWalkIn: bool;
+   itemsJson: text;
+   parentOrderId: opt text;
+   pickupPointId: text;
+   pickupPointName: text;
+   shopperId: opt text;
+   shopperName: opt text;
+   shopperProofImagesJson: opt text;
+   status: text;
+   total: float64;
+   townId: text;
+   updatedAt: text;
+ };
+type Order = 
+ record {
+   businessAreaId: text;
+   createdAt: text;
+   customerId: text;
+   customerName: text;
+   customerPhone: text;
+   dedicatedRetailerId: opt text;
+   deliveryAreasJson: opt text;
+   deliveryType: text;
+   driverId: opt text;
+   driverName: opt text;
+   homeAddress: opt text;
+   id: text;
+   isWalkIn: bool;
+   itemsJson: text;
+   parentOrderId: opt text;
+   pickupPointId: text;
+   pickupPointName: text;
+   shopperId: opt text;
+   shopperName: opt text;
+   status: text;
+   total: float64;
+   townId: text;
+   updatedAt: text;
+ };
+type NomayiniTransaction = 
+ record {
+   amount: float64;
+   date: text;
+   description: text;
+   id: text;
+   txType: text;
+   unlockDate: opt text;
+ };
+type NomayiniBalance = 
+ record {
+   lockedLongTerm: float64;
+   lockedShortTerm: float64;
+   totalEarned: float64;
+   unlockedBalance: float64;
+ };
+type LikeDislike = 
+ record {
+   isLike: bool;
+   targetId: text;
+   targetType: text;
+   userId: principal;
+ };
+type BusinessArea = 
+ record {
+   areaType: text;
+   id: text;
+   name: text;
+   townId: text;
+ };
+type ArticleCategory = 
+ record {
+   id: text;
+   name: text;
+ };
+type Article = 
+ record {
+   authorPrincipal: principal;
+   body: text;
+   categoryId: text;
+   createdAt: int;
+   id: text;
+   imagesJson: opt text;
+   published: bool;
+   title: text;
+ };
+type ApprovalStatus = 
+ variant {
+   approved;
+   pending;
+   rejected;
+ };
+type AppUserRole = 
+ variant {
+   admin;
+   customer;
+   driver;
+   operator;
+   shopper;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControl: () -> ();
+  addArticle: (id: text, title: text, body: text, categoryId: text,
+   imagesJson: opt text, published: bool) -> ();
+  addArticleCategory: (id: text, name: text) -> ();
+  addBusinessArea: (id: text, name: text, townId: text, areaType: text) -> ();
+  addCategory: (name: text) -> ();
+  addListing: (id: text, productId: text, retailerId: text, price:
+   float64) -> ();
+  addPickupPoint: (id: text, name: text, townId: text, address: text,
+   profileImageUrl: opt text) -> ();
+  addProduct: (id: text, name: text, description: text, category: text,
+   imageEmoji: text, imagesJson: opt text, isSpecial: bool, serviceFee:
+   float64) -> ();
+  addRetailer: (id: text, name: text, townId: text, businessAreaId: text,
+   address: text, operatingHoursJson: opt text) -> ();
+  addRetailerProduct: (id: text, retailerId: text, name: text, description:
+   text, category: text, price: float64, imageEmoji: text, imagesJson:
+   opt text, availableSizes: opt text, availableColors: opt text) -> ();
+  addReview: (id: text, targetId: text, targetType: text, rating: nat,
+   comment: text, orderId: text) -> ();
+  addShopperProof: (orderId: text, proofImagesJson: text) -> ();
+  /// *********************************************************
+  ///    * Persistence API Endpoints
+  ///   ***********************************************************
+  addTown: (id: text, name: text, province: text) -> ();
+  approveSuggestion: (id: text) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  assignShopperToRetailer: (shopperPrincipal: principal, retailerId: 
+   text) -> ();
+  deleteArticle: (id: text) -> ();
+  deleteArticleCategory: (id: text) -> ();
+  deleteBusinessArea: (id: text) -> ();
+  deleteCategory: (name: text) -> ();
+  deleteListing: (id: text) -> ();
+  deleteOrder: (id: text) -> ();
+  deletePickupPoint: (id: text) -> ();
+  deleteProduct: (id: text) -> ();
+  deleteProductAttributes: (productId: text) -> ();
+  deleteRetailer: (id: text) -> ();
+  deleteRetailerProduct: (id: text) -> ();
+  deleteTown: (id: text) -> ();
+  deleteUser: (userPrincipal: principal) -> ();
+  exportRetailerToTown: (newId: text, sourceRetailerId: text, name: text,
+   townId: text, businessAreaId: text, address: text) -> ();
+  getAllNomayiniBalances: () -> (vec record {
+                                       text;
+                                       NomayiniBalance;
+                                     }) query;
+  getAllShopperAssignments: () -> (vec record {
+                                         principal;
+                                         vec text;
+                                       }) query;
+  getAllUsers: () -> (vec UserProfile) query;
+  getArticleCategories: () -> (vec ArticleCategory) query;
+  getArticles: () -> (vec Article) query;
+  getBusinessAreas: () -> (vec BusinessArea) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCategories: () -> (vec text) query;
+  getLikesDislikesForTarget: (targetId: text) -> (vec LikeDislike) query;
+  getListings: () -> (vec ProductListing) query;
+  getMyDriverOrders: () -> (vec OrderExtended) query;
+  getMyOrders: (customerId: text) -> (vec OrderExtended) query;
+  getMyProfile: () -> (opt UserProfile) query;
+  getMyShopperOrders: () -> (vec OrderExtended) query;
+  getNomayiniBalance: () -> (NomayiniBalance) query;
+  getNomayiniTransactions: () -> (vec NomayiniTransaction) query;
+  getOrderById: (id: text) -> (opt Order) query;
+  getOrders: () -> (vec OrderExtended) query;
+  getOrdersByArea: (businessAreaId: text) -> (vec OrderExtended) query;
+  getOrdersByCustomerId: (customerId: text) -> (vec OrderExtended) query;
+  getOrdersByPickupPoint: (pickupPointId: text) -> (vec OrderExtended) query;
+  getOrdersByStatus: (statusText: text) -> (vec OrderExtended) query;
+  getPickupPoints: () -> (vec PickupPoint) query;
+  getProductAttributes: () -> (vec record {
+                                     text;
+                                     text;
+                                   }) query;
+  getProducts: () -> (vec ProductExtended) query;
+  getRetailerProducts: () -> (vec RetailerProductExtended) query;
+  getRetailers: () -> (vec RetailerExtended) query;
+  getReviewsForTarget: (targetId: text) -> (vec Review) query;
+  getShopperRetailerIds: (shopperPrincipal: principal) -> (vec text) query;
+  getStaffBusinessArea: (staffPrincipal: principal) -> (opt text) query;
+  getTowns: () -> (vec Town) query;
+  getUserCount: () -> (nat) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  hasAnyAdmin: () -> (bool) query;
+  isCallerAdmin: () -> (bool) query;
+  isCallerApproved: () -> (bool) query;
+  listApprovals: () -> (vec UserApprovalInfo) query;
+  placeOrder: (id: text, customerId: text, customerName: text, customerPhone:
+   text, itemsJson: text, total: float64, deliveryType: text, pickupPointId:
+   text, pickupPointName: text, homeAddress: opt text, townId: text,
+   businessAreaId: text, deliveryAreasJson: opt text, createdAt: text,
+   isWalkIn: bool, parentOrderId: opt text, dedicatedRetailerId: opt text) ->
+   ();
+  registerUser: (role: AppUserRole, displayName: text, phone: text,
+   businessAreaId: opt text) -> ();
+  rejectSuggestion: (id: text) -> ();
+  renameCategory: (oldName: text, newName: text) -> ();
+  requestApproval: () -> ();
+  saveCallerUserProfile: (displayName: text, phone: text, businessAreaId:
+   opt text) -> ();
+  sendNomayiniTokens: (recipientPhone: text, amount: float64, now: text) ->
+   ();
+  setApproval: (user: principal, status: ApprovalStatus) -> ();
+  setLikeDislike: (targetId: text, targetType: text, isLike: bool) -> ();
+  setListingStock: (id: text, outOfStock: bool) -> ();
+  setProductAttributes: (productId: text, attributesJson: text) -> ();
+  setRetailerProductAttributeStock: (id: text, outOfStockSizes: opt text,
+   outOfStockColors: opt text, outOfStockFlavors: opt text,
+   outOfStockWeights: opt text) -> ();
+  setRetailerProductStock: (id: text, inStock: bool) -> ();
+  suggestProduct: (id: text, name: text, description: text, category: 
+   text, imageEmoji: text, suggestedBy: text) -> ();
+  unassignShopperFromRetailer: (shopperPrincipal: principal, retailerId:
+   text) -> ();
+  updateArticle: (id: text, title: text, body: text, categoryId: text,
+   imagesJson: opt text, published: bool) -> ();
+  updateArticleCategory: (id: text, name: text) -> ();
+  updateCategories: (names: vec text) -> ();
+  updateListingPrice: (id: text, price: float64) -> ();
+  updateOrderStatus: (id: text, statusText: text, shopperId: opt text,
+   shopperName: opt text, driverId: opt text, driverName: opt text,
+   updatedAt: text) -> ();
+  updatePickupPoint: (id: text, name: text, address: text, profileImageUrl:
+   opt text) -> ();
+  updateProduct: (id: text, name: text, description: text, category: 
+   text, imageEmoji: text, imagesJson: opt text, isSpecial: bool, serviceFee:
+   float64) -> ();
+  updateRetailerHours: (id: text, operatingHoursJson: text) -> ();
+  updateRetailerProduct: (id: text, name: text, description: text, category:
+   text, price: float64, imageEmoji: text, imagesJson: opt text,
+   availableSizes: opt text, availableColors: opt text) -> ();
+  wipeAllNomayini: () -> ();
+  wipeAllOrders: () -> ();
+  wipeAllUsers: () -> ();
+}

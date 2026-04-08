@@ -102,6 +102,7 @@ export interface Product {
   approved?: boolean;
   isSpecial?: boolean;
   serviceFee?: number;
+  attributes?: string; // JSON string: { "Size": ["S","M","L"], "Color": ["Red","Blue"] }
 }
 
 export interface ProductListing {
@@ -124,6 +125,14 @@ export interface RetailerProduct {
   inStock: boolean;
   availableSizes?: string;
   availableColors?: string;
+  availableFlavors?: string;
+  availableWeights?: string;
+  outOfStockSizes?: string;
+  outOfStockColors?: string;
+  outOfStockFlavors?: string;
+  outOfStockWeights?: string;
+  inheritedFrom?: string;
+  attributes?: string; // JSON string: { "Size": ["S","M","L"], "Color": ["Red","Blue"] }
 }
 
 export interface CartItem {
@@ -135,6 +144,7 @@ export interface CartItem {
   retailerProductId?: string;
   selectedSize?: string;
   selectedColor?: string;
+  selectedAttributes?: Record<string, string>; // attributeType -> chosen option
   meterInputs?: Array<{
     entryId: string;
     meterNumber?: string;
@@ -306,11 +316,28 @@ export function getNextOpeningText(retailer: Retailer): string {
   ];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Check today first — if open time is still in the future today
+  const todayKey = days[now.getDay()];
+  const todaySchedule = retailer.operatingHours[todayKey];
+  if (!todaySchedule.closed) {
+    const [openH, openM] = todaySchedule.open.split(":").map(Number);
+    const todayOpenMinutes = openH * 60 + openM;
+    if (nowMinutes < todayOpenMinutes) {
+      return `Opens today at ${todaySchedule.open}`;
+    }
+  }
+
+  // Otherwise find the next day (tomorrow onwards) that is open
   for (let i = 1; i <= 7; i++) {
     const dayIndex = (now.getDay() + i) % 7;
     const schedule = retailer.operatingHours[days[dayIndex]];
     if (!schedule.closed) {
-      return `Opens ${dayNames[dayIndex]} ${schedule.open}`;
+      if (i === 1) {
+        return `Opens tomorrow at ${schedule.open}`;
+      }
+      return `Opens ${dayNames[dayIndex]} at ${schedule.open}`;
     }
   }
   return "Closed";

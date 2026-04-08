@@ -34,7 +34,6 @@ import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import type { RetailerProduct } from "../../data/mockData";
 import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
-
 // Keywords that trigger beverage/alcohol 18+ warning
 const BEVERAGE_KEYWORDS = [
   "beverage",
@@ -85,11 +84,13 @@ export function CataloguePage() {
   // Category search
   const [catSearch, setCatSearch] = useState("");
 
-  // Size/color selection dialog for exclusive products
+  // Size/color/flavor/weight selection dialog for exclusive products
   const [sizeColorDialog, setSizeColorDialog] = useState(false);
   const [pendingRP, setPendingRP] = useState<RetailerProduct | null>(null);
   const [chosenSize, setChosenSize] = useState("");
   const [chosenColor, setChosenColor] = useState("");
+  const [chosenFlavor, setChosenFlavor] = useState("");
+  const [chosenWeight, setChosenWeight] = useState("");
 
   // Build dynamic categories list from backend
   const dynamicCategories = useMemo(() => {
@@ -157,8 +158,10 @@ export function CataloguePage() {
   ]);
 
   // Filtered retailer exclusive products
+  // Products from exported retailers are now stored directly under their retailer ID.
+  // We keep the parentRetailerId fallback for backward compatibility.
   const filteredRetailerProducts = useMemo(() => {
-    const townRetailerIds =
+    const directTownRetailerIds =
       selectedTownId !== "_all"
         ? new Set(
             retailers
@@ -166,19 +169,52 @@ export function CataloguePage() {
               .map((r) => r.id),
           )
         : null;
-    return retailerProducts.filter((p) => {
-      const matchCat = category === "All" || p.category === category;
-      const matchSearch =
-        !search ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.description.toLowerCase().includes(search.toLowerCase());
-      if (!matchCat || !matchSearch) return false;
-      if (townRetailerIds && !townRetailerIds.has(p.retailerId)) return false;
-      if (selectedRetailerId !== "all") {
-        return p.retailerId === selectedRetailerId;
-      }
-      return true;
-    });
+
+    // Extended set: also include original retailer IDs for any legacy parentRetailerId products
+    const extendedTownRetailerIds: Set<string> | null = directTownRetailerIds
+      ? (() => {
+          const ids = new Set(directTownRetailerIds);
+          for (const r of retailers) {
+            if (r.townId === selectedTownId && r.parentRetailerId) {
+              ids.add(r.parentRetailerId);
+            }
+          }
+          return ids;
+        })()
+      : null;
+
+    return retailerProducts
+      .filter((p) => {
+        const matchCat = category === "All" || p.category === category;
+        const matchSearch =
+          !search ||
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.description.toLowerCase().includes(search.toLowerCase());
+        if (!matchCat || !matchSearch) return false;
+        if (
+          extendedTownRetailerIds &&
+          !extendedTownRetailerIds.has(p.retailerId)
+        )
+          return false;
+        if (selectedRetailerId !== "all") {
+          return p.retailerId === selectedRetailerId;
+        }
+        return true;
+      })
+      .map((p) => {
+        // Legacy: resolve parentRetailerId to exported copy
+        if (directTownRetailerIds && !directTownRetailerIds.has(p.retailerId)) {
+          const exportedRetailer = retailers.find(
+            (r) =>
+              r.townId === selectedTownId &&
+              r.parentRetailerId === p.retailerId,
+          );
+          if (exportedRetailer) {
+            return { ...p, retailerId: exportedRetailer.id };
+          }
+        }
+        return p;
+      });
   }, [
     retailerProducts,
     search,
@@ -318,17 +354,24 @@ export function CataloguePage() {
     return listing?.price ?? null;
   };
 
-  // Handle add exclusive product to cart (with size/color if required)
+  // Handle add exclusive product to cart (with size/color/flavor/weight if required)
   const handleAddRetailerProduct = (rp: RetailerProduct) => {
     if (!isAuthenticated) {
       toast.error("Please log in to add items to your cart");
       return;
     }
-    const needsSizeColor = !!(rp.availableSizes || rp.availableColors);
-    if (needsSizeColor) {
+    const needsOptions = !!(
+      rp.availableSizes ||
+      rp.availableColors ||
+      rp.availableFlavors ||
+      rp.availableWeights
+    );
+    if (needsOptions) {
       setPendingRP(rp);
       setChosenSize("");
       setChosenColor("");
+      setChosenFlavor("");
+      setChosenWeight("");
       setSizeColorDialog(true);
       return;
     }
@@ -344,6 +387,14 @@ export function CataloguePage() {
     }
     if (pendingRP.availableColors && !chosenColor) {
       toast.error("Please select a colour");
+      return;
+    }
+    if (pendingRP.availableFlavors && !chosenFlavor) {
+      toast.error("Please select a flavour");
+      return;
+    }
+    if (pendingRP.availableWeights && !chosenWeight) {
+      toast.error("Please select a weight");
       return;
     }
     addRetailerProductToCart(
@@ -914,13 +965,23 @@ export function CataloguePage() {
                       </span>
                     </div>
                   )}
-                  {/* Size/color badges if available */}
-                  {(rp.availableSizes || rp.availableColors) && (
-                    <p className="text-[10px] text-muted-foreground mb-1">
-                      {rp.availableSizes && `Sizes: ${rp.availableSizes}`}
-                      {rp.availableSizes && rp.availableColors && " · "}
-                      {rp.availableColors && `Colors: ${rp.availableColors}`}
-                    </p>
+                  {/* Size/color/flavor/weight badges if available */}
+                  {(rp.availableSizes ||
+                    rp.availableColors ||
+                    rp.availableFlavors ||
+                    rp.availableWeights) && (
+                    <div className="text-[10px] text-muted-foreground mb-1 space-y-0.5">
+                      {rp.availableSizes && <p>Sizes: {rp.availableSizes}</p>}
+                      {rp.availableColors && (
+                        <p>Colors: {rp.availableColors}</p>
+                      )}
+                      {rp.availableFlavors && (
+                        <p>Flavours: {rp.availableFlavors}</p>
+                      )}
+                      {rp.availableWeights && (
+                        <p>Weights: {rp.availableWeights}</p>
+                      )}
+                    </div>
                   )}
                   {/* Age restriction */}
                   {isBeverage && (
@@ -999,7 +1060,7 @@ export function CataloguePage() {
         </div>
       )}
 
-      {/* Size/Color Selection Dialog */}
+      {/* Size/Color/Flavor/Weight Selection Dialog */}
       <Dialog open={sizeColorDialog} onOpenChange={setSizeColorDialog}>
         <DialogContent
           className="max-w-sm"
@@ -1030,49 +1091,197 @@ export function CataloguePage() {
                 </div>
               </div>
 
-              {pendingRP.availableSizes && (
-                <div className="space-y-1.5">
-                  <Label>Size</Label>
-                  <Select value={chosenSize} onValueChange={setChosenSize}>
-                    <SelectTrigger data-ocid="catalogue.size.select">
-                      <SelectValue placeholder="Select size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pendingRP.availableSizes
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                        .map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {pendingRP.availableSizes &&
+                (() => {
+                  const oosSet = new Set(
+                    (pendingRP.outOfStockSizes ?? "")
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  );
+                  return (
+                    <div className="space-y-1.5">
+                      <Label>Size</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingRP.availableSizes
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                          .map((s) => {
+                            const isOOS = oosSet.has(s);
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                disabled={isOOS}
+                                onClick={() => !isOOS && setChosenSize(s)}
+                                className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                                  isOOS
+                                    ? "opacity-40 cursor-not-allowed bg-muted border-border line-through text-muted-foreground"
+                                    : chosenSize === s
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-card border-border hover:border-primary/50"
+                                }`}
+                                title={isOOS ? "Out of stock" : undefined}
+                                data-ocid={`catalogue.size_option.${s}`}
+                              >
+                                {s}
+                                {isOOS && (
+                                  <span className="ml-1 text-[10px]">
+                                    (OOS)
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
-              {pendingRP.availableColors && (
-                <div className="space-y-1.5">
-                  <Label>Colour</Label>
-                  <Select value={chosenColor} onValueChange={setChosenColor}>
-                    <SelectTrigger data-ocid="catalogue.color.select">
-                      <SelectValue placeholder="Select colour" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pendingRP.availableColors
-                        .split(",")
-                        .map((c) => c.trim())
-                        .filter(Boolean)
-                        .map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {pendingRP.availableColors &&
+                (() => {
+                  const oosSet = new Set(
+                    (pendingRP.outOfStockColors ?? "")
+                      .split(",")
+                      .map((c) => c.trim())
+                      .filter(Boolean),
+                  );
+                  return (
+                    <div className="space-y-1.5">
+                      <Label>Colour</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingRP.availableColors
+                          .split(",")
+                          .map((c) => c.trim())
+                          .filter(Boolean)
+                          .map((c) => {
+                            const isOOS = oosSet.has(c);
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                disabled={isOOS}
+                                onClick={() => !isOOS && setChosenColor(c)}
+                                className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                                  isOOS
+                                    ? "opacity-40 cursor-not-allowed bg-muted border-border line-through text-muted-foreground"
+                                    : chosenColor === c
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-card border-border hover:border-primary/50"
+                                }`}
+                                title={isOOS ? "Out of stock" : undefined}
+                                data-ocid={`catalogue.color_option.${c}`}
+                              >
+                                {c}
+                                {isOOS && (
+                                  <span className="ml-1 text-[10px]">
+                                    (OOS)
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {pendingRP.availableFlavors &&
+                (() => {
+                  const oosSet = new Set(
+                    (pendingRP.outOfStockFlavors ?? "")
+                      .split(",")
+                      .map((f) => f.trim())
+                      .filter(Boolean),
+                  );
+                  return (
+                    <div className="space-y-1.5">
+                      <Label>Flavour</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingRP.availableFlavors
+                          .split(",")
+                          .map((f) => f.trim())
+                          .filter(Boolean)
+                          .map((f) => {
+                            const isOOS = oosSet.has(f);
+                            return (
+                              <button
+                                key={f}
+                                type="button"
+                                disabled={isOOS}
+                                onClick={() => !isOOS && setChosenFlavor(f)}
+                                className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                                  isOOS
+                                    ? "opacity-40 cursor-not-allowed bg-muted border-border line-through text-muted-foreground"
+                                    : chosenFlavor === f
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-card border-border hover:border-primary/50"
+                                }`}
+                                title={isOOS ? "Out of stock" : undefined}
+                                data-ocid={`catalogue.flavor_option.${f}`}
+                              >
+                                {f}
+                                {isOOS && (
+                                  <span className="ml-1 text-[10px]">
+                                    (OOS)
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {pendingRP.availableWeights &&
+                (() => {
+                  const oosSet = new Set(
+                    (pendingRP.outOfStockWeights ?? "")
+                      .split(",")
+                      .map((w) => w.trim())
+                      .filter(Boolean),
+                  );
+                  return (
+                    <div className="space-y-1.5">
+                      <Label>Weight</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingRP.availableWeights
+                          .split(",")
+                          .map((w) => w.trim())
+                          .filter(Boolean)
+                          .map((w) => {
+                            const isOOS = oosSet.has(w);
+                            return (
+                              <button
+                                key={w}
+                                type="button"
+                                disabled={isOOS}
+                                onClick={() => !isOOS && setChosenWeight(w)}
+                                className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                                  isOOS
+                                    ? "opacity-40 cursor-not-allowed bg-muted border-border line-through text-muted-foreground"
+                                    : chosenWeight === w
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-card border-border hover:border-primary/50"
+                                }`}
+                                title={isOOS ? "Out of stock" : undefined}
+                                data-ocid={`catalogue.weight_option.${w}`}
+                              >
+                                {w}
+                                {isOOS && (
+                                  <span className="ml-1 text-[10px]">
+                                    (OOS)
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           )}
           <DialogFooter>

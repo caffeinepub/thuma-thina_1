@@ -31,7 +31,7 @@ import type {
 } from "../data/mockData";
 import { useActor } from "../hooks/useActor";
 import { splitCartIntoSubOrders } from "../utils/orderSplit";
-import { getSecretParameter } from "../utils/urlParams";
+// urlParams import removed — getSecretParameter not needed in this file
 import { useAuth } from "./AuthContext";
 
 // Special shopper marker — used as a sentinel retailer ID to designate special product shoppers
@@ -586,19 +586,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })),
       );
 
-      setRetailerProducts(
-        rawRetailerProducts.map((rp) => ({
-          id: rp.id,
-          retailerId: rp.retailerId,
-          name: rp.name,
-          description: rp.description,
-          category: rp.category as ProductCategory,
-          price: rp.price,
-          imageEmoji: rp.imageEmoji,
-          images: parseImages(rp.imagesJson),
-          inStock: rp.inStock,
-        })),
-      );
+      const mappedRetailerProducts = rawRetailerProducts.map((rp) => ({
+        id: rp.id,
+        retailerId: rp.retailerId,
+        name: rp.name,
+        description: rp.description,
+        category: rp.category as ProductCategory,
+        price: rp.price,
+        imageEmoji: rp.imageEmoji,
+        images: parseImages(rp.imagesJson),
+        inStock: rp.inStock,
+        availableSizes: (rp as any).availableSizes ?? undefined,
+        availableColors: (rp as any).availableColors ?? undefined,
+        availableFlavors: (rp as any).availableFlavors ?? undefined,
+        availableWeights: (rp as any).availableWeights ?? undefined,
+        outOfStockSizes: (rp as any).outOfStockSizes ?? undefined,
+        outOfStockColors: (rp as any).outOfStockColors ?? undefined,
+        outOfStockFlavors: (rp as any).outOfStockFlavors ?? undefined,
+        outOfStockWeights: (rp as any).outOfStockWeights ?? undefined,
+        inheritedFrom: (rp as any).inheritedFrom ?? undefined,
+      }));
+      setRetailerProducts(mappedRetailerProducts);
+
+      // Load product attributes and merge into products and retailerProducts
+      try {
+        const attrEntries: Array<[string, string]> = await (actor as any)
+          .getProductAttributes()
+          .catch(() => []);
+        if (attrEntries && attrEntries.length > 0) {
+          const attrMap = new Map<string, string>(attrEntries);
+          setProducts((prev) =>
+            prev.map((p) =>
+              attrMap.has(p.id) ? { ...p, attributes: attrMap.get(p.id) } : p,
+            ),
+          );
+          setRetailerProducts((prev) =>
+            prev.map((rp) =>
+              attrMap.has(rp.id)
+                ? { ...rp, attributes: attrMap.get(rp.id) }
+                : rp,
+            ),
+          );
+        }
+      } catch {
+        // Non-critical — attributes are optional
+      }
 
       // ── Step 2: Admin-only data (silently skip on failure) ────────────────────
       if (isAdmin) {
@@ -733,8 +765,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Re-register admin in access control after every deployment
   useEffect(() => {
     if (actor && isAdmin) {
-      const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      actor._initializeAccessControlWithSecret(adminToken).catch(console.error);
+      actor._initializeAccessControl().catch(console.error);
     }
   }, [actor, isAdmin]);
 
