@@ -7,8 +7,59 @@ import {
   createRouter,
   redirect,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { AppHeader } from "./components/AppHeader";
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("App crashed:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <div className="max-w-md text-center">
+            <div className="text-5xl mb-4">⚠️</div>
+            <h1 className="font-display text-xl font-bold text-foreground mb-2">
+              Something went wrong
+            </h1>
+            <p className="text-muted-foreground text-sm mb-4">
+              The app encountered an unexpected error. Please refresh the page.
+            </p>
+            {this.state.error && (
+              <p className="text-xs text-muted-foreground/60 font-mono bg-muted rounded p-2 mb-4 text-left break-all">
+                {this.state.error.message}
+              </p>
+            )}
+            <button
+              type="button"
+              className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { AppProvider, useApp } from "./context/AppContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
@@ -473,12 +524,14 @@ declare module "@tanstack/react-router" {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <UserSyncBridge />
-        <RouterProvider router={router} />
-        <Toaster richColors position="top-right" />
-      </AppProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppProvider>
+          <UserSyncBridge />
+          <RouterProvider router={router} />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

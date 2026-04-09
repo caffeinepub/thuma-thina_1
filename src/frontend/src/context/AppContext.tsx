@@ -86,6 +86,8 @@ interface AppContextValue {
     productName: string,
     selectedSize?: string,
     selectedColor?: string,
+    selectedFlavor?: string,
+    selectedWeight?: string,
   ) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
@@ -554,6 +556,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           address: r.address,
           businessAreaId: r.businessAreaId,
           operatingHours: parseOperatingHours(r.operatingHoursJson),
+          parentRetailerId: (r as any).parentRetailerId ?? undefined,
         })),
       );
 
@@ -606,7 +609,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
         outOfStockWeights: (rp as any).outOfStockWeights ?? undefined,
         inheritedFrom: (rp as any).inheritedFrom ?? undefined,
       }));
-      setRetailerProducts(mappedRetailerProducts);
+
+      // FIX 2: Resolve inherited products for exported retailers.
+      // When a retailer is exported to a new town, backend creates a copy with inheritedFrom = originalRetailerId.
+      // Products may still be stored under the original retailer ID (parentRetailerId on retailer).
+      // We need to create virtual copies of the parent retailer's products under the exported retailer ID
+      // so they appear in the correct town's catalogue and carousel after every page load.
+      const mappedRetailers = rawRetailers.map((r) => ({
+        id: r.id,
+        name: r.name,
+        townId: r.townId,
+        address: r.address,
+        businessAreaId: r.businessAreaId,
+        operatingHours: parseOperatingHours(r.operatingHoursJson),
+        parentRetailerId: (r as any).parentRetailerId ?? undefined,
+      }));
+
+      // Build a set of product IDs already in the list (to avoid duplication)
+      const existingProductIds = new Set(
+        mappedRetailerProducts.map((rp) => rp.id),
+      );
+      const inheritedProducts: RetailerProduct[] = [];
+      for (const retailer of mappedRetailers) {
+        if (!retailer.parentRetailerId) continue;
+        // This is an exported retailer — find products belonging to the parent
+        const parentProducts = mappedRetailerProducts.filter(
+          (rp) =>
+            rp.retailerId === retailer.parentRetailerId && !rp.inheritedFrom,
+        );
+        for (const parentProd of parentProducts) {
+          // Create a virtual copy attributed to the exported retailer
+          const inheritedId = `${parentProd.id}_inherited_${retailer.id}`;
+          if (!existingProductIds.has(inheritedId)) {
+            existingProductIds.add(inheritedId);
+            inheritedProducts.push({
+              ...parentProd,
+              id: inheritedId,
+              retailerId: retailer.id,
+              inheritedFrom: parentProd.retailerId,
+            });
+          }
+        }
+      }
+
+      setRetailerProducts([...mappedRetailerProducts, ...inheritedProducts]);
 
       // Load product attributes and merge into products and retailerProducts
       try {
@@ -831,6 +877,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       _productName: string,
       selectedSize?: string,
       selectedColor?: string,
+      selectedFlavor?: string,
+      selectedWeight?: string,
     ) => {
       setCart((prev) => {
         const hasSpecial = prev.some((i) => i.meterInputs !== undefined);
@@ -855,6 +903,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             chosenPrice: price,
             selectedSize,
             selectedColor,
+            selectedFlavor,
+            selectedWeight,
           },
         ];
       });

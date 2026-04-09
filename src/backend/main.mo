@@ -889,7 +889,7 @@ persistent actor {
   };
 
   // RetailerProducts
-  public shared ({ caller }) func addRetailerProduct(id : Text, retailerId : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text) : async () {
+  public shared ({ caller }) func addRetailerProduct(id : Text, retailerId : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text, availableFlavors : ?Text, availableWeights : ?Text) : async () {
     if (not (Authorization.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -907,6 +907,8 @@ persistent actor {
     retailerProducts.add(id, product);
     switch (availableSizes) { case (?s) { retailerProductSizes.add(id, s) }; case null {} };
     switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null {} };
+    switch (availableFlavors) { case (?f) { retailerProductFlavors.add(id, f) }; case null {} };
+    switch (availableWeights) { case (?w) { retailerProductWeights.add(id, w) }; case null {} };
   };
 
   public shared ({ caller }) func deleteRetailerProduct(id : Text) : async () {
@@ -916,7 +918,7 @@ persistent actor {
     retailerProducts.remove(id);
   };
 
-  public shared ({ caller }) func updateRetailerProduct(id : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text) : async () {
+  public shared ({ caller }) func updateRetailerProduct(id : Text, name : Text, description : Text, category : Text, price : Float, imageEmoji : Text, imagesJson : ?Text, availableSizes : ?Text, availableColors : ?Text, availableFlavors : ?Text, availableWeights : ?Text) : async () {
     let callerProfile = requireRegisteredCaller(caller);
     if (callerProfile.role != #admin) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
@@ -928,8 +930,29 @@ persistent actor {
         retailerProducts.add(id, updated);
       };
     };
-    switch (availableSizes) { case (?s) { retailerProductSizes.add(id, s) }; case null {} };
-    switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null {} };
+    switch (availableSizes) { case (?s) { retailerProductSizes.add(id, s) }; case null { retailerProductSizes.remove(id) } };
+    switch (availableColors) { case (?c) { retailerProductColors.add(id, c) }; case null { retailerProductColors.remove(id) } };
+    switch (availableFlavors) { case (?f) { retailerProductFlavors.add(id, f) }; case null { retailerProductFlavors.remove(id) } };
+    switch (availableWeights) { case (?w) { retailerProductWeights.add(id, w) }; case null { retailerProductWeights.remove(id) } };
+
+    // Propagate updates to all exported copies that inherited from this product
+    let inheritedCopies = retailerProducts.values().toArray().filter(
+      func(rp : RetailerProduct) : Bool {
+        switch (retailerProductInheritedFrom.get(rp.id)) {
+          case (?srcId) { srcId == id };
+          case null { false };
+        }
+      }
+    );
+    for (copy in inheritedCopies.vals()) {
+      let updatedCopy = { copy with name; description; category; price; imageEmoji; imagesJson };
+      retailerProducts.add(copy.id, updatedCopy);
+      // Propagate attributes to inherited copies too
+      switch (availableSizes) { case (?s) { retailerProductSizes.add(copy.id, s) }; case null { retailerProductSizes.remove(copy.id) } };
+      switch (availableColors) { case (?c) { retailerProductColors.add(copy.id, c) }; case null { retailerProductColors.remove(copy.id) } };
+      switch (availableFlavors) { case (?f) { retailerProductFlavors.add(copy.id, f) }; case null { retailerProductFlavors.remove(copy.id) } };
+      switch (availableWeights) { case (?w) { retailerProductWeights.add(copy.id, w) }; case null { retailerProductWeights.remove(copy.id) } };
+    };
   };
 
   // Update which attribute options are out of stock for a specific retailer product
@@ -946,6 +969,21 @@ persistent actor {
     switch (outOfStockColors) { case (?c) { retailerProductOosColors.add(id, c) }; case null { retailerProductOosColors.remove(id) } };
     switch (outOfStockFlavors) { case (?f) { retailerProductOosFlavors.add(id, f) }; case null { retailerProductOosFlavors.remove(id) } };
     switch (outOfStockWeights) { case (?w) { retailerProductOosWeights.add(id, w) }; case null { retailerProductOosWeights.remove(id) } };
+  };
+
+  // Get out-of-stock attribute options for a specific retailer product
+  public query func getRetailerProductOosOptions(id : Text) : async {
+    outOfStockSizes : ?Text;
+    outOfStockColors : ?Text;
+    outOfStockFlavors : ?Text;
+    outOfStockWeights : ?Text;
+  } {
+    {
+      outOfStockSizes = retailerProductOosSizes.get(id);
+      outOfStockColors = retailerProductOosColors.get(id);
+      outOfStockFlavors = retailerProductOosFlavors.get(id);
+      outOfStockWeights = retailerProductOosWeights.get(id);
+    }
   };
 
   public shared ({ caller }) func setRetailerProductStock(id : Text, inStock : Bool) : async () {

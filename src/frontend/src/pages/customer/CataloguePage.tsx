@@ -28,13 +28,117 @@ import {
   Star,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
-import type { RetailerProduct } from "../../data/mockData";
+import type { Retailer, RetailerProduct } from "../../data/mockData";
 import { getNextOpeningText, isRetailerOpen } from "../../data/mockData";
-// Keywords that trigger beverage/alcohol 18+ warning
+
+// ─── Countdown helpers (shared pattern) ─────────────────────────────────────
+
+function useCountdown(targetMs: number | null) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (targetMs === null) {
+      setRemaining(null);
+      return;
+    }
+    const tick = () => setRemaining(Math.max(0, targetMs - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+  return remaining;
+}
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function getCountdownTarget(
+  retailer: Retailer,
+): { kind: "closing" | "opening"; targetMs: number } | null {
+  if (!retailer.operatingHours) return null;
+  const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  const now = new Date();
+  const todayKey = DAYS[now.getDay()];
+  const schedule = retailer.operatingHours[todayKey];
+  const nowMs = now.getTime();
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+  const todayAt = (timeStr: string) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+
+  if (!schedule || schedule.closed) {
+    // Closed today — check tomorrow
+    const tomorrowKey = DAYS[(now.getDay() + 1) % 7];
+    const tomorrowSchedule = retailer.operatingHours[tomorrowKey];
+    if (tomorrowSchedule && !tomorrowSchedule.closed) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const [h, m] = tomorrowSchedule.open.split(":").map(Number);
+      tomorrow.setHours(h, m, 0, 0);
+      const openMs = tomorrow.getTime();
+      if (openMs - nowMs <= THREE_HOURS) {
+        return { kind: "opening", targetMs: openMs };
+      }
+    }
+    return null;
+  }
+
+  const closeMs = todayAt(schedule.close);
+  const openMs = todayAt(schedule.open);
+  if (nowMs >= openMs && nowMs < closeMs && closeMs - nowMs <= THREE_HOURS) {
+    return { kind: "closing", targetMs: closeMs };
+  }
+  if (nowMs < openMs && openMs - nowMs <= THREE_HOURS) {
+    return { kind: "opening", targetMs: openMs };
+  }
+  return null;
+}
+
+function RetailerStatusBadge({ retailer }: { retailer: Retailer }) {
+  const countdownInfo = useMemo(() => getCountdownTarget(retailer), [retailer]);
+  const remaining = useCountdown(countdownInfo?.targetMs ?? null);
+  const isOpen = isRetailerOpen(retailer);
+
+  if (countdownInfo && remaining !== null && remaining > 0) {
+    if (countdownInfo.kind === "closing") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+          <Clock className="h-2.5 w-2.5" />
+          Closes in {formatCountdown(remaining)}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+        <Clock className="h-2.5 w-2.5" />
+        Opens in {formatCountdown(remaining)}
+      </span>
+    );
+  }
+
+  return isOpen ? (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+      Open
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+      Closed
+    </span>
+  );
+}
+
 const BEVERAGE_KEYWORDS = [
   "beverage",
   "alcohol",
@@ -404,6 +508,8 @@ export function CataloguePage() {
       pendingRP.name,
       chosenSize || undefined,
       chosenColor || undefined,
+      chosenFlavor || undefined,
+      chosenWeight || undefined,
     );
     toast.success(`${pendingRP.name} added to cart`);
     setSizeColorDialog(false);
@@ -921,11 +1027,6 @@ export function CataloguePage() {
                       <Star className="h-2 w-2 fill-white" />
                       Exclusive
                     </Badge>
-                    {rpRetailerClosed && (
-                      <Badge className="text-[9px] px-1.5 py-0 bg-red-500 text-white border-0 shadow-sm">
-                        Closed
-                      </Badge>
-                    )}
                     {!rpRetailerClosed && !rp.inStock && (
                       <Badge className="text-[9px] px-1.5 py-0 bg-amber-600 text-white border-0 shadow-sm">
                         Out of Stock
@@ -955,6 +1056,12 @@ export function CataloguePage() {
                       {retailer.name}
                       {area ? ` (${area.name})` : ""}
                     </p>
+                  )}
+                  {/* Retailer status with countdown */}
+                  {retailer && (
+                    <div className="mb-1">
+                      <RetailerStatusBadge retailer={retailer} />
+                    </div>
                   )}
                   {/* Town badge */}
                   {town && (
@@ -988,12 +1095,6 @@ export function CataloguePage() {
                     <p className="text-[10px] text-red-600 font-medium mb-1 flex items-center gap-0.5">
                       <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
                       Age restriction: 18+ only
-                    </p>
-                  )}
-                  {rpRetailerClosed && retailer && (
-                    <p className="text-[10px] text-red-600 mb-1 flex items-center gap-0.5">
-                      <Clock className="h-2.5 w-2.5" />
-                      {getNextOpeningText(retailer)}
                     </p>
                   )}
 
@@ -1294,6 +1395,14 @@ export function CataloguePage() {
             </Button>
             <Button
               onClick={confirmSizeColorAdd}
+              disabled={
+                !!(
+                  (pendingRP?.availableSizes && !chosenSize) ||
+                  (pendingRP?.availableColors && !chosenColor) ||
+                  (pendingRP?.availableFlavors && !chosenFlavor) ||
+                  (pendingRP?.availableWeights && !chosenWeight)
+                )
+              }
               data-ocid="catalogue.size_color.confirm_button"
             >
               Add to Cart

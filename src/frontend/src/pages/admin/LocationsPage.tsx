@@ -52,7 +52,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ImageUpload } from "../../components/ImageUpload";
 import { useApp } from "../../context/AppContext";
@@ -66,8 +66,113 @@ import type {
   RetailerProduct,
   Town,
 } from "../../data/mockData";
-import { DEFAULT_OPERATING_HOURS } from "../../data/mockData";
+import { DEFAULT_OPERATING_HOURS, isRetailerOpen } from "../../data/mockData";
 import { useActor } from "../../hooks/useActor";
+
+// ─── Countdown helpers for retailer status ───────────────────────────────────
+
+function useCountdown(targetMs: number | null) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (targetMs === null) {
+      setRemaining(null);
+      return;
+    }
+    const tick = () => setRemaining(Math.max(0, targetMs - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+  return remaining;
+}
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function getRetailerCountdownTarget(
+  retailer: Retailer,
+): { kind: "closing" | "opening"; targetMs: number } | null {
+  if (!retailer.operatingHours) return null;
+  const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  const now = new Date();
+  const todayKey = DAYS[now.getDay()];
+  const schedule = retailer.operatingHours[todayKey];
+  const nowMs = now.getTime();
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+  const todayAt = (timeStr: string) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+
+  if (!schedule || schedule.closed) {
+    const tomorrowKey = DAYS[(now.getDay() + 1) % 7];
+    const tomorrowSchedule = retailer.operatingHours[tomorrowKey];
+    if (tomorrowSchedule && !tomorrowSchedule.closed) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const [h, m] = tomorrowSchedule.open.split(":").map(Number);
+      tomorrow.setHours(h, m, 0, 0);
+      const openMs = tomorrow.getTime();
+      if (openMs - nowMs <= THREE_HOURS)
+        return { kind: "opening", targetMs: openMs };
+    }
+    return null;
+  }
+
+  const closeMs = todayAt(schedule.close);
+  const openMs = todayAt(schedule.open);
+  if (nowMs >= openMs && nowMs < closeMs && closeMs - nowMs <= THREE_HOURS) {
+    return { kind: "closing", targetMs: closeMs };
+  }
+  if (nowMs < openMs && openMs - nowMs <= THREE_HOURS) {
+    return { kind: "opening", targetMs: openMs };
+  }
+  return null;
+}
+
+function RetailerStatusBadge({ retailer }: { retailer: Retailer }) {
+  const countdownInfo = useMemo(
+    () => getRetailerCountdownTarget(retailer),
+    [retailer],
+  );
+  const remaining = useCountdown(countdownInfo?.targetMs ?? null);
+  const isOpen = isRetailerOpen(retailer);
+
+  if (countdownInfo && remaining !== null && remaining > 0) {
+    if (countdownInfo.kind === "closing") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+          <Clock className="h-2.5 w-2.5" />
+          Closes in {formatCountdown(remaining)}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+        <Clock className="h-2.5 w-2.5" />
+        Opens in {formatCountdown(remaining)}
+      </span>
+    );
+  }
+
+  return isOpen ? (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200">
+      Open
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+      Closed
+    </span>
+  );
+}
 
 const DAY_LABELS: { key: keyof OperatingHours; label: string }[] = [
   { key: "mon", label: "Monday" },
@@ -448,6 +553,8 @@ export function AdminLocationsPage() {
           imagesJson,
           sizes,
           colors,
+          flavors,
+          weights,
         );
       }
       const newProduct: RetailerProduct = {
@@ -898,7 +1005,10 @@ export function AdminLocationsPage() {
                             <p className="text-xs text-muted-foreground">
                               {retailer.address}
                             </p>
-                            <div className="flex gap-1 mt-1 flex-wrap">
+                            <div className="flex gap-1 mt-1 flex-wrap items-center">
+                              {retailer.operatingHours && (
+                                <RetailerStatusBadge retailer={retailer} />
+                              )}
                               {rpCount > 0 && (
                                 <Badge
                                   variant="secondary"
@@ -2499,6 +2609,8 @@ export function AdminLocationsPage() {
                       imagesJson,
                       editSizes,
                       editColors,
+                      editFlavors,
+                      editWeights,
                     );
                   // Update out-of-stock attribute options
                   if (actor && editRPForm.hasAttributes) {

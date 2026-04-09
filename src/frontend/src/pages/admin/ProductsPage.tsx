@@ -266,6 +266,10 @@ export function AdminProductsPage() {
       string,
       string
     >,
+    attrOos: { Size: "", Color: "", Flavor: "", Weight: "" } as Record<
+      string,
+      string
+    >,
   });
   const [listingForm, setListingForm] = useState({
     productId: "",
@@ -291,6 +295,10 @@ export function AdminProductsPage() {
       Weight: false,
     } as Record<string, boolean>,
     attrOptions: { Size: "", Color: "", Flavor: "", Weight: "" } as Record<
+      string,
+      string
+    >,
+    attrOos: { Size: "", Color: "", Flavor: "", Weight: "" } as Record<
       string,
       string
     >,
@@ -351,6 +359,15 @@ export function AdminProductsPage() {
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean);
+              // Save out-of-stock options under "Type_oos" key
+              const oosRaw = form.attrOos[type] ?? "";
+              const oosOptions = oosRaw
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              if (oosOptions.length > 0) {
+                attrsObj[`${type}_oos`] = oosOptions;
+              }
             }
           }
           if (Object.keys(attrsObj).length > 0) {
@@ -369,6 +386,14 @@ export function AdminProductsPage() {
                   .split(",")
                   .map((s) => s.trim())
                   .filter(Boolean);
+                const oosRaw = form.attrOos[type] ?? "";
+                const oosOptions = oosRaw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                if (oosOptions.length > 0) {
+                  attrsObj[`${type}_oos`] = oosOptions;
+                }
               }
             }
             return Object.keys(attrsObj).length > 0
@@ -410,6 +435,7 @@ export function AdminProductsPage() {
         hasAttributes: false,
         attrTypes: { Size: false, Color: false, Flavor: false, Weight: false },
         attrOptions: { Size: "", Color: "", Flavor: "", Weight: "" },
+        attrOos: { Size: "", Color: "", Flavor: "", Weight: "" },
       });
     } catch (err) {
       console.error(err);
@@ -667,15 +693,31 @@ export function AdminProductsPage() {
                             Flavor: "",
                             Weight: "",
                           } as Record<string, string>;
+                          let parsedAttrOos = {
+                            Size: "",
+                            Color: "",
+                            Flavor: "",
+                            Weight: "",
+                          } as Record<string, string>;
                           let hasAttrs = false;
                           if (product.attributes) {
                             try {
                               const parsed = JSON.parse(product.attributes);
-                              hasAttrs = Object.keys(parsed).length > 0;
+                              hasAttrs =
+                                Object.keys(parsed).filter(
+                                  (k) => !k.endsWith("_oos"),
+                                ).length > 0;
                               for (const [type, vals] of Object.entries(
                                 parsed,
                               )) {
-                                if (type in parsedAttrTypes) {
+                                if (type.endsWith("_oos")) {
+                                  const baseType = type.replace("_oos", "");
+                                  if (baseType in parsedAttrOos) {
+                                    parsedAttrOos[baseType] = (
+                                      vals as string[]
+                                    ).join(", ");
+                                  }
+                                } else if (type in parsedAttrTypes) {
                                   parsedAttrTypes[type] = true;
                                   parsedAttrOptions[type] = (
                                     vals as string[]
@@ -697,6 +739,7 @@ export function AdminProductsPage() {
                             hasAttributes: hasAttrs,
                             attrTypes: parsedAttrTypes,
                             attrOptions: parsedAttrOptions,
+                            attrOos: parsedAttrOos,
                           });
                           setEditProductDialog(true);
                         }}
@@ -1168,21 +1211,68 @@ export function AdminProductsPage() {
                         </label>
                       </div>
                       {form.attrTypes[type] && (
-                        <Input
-                          placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange, Grape" : "250g, 500g, 1kg"}`}
-                          value={form.attrOptions[type] || ""}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              attrOptions: {
-                                ...f.attrOptions,
-                                [type]: e.target.value,
-                              },
-                            }))
-                          }
-                          className="h-7 text-xs ml-6"
-                          data-ocid={`admin.product_attr_${type.toLowerCase()}.input`}
-                        />
+                        <div className="ml-6 space-y-1.5">
+                          <Input
+                            placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange, Grape" : "250g, 500g, 1kg"}`}
+                            value={form.attrOptions[type] || ""}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                attrOptions: {
+                                  ...f.attrOptions,
+                                  [type]: e.target.value,
+                                },
+                              }))
+                            }
+                            className="h-7 text-xs"
+                            data-ocid={`admin.product_attr_${type.toLowerCase()}.input`}
+                          />
+                          {/* Per-option out-of-stock toggles */}
+                          {form.attrOptions[type]?.trim() && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-muted-foreground font-medium">
+                                Mark out of stock:
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {form.attrOptions[type]
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean)
+                                  .map((opt) => {
+                                    const oosSet = new Set(
+                                      (form.attrOos[type] ?? "")
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean),
+                                    );
+                                    const isOos = oosSet.has(opt);
+                                    const toggleOos = () => {
+                                      const newOos = new Set(oosSet);
+                                      if (isOos) newOos.delete(opt);
+                                      else newOos.add(opt);
+                                      setForm((f) => ({
+                                        ...f,
+                                        attrOos: {
+                                          ...f.attrOos,
+                                          [type]: Array.from(newOos).join(", "),
+                                        },
+                                      }));
+                                    };
+                                    return (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={toggleOos}
+                                        className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${isOos ? "bg-red-100 text-red-700 border-red-200 line-through" : "bg-muted text-muted-foreground border-border hover:border-red-300 hover:text-red-600"}`}
+                                      >
+                                        {opt}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   ),
@@ -1461,21 +1551,68 @@ export function AdminProductsPage() {
                         </label>
                       </div>
                       {editProductForm.attrTypes[type] && (
-                        <Input
-                          placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange" : "250g, 500g"}`}
-                          value={editProductForm.attrOptions[type] || ""}
-                          onChange={(e) =>
-                            setEditProductForm((f) => ({
-                              ...f,
-                              attrOptions: {
-                                ...f.attrOptions,
-                                [type]: e.target.value,
-                              },
-                            }))
-                          }
-                          className="h-7 text-xs ml-6"
-                          data-ocid={`admin.edit_product_attr_${type.toLowerCase()}.input`}
-                        />
+                        <div className="ml-6 space-y-1.5">
+                          <Input
+                            placeholder={`e.g. ${type === "Size" ? "S, M, L, XL" : type === "Color" ? "Red, Blue, Black" : type === "Flavor" ? "Lemon, Orange" : "250g, 500g"}`}
+                            value={editProductForm.attrOptions[type] || ""}
+                            onChange={(e) =>
+                              setEditProductForm((f) => ({
+                                ...f,
+                                attrOptions: {
+                                  ...f.attrOptions,
+                                  [type]: e.target.value,
+                                },
+                              }))
+                            }
+                            className="h-7 text-xs"
+                            data-ocid={`admin.edit_product_attr_${type.toLowerCase()}.input`}
+                          />
+                          {/* Per-option out-of-stock toggles */}
+                          {editProductForm.attrOptions[type]?.trim() && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-muted-foreground font-medium">
+                                Mark out of stock:
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {editProductForm.attrOptions[type]
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean)
+                                  .map((opt) => {
+                                    const oosSet = new Set(
+                                      (editProductForm.attrOos[type] ?? "")
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean),
+                                    );
+                                    const isOos = oosSet.has(opt);
+                                    const toggleOos = () => {
+                                      const newOos = new Set(oosSet);
+                                      if (isOos) newOos.delete(opt);
+                                      else newOos.add(opt);
+                                      setEditProductForm((f) => ({
+                                        ...f,
+                                        attrOos: {
+                                          ...f.attrOos,
+                                          [type]: Array.from(newOos).join(", "),
+                                        },
+                                      }));
+                                    };
+                                    return (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={toggleOos}
+                                        className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${isOos ? "bg-red-100 text-red-700 border-red-200 line-through" : "bg-muted text-muted-foreground border-border hover:border-red-300 hover:text-red-600"}`}
+                                      >
+                                        {opt}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   ),
@@ -1533,6 +1670,15 @@ export function AdminProductsPage() {
                           .split(",")
                           .map((s) => s.trim())
                           .filter(Boolean);
+                        // Include OOS options
+                        const oosRaw = editProductForm.attrOos[type] ?? "";
+                        const oosOptions = oosRaw
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean);
+                        if (oosOptions.length > 0) {
+                          attrsObj[`${type}_oos`] = oosOptions;
+                        }
                       }
                     }
                     if (Object.keys(attrsObj).length > 0 && actor) {
@@ -1558,6 +1704,14 @@ export function AdminProductsPage() {
                               .split(",")
                               .map((s) => s.trim())
                               .filter(Boolean);
+                            const oosRaw = editProductForm.attrOos[type] ?? "";
+                            const oosOptions = oosRaw
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                            if (oosOptions.length > 0) {
+                              attrsObj[`${type}_oos`] = oosOptions;
+                            }
                           }
                         }
                         return Object.keys(attrsObj).length > 0

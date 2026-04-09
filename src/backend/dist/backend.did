@@ -256,7 +256,8 @@ service : {
    address: text, operatingHoursJson: opt text) -> ();
   addRetailerProduct: (id: text, retailerId: text, name: text, description:
    text, category: text, price: float64, imageEmoji: text, imagesJson:
-   opt text, availableSizes: opt text, availableColors: opt text) -> ();
+   opt text, availableSizes: opt text, availableColors: opt text,
+   availableFlavors: opt text, availableWeights: opt text) -> ();
   addReview: (id: text, targetId: text, targetType: text, rating: nat,
    comment: text, orderId: text) -> ();
   addShopperProof: (orderId: text, proofImagesJson: text) -> ();
@@ -318,6 +319,13 @@ service : {
                                      text;
                                    }) query;
   getProducts: () -> (vec ProductExtended) query;
+  getRetailerProductOosOptions: (id: text) ->
+   (record {
+      outOfStockColors: opt text;
+      outOfStockFlavors: opt text;
+      outOfStockSizes: opt text;
+      outOfStockWeights: opt text;
+    }) query;
   getRetailerProducts: () -> (vec RetailerProductExtended) query;
   getRetailers: () -> (vec RetailerExtended) query;
   getReviewsForTarget: (targetId: text) -> (vec Review) query;
@@ -373,7 +381,8 @@ service : {
   updateRetailerHours: (id: text, operatingHoursJson: text) -> ();
   updateRetailerProduct: (id: text, name: text, description: text, category:
    text, price: float64, imageEmoji: text, imagesJson: opt text,
-   availableSizes: opt text, availableColors: opt text) -> ();
+   availableSizes: opt text, availableColors: opt text, availableFlavors:
+   opt text, availableWeights: opt text) -> ();
   wipeAllNomayini: () -> ();
   wipeAllOrders: () -> ();
   wipeAllUsers: () -> ();

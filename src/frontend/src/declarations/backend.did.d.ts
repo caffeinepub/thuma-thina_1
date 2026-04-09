@@ -256,6 +256,8 @@ export interface _SERVICE {
       [] | [string],
       [] | [string],
       [] | [string],
+      [] | [string],
+      [] | [string],
     ],
     undefined
   >,
@@ -319,6 +321,15 @@ export interface _SERVICE {
   'getPickupPoints' : ActorMethod<[], Array<PickupPoint>>,
   'getProductAttributes' : ActorMethod<[], Array<[string, string]>>,
   'getProducts' : ActorMethod<[], Array<ProductExtended>>,
+  'getRetailerProductOosOptions' : ActorMethod<
+    [string],
+    {
+      'outOfStockColors' : [] | [string],
+      'outOfStockSizes' : [] | [string],
+      'outOfStockFlavors' : [] | [string],
+      'outOfStockWeights' : [] | [string],
+    }
+  >,
   'getRetailerProducts' : ActorMethod<[], Array<RetailerProductExtended>>,
   'getRetailers' : ActorMethod<[], Array<RetailerExtended>>,
   'getReviewsForTarget' : ActorMethod<[string], Array<Review>>,
@@ -415,6 +426,8 @@ export interface _SERVICE {
       string,
       number,
       string,
+      [] | [string],
+      [] | [string],
       [] | [string],
       [] | [string],
       [] | [string],

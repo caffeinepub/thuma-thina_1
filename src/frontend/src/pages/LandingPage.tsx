@@ -163,22 +163,11 @@ function getCountdownTarget(
     return d.getTime();
   };
 
-  if (!schedule.closed) {
-    const closeMs = todayAt(schedule.close);
-    const openMs = todayAt(schedule.open);
-    // Within 3 hours of closing
-    if (nowMs >= openMs && nowMs < closeMs && closeMs - nowMs <= THREE_HOURS) {
-      return { kind: "closing", targetMs: closeMs };
-    }
-    // Within 3 hours before opening (still before open today)
-    if (nowMs < openMs && openMs - nowMs <= THREE_HOURS) {
-      return { kind: "opening", targetMs: openMs };
-    }
-  } else {
+  if (!schedule || schedule.closed) {
     // Closed today — check tomorrow
     const tomorrowKey = DAYS[(now.getDay() + 1) % 7];
     const tomorrowSchedule = retailer.operatingHours[tomorrowKey];
-    if (!tomorrowSchedule.closed) {
+    if (tomorrowSchedule && !tomorrowSchedule.closed) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const [h, m] = tomorrowSchedule.open.split(":").map(Number);
@@ -188,6 +177,18 @@ function getCountdownTarget(
         return { kind: "opening", targetMs: openMs };
       }
     }
+    return null;
+  }
+
+  const closeMs = todayAt(schedule.close);
+  const openMs = todayAt(schedule.open);
+  // Within 3 hours of closing
+  if (nowMs >= openMs && nowMs < closeMs && closeMs - nowMs <= THREE_HOURS) {
+    return { kind: "closing", targetMs: closeMs };
+  }
+  // Within 3 hours before opening (still before open today)
+  if (nowMs < openMs && openMs - nowMs <= THREE_HOURS) {
+    return { kind: "opening", targetMs: openMs };
   }
   return null;
 }

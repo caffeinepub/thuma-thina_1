@@ -295,6 +295,8 @@ export const idlService = IDL.Service({
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
       ],
       [],
       [],
@@ -385,6 +387,18 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getProducts' : IDL.Func([], [IDL.Vec(ProductExtended)], ['query']),
+  'getRetailerProductOosOptions' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Record({
+          'outOfStockColors' : IDL.Opt(IDL.Text),
+          'outOfStockSizes' : IDL.Opt(IDL.Text),
+          'outOfStockFlavors' : IDL.Opt(IDL.Text),
+          'outOfStockWeights' : IDL.Opt(IDL.Text),
+        }),
+      ],
+      ['query'],
+    ),
   'getRetailerProducts' : IDL.Func(
       [],
       [IDL.Vec(RetailerProductExtended)],
@@ -521,6 +535,8 @@ export const idlService = IDL.Service({
         IDL.Text,
         IDL.Float64,
         IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
@@ -824,6 +840,8 @@ export const idlFactory = ({ IDL }) => {
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
         ],
         [],
         [],
@@ -922,6 +940,18 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getProducts' : IDL.Func([], [IDL.Vec(ProductExtended)], ['query']),
+    'getRetailerProductOosOptions' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Record({
+            'outOfStockColors' : IDL.Opt(IDL.Text),
+            'outOfStockSizes' : IDL.Opt(IDL.Text),
+            'outOfStockFlavors' : IDL.Opt(IDL.Text),
+            'outOfStockWeights' : IDL.Opt(IDL.Text),
+          }),
+        ],
+        ['query'],
+      ),
     'getRetailerProducts' : IDL.Func(
         [],
         [IDL.Vec(RetailerProductExtended)],
@@ -1058,6 +1088,8 @@ export const idlFactory = ({ IDL }) => {
           IDL.Text,
           IDL.Float64,
           IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),

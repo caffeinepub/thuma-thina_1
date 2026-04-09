@@ -215,7 +215,7 @@ export interface backendInterface {
     addPickupPoint(id: string, name: string, townId: string, address: string, profileImageUrl: string | null): Promise<void>;
     addProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     addRetailer(id: string, name: string, townId: string, businessAreaId: string, address: string, operatingHoursJson: string | null): Promise<void>;
-    addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null): Promise<void>;
+    addRetailerProduct(id: string, retailerId: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null, availableFlavors: string | null, availableWeights: string | null): Promise<void>;
     addReview(id: string, targetId: string, targetType: string, rating: bigint, comment: string, orderId: string): Promise<void>;
     addShopperProof(orderId: string, proofImagesJson: string): Promise<void>;
     /**
@@ -267,6 +267,12 @@ export interface backendInterface {
     getPickupPoints(): Promise<Array<PickupPoint>>;
     getProductAttributes(): Promise<Array<[string, string]>>;
     getProducts(): Promise<Array<ProductExtended>>;
+    getRetailerProductOosOptions(id: string): Promise<{
+        outOfStockColors?: string;
+        outOfStockSizes?: string;
+        outOfStockFlavors?: string;
+        outOfStockWeights?: string;
+    }>;
     getRetailerProducts(): Promise<Array<RetailerProductExtended>>;
     getRetailers(): Promise<Array<RetailerExtended>>;
     getReviewsForTarget(targetId: string): Promise<Array<Review>>;
@@ -302,7 +308,7 @@ export interface backendInterface {
     updatePickupPoint(id: string, name: string, address: string, profileImageUrl: string | null): Promise<void>;
     updateProduct(id: string, name: string, description: string, category: string, imageEmoji: string, imagesJson: string | null, isSpecial: boolean, serviceFee: number): Promise<void>;
     updateRetailerHours(id: string, operatingHoursJson: string): Promise<void>;
-    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null): Promise<void>;
+    updateRetailerProduct(id: string, name: string, description: string, category: string, price: number, imageEmoji: string, imagesJson: string | null, availableSizes: string | null, availableColors: string | null, availableFlavors: string | null, availableWeights: string | null): Promise<void>;
     wipeAllNomayini(): Promise<void>;
     wipeAllOrders(): Promise<void>;
     wipeAllUsers(): Promise<void>;

@@ -294,13 +294,41 @@ export function isRetailerOpen(retailer: Retailer): boolean {
   ];
   const dayKey = days[now.getDay()];
   const schedule = retailer.operatingHours[dayKey];
-  if (schedule.closed) return false;
+  if (!schedule || schedule.closed) return false;
+  if (!schedule.open || !schedule.close) return false;
   const [openH, openM] = schedule.open.split(":").map(Number);
   const [closeH, closeM] = schedule.close.split(":").map(Number);
   const openMinutes = openH * 60 + openM;
   const closeMinutes = closeH * 60 + closeM;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
+}
+
+export function getClosingText(retailer: Retailer): string {
+  if (!retailer.operatingHours) return "";
+  const days: (keyof OperatingHours)[] = [
+    "sun",
+    "mon",
+    "tue",
+    "wed",
+    "thu",
+    "fri",
+    "sat",
+  ];
+  const now = new Date();
+  const dayKey = days[now.getDay()];
+  const schedule = retailer.operatingHours[dayKey];
+  if (!schedule || schedule.closed) return "";
+  if (!schedule.open || !schedule.close) return "";
+  const [closeH, closeM] = schedule.close.split(":").map(Number);
+  const closeMinutes = closeH * 60 + closeM;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const [openH, openM] = schedule.open.split(":").map(Number);
+  const openMinutes = openH * 60 + openM;
+  if (nowMinutes >= openMinutes && nowMinutes < closeMinutes) {
+    return `Closes at ${schedule.close}`;
+  }
+  return "";
 }
 
 export function getNextOpeningText(retailer: Retailer): string {
@@ -314,26 +342,43 @@ export function getNextOpeningText(retailer: Retailer): string {
     "fri",
     "sat",
   ];
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   // Check today first — if open time is still in the future today
-  const todayKey = days[now.getDay()];
+  const todayIdx = now.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+  const todayKey = days[todayIdx];
   const todaySchedule = retailer.operatingHours[todayKey];
-  if (!todaySchedule.closed) {
+  if (todaySchedule && !todaySchedule.closed) {
     const [openH, openM] = todaySchedule.open.split(":").map(Number);
+    const [closeH, closeM] = todaySchedule.close.split(":").map(Number);
     const todayOpenMinutes = openH * 60 + openM;
+    const todayCloseMinutes = closeH * 60 + closeM;
+    // Shop hasn't opened yet today
     if (nowMinutes < todayOpenMinutes) {
       return `Opens today at ${todaySchedule.open}`;
     }
+    // Shop is currently open — show closing time
+    if (nowMinutes >= todayOpenMinutes && nowMinutes < todayCloseMinutes) {
+      return `Closes today at ${todaySchedule.close}`;
+    }
+    // Past closing time today — fall through to next day search
   }
 
-  // Otherwise find the next day (tomorrow onwards) that is open
+  // Find the next day (tomorrow onwards) that is open
   for (let i = 1; i <= 7; i++) {
-    const dayIndex = (now.getDay() + i) % 7;
+    const dayIndex = (todayIdx + i) % 7;
     const schedule = retailer.operatingHours[days[dayIndex]];
-    if (!schedule.closed) {
+    if (schedule && !schedule.closed) {
       if (i === 1) {
         return `Opens tomorrow at ${schedule.open}`;
       }
